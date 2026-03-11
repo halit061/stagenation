@@ -1,0 +1,11 @@
+{
+  "name": "send-ticket-email",
+  "slug": "send-ticket-email",
+  "verify_jwt": true,
+  "files": [
+    {
+      "name": "index.ts",
+      "content_file": "/tmp/cc-agent/61786069/project/supabase/functions/send-ticket-email/index.ts"
+    }
+  ]
+}

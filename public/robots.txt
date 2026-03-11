@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Disallow: /superadmin
+Disallow: /superadmin-reset
+Disallow: /admin
+Disallow: /scanner
+Disallow: /login
+Disallow: /functions/
+Disallow: /rest/
+Disallow: /auth/
+Crawl-delay: 1
+
+Sitemap: https://stagenation.be/sitemap.xml

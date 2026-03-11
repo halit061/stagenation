@@ -1,0 +1,658 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --brand-primary: 245 158 11;
+    --brand-light: 251 191 36;
+    --brand-dark: 217 119 6;
+  }
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #000;
+}
+
+.event-card-hover {
+  filter: grayscale(100%);
+  transition: filter 0.3s ease;
+}
+
+.event-card-hover:hover {
+  filter: grayscale(0%);
+}
+
+/* Safari-specific fixes for form controls */
+input[type="text"],
+input[type="email"],
+input[type="tel"],
+input[type="number"],
+input[type="password"],
+textarea,
+select {
+  appearance: auto;
+  -webkit-appearance: auto;
+  -moz-appearance: auto;
+  color: #ffffff !important;
+  background-color: rgb(15, 23, 42) !important;
+  -webkit-text-fill-color: #ffffff;
+  opacity: 1;
+}
+
+/* Override browser autofill styling */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+textarea:-webkit-autofill:active,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus,
+select:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px rgb(15, 23, 42) inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: rgb(15, 23, 42) !important;
+  color: #ffffff !important;
+  caret-color: #ffffff !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgb(148, 163, 184);
+  opacity: 1;
+  -webkit-text-fill-color: rgb(148, 163, 184);
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="tel"]:focus,
+input[type="number"]:focus,
+input[type="password"]:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: rgb(245, 158, 11) !important;
+}
+
+select option {
+  appearance: auto;
+  -webkit-appearance: auto;
+  background-color: rgb(30, 41, 59) !important;
+  color: #ffffff !important;
+  padding: 8px;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  appearance: auto;
+  -webkit-appearance: auto;
+  -moz-appearance: auto;
+  min-width: 20px;
+  min-height: 20px;
+  cursor: pointer;
+  accent-color: rgb(6, 182, 212);
+  background-color: rgb(51, 65, 85);
+  border: 1px solid rgb(71, 85, 105);
+}
+
+input[type="checkbox"]:checked,
+input[type="radio"]:checked {
+  accent-color: rgb(6, 182, 212);
+  background-color: rgb(6, 182, 212);
+}
+
+input:disabled,
+textarea:disabled,
+select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  color: rgb(148, 163, 184) !important;
+  -webkit-text-fill-color: rgb(148, 163, 184);
+}
+
+button {
+  min-height: 44px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  pointer-events: auto;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+label {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+label:has(input[type="checkbox"]),
+label:has(input[type="radio"]) {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: flex-start;
+  min-height: 44px;
+}
+
+@supports (-webkit-backdrop-filter: none) or (backdrop-filter: none) {
+  .backdrop-blur {
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+  }
+}
+
+@supports not ((-webkit-backdrop-filter: none) or (backdrop-filter: none)) {
+  .backdrop-blur {
+    background-color: rgba(0, 0, 0, 0.9) !important;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  button,
+  label,
+  input[type="checkbox"],
+  input[type="radio"],
+  select {
+    min-height: 44px;
+  }
+}
+
+/* Safari flexbox/grid fixes for form containers */
+form {
+  display: block;
+  width: 100%;
+}
+
+form > * {
+  flex-shrink: 0;
+}
+
+/* Ensure form controls are always visible in Safari */
+input,
+textarea,
+select,
+button {
+  position: relative;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Fix for Safari not showing option elements */
+select {
+  -webkit-writing-mode: horizontal-tb !important;
+  writing-mode: horizontal-tb !important;
+}
+
+/* Ensure containers don't clip form controls */
+.space-y-6 > *,
+.space-y-3 > *,
+.space-y-4 > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ============================================
+   SUPERADMIN LIGHT MODE THEME
+   ============================================ */
+
+.sa-light {
+  --sa-bg: #f8fafc;
+  --sa-sidebar-bg: #ffffff;
+  --sa-sidebar-border: #e2e8f0;
+  --sa-text: #0f172a;
+  --sa-text-secondary: #475569;
+  --sa-text-muted: #94a3b8;
+  --sa-card-bg: #ffffff;
+  --sa-card-border: #e2e8f0;
+  --sa-input-bg: #f1f5f9;
+  --sa-input-border: #cbd5e1;
+  --sa-hover-bg: #f1f5f9;
+  --sa-active-bg: #e2e8f0;
+}
+
+.sa-dark {
+  --sa-bg: transparent;
+  --sa-sidebar-bg: transparent;
+  --sa-sidebar-border: rgb(51, 65, 85);
+  --sa-text: #ffffff;
+  --sa-text-secondary: #cbd5e1;
+  --sa-text-muted: #94a3b8;
+  --sa-card-bg: rgba(30, 41, 59, 0.5);
+  --sa-card-border: rgb(51, 65, 85);
+  --sa-input-bg: rgb(15, 23, 42);
+  --sa-input-border: rgb(51, 65, 85);
+  --sa-hover-bg: rgba(51, 65, 85, 0.5);
+  --sa-active-bg: rgba(51, 65, 85, 0.8);
+}
+
+.sa-light .sa-page {
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0, #f8fafc) !important;
+}
+
+.sa-light .sa-sidebar {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+.sa-light .sa-sidebar-header {
+  border-color: #e2e8f0 !important;
+}
+
+.sa-light .sa-sidebar-footer {
+  border-color: #e2e8f0 !important;
+}
+
+.sa-light .sa-title {
+  color: #0f172a !important;
+}
+
+.sa-light .sa-subtitle {
+  color: #475569 !important;
+}
+
+.sa-light .sa-nav-item {
+  color: #475569 !important;
+}
+
+.sa-light .sa-nav-item:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+.sa-light .sa-nav-item-active {
+  background: #ef4444 !important;
+  color: #ffffff !important;
+}
+
+.sa-light .sa-logout-btn {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.sa-light .sa-logout-btn:hover {
+  background: #e2e8f0 !important;
+}
+
+.sa-light .sa-content {
+  color: #0f172a !important;
+}
+
+.sa-light .sa-content h2,
+.sa-light .sa-content h3,
+.sa-light .sa-content h4 {
+  color: #0f172a !important;
+}
+
+.sa-light .sa-content p {
+  color: #475569 !important;
+}
+
+.sa-light .sa-content .text-white {
+  color: #0f172a !important;
+}
+
+.sa-light .sa-content .text-slate-300,
+.sa-light .sa-content .text-slate-400 {
+  color: #475569 !important;
+}
+
+.sa-light .sa-content .text-slate-500 {
+  color: #64748b !important;
+}
+
+.sa-light .sa-content .bg-slate-800,
+.sa-light .sa-content .bg-slate-800\/50 {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.sa-light .sa-content .bg-slate-900,
+.sa-light .sa-content .bg-slate-900\/50 {
+  background-color: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.sa-light .sa-content .bg-slate-700 {
+  background-color: #f1f5f9 !important;
+}
+
+.sa-light .sa-content .bg-slate-700\/50 {
+  background-color: #f1f5f9 !important;
+}
+
+.sa-light .sa-content .border-slate-700,
+.sa-light .sa-content .border-slate-600 {
+  border-color: #e2e8f0 !important;
+}
+
+.sa-light .sa-content input[type="text"],
+.sa-light .sa-content input[type="email"],
+.sa-light .sa-content input[type="tel"],
+.sa-light .sa-content input[type="number"],
+.sa-light .sa-content input[type="password"],
+.sa-light .sa-content input[type="datetime-local"],
+.sa-light .sa-content input[type="date"],
+.sa-light .sa-content input[type="time"],
+.sa-light .sa-content textarea,
+.sa-light .sa-content select {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+.sa-light .sa-content input::placeholder,
+.sa-light .sa-content textarea::placeholder {
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+}
+
+.sa-light .sa-content select option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+.sa-light .sa-content .hover\:bg-slate-600:hover,
+.sa-light .sa-content .hover\:bg-slate-700:hover {
+  background-color: #e2e8f0 !important;
+}
+
+.sa-light .sa-content table th {
+  color: #475569 !important;
+}
+
+.sa-light .sa-content table td {
+  color: #0f172a !important;
+  border-color: #e2e8f0 !important;
+}
+
+.sa-light .sa-content .text-cyan-400 {
+  color: #0891b2 !important;
+}
+
+.sa-light .sa-content .text-red-400 {
+  color: #ef4444 !important;
+}
+
+.sa-light .sa-content .text-green-400 {
+  color: #16a34a !important;
+}
+
+.sa-light .sa-content .text-amber-400 {
+  color: #d97706 !important;
+}
+
+.sa-light .sa-content .bg-slate-800\/50 {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.sa-light .sa-content .hover\:bg-slate-600:hover {
+  background-color: #e2e8f0 !important;
+}
+
+.sa-light .sa-mobile-header {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+.sa-light .sa-mobile-header .sa-title {
+  color: #0f172a !important;
+}
+
+.sa-light .sa-mobile-header button {
+  color: #475569 !important;
+}
+
+.sa-light .sa-mobile-header button:hover {
+  background: #f1f5f9 !important;
+}
+
+.sa-light .sa-mobile-sidebar {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+.sa-light .sa-mobile-sidebar .sa-sidebar-header {
+  border-color: #e2e8f0 !important;
+}
+
+.sa-light .sa-mobile-sidebar .sa-title {
+  color: #0f172a !important;
+}
+
+.sa-light .sa-mobile-sidebar .sa-nav-item {
+  color: #475569 !important;
+}
+
+.sa-light .sa-mobile-sidebar .sa-nav-item:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+.sa-light .sa-mobile-sidebar .sa-nav-item-active {
+  background: #ef4444 !important;
+  color: #ffffff !important;
+}
+
+.sa-light .sa-mobile-sidebar .sa-sidebar-footer {
+  border-color: #e2e8f0 !important;
+}
+
+.sa-light .sa-mobile-sidebar .sa-logout-btn {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+.sa-light .sa-mobile-sidebar button[class*="hover:bg-slate-700"] {
+  color: #475569 !important;
+}
+
+.sa-light .sa-content > div > .hidden.lg\:flex button {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #475569 !important;
+}
+
+.sa-light .sa-content > div > .hidden.lg\:flex button:hover {
+  background: #f1f5f9 !important;
+}
+
+/* ============================================
+   SUPERADMIN MOBILE SIDEBAR
+   ============================================ */
+
+.sa-mobile-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 40;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.sa-mobile-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (max-width: 1023px) {
+  .sa-sidebar-desktop {
+    display: none !important;
+  }
+
+  .sa-mobile-header {
+    display: flex !important;
+  }
+
+  .sa-mobile-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px;
+    height: 100%;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    overflow-y: auto;
+  }
+
+  .sa-mobile-sidebar.open {
+    transform: translateX(0);
+  }
+}
+
+@media (min-width: 1024px) {
+  .sa-mobile-header {
+    display: none !important;
+  }
+
+  .sa-mobile-sidebar {
+    display: none !important;
+  }
+
+  .sa-mobile-overlay {
+    display: none !important;
+  }
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.25s ease-out;
+}
+
+/* ============================================
+   SPLASH SCREEN ANIMATIONS
+   ============================================ */
+
+@keyframes splash-logo-enter {
+  0% {
+    opacity: 0;
+    transform: scale(0.7);
+    filter: blur(10px);
+  }
+  50% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes splash-logo-shimmer {
+  0% { filter: brightness(1) drop-shadow(0 0 20px rgba(245, 158, 11, 0)); }
+  50% { filter: brightness(1.2) drop-shadow(0 0 40px rgba(245, 158, 11, 0.4)); }
+  100% { filter: brightness(1) drop-shadow(0 0 20px rgba(245, 158, 11, 0)); }
+}
+
+@keyframes splash-tagline-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+    letter-spacing: 0.1em;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    letter-spacing: 0.3em;
+  }
+}
+
+@keyframes splash-loader-fill {
+  0% { width: 0%; }
+  100% { width: 100%; }
+}
+
+@keyframes splash-glow-pulse {
+  0%, 100% { opacity: 0.05; transform: scale(1); }
+  50% { opacity: 0.15; transform: scale(1.1); }
+}
+
+@keyframes splash-particle-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(100vh) scale(0);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-20vh) scale(1);
+  }
+}
+
+.splash-logo-container {
+  animation: splash-logo-enter 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.splash-logo {
+  animation: splash-logo-shimmer 2s ease-in-out 0.8s infinite;
+}
+
+.splash-tagline {
+  opacity: 0;
+  animation: splash-tagline-enter 0.8s ease-out 0.6s forwards;
+}
+
+.splash-loader-bar {
+  animation: splash-loader-fill 2.2s ease-in-out forwards;
+}
+
+.splash-glow-1 {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  width: 600px;
+  height: 600px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.12) 0%, transparent 70%);
+  border-radius: 50%;
+  animation: splash-glow-pulse 3s ease-in-out infinite;
+}
+
+.splash-glow-2 {
+  position: absolute;
+  top: 55%;
+  left: 50%;
+  width: 400px;
+  height: 400px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(217, 119, 6, 0.08) 0%, transparent 70%);
+  border-radius: 50%;
+  animation: splash-glow-pulse 3s ease-in-out 1.5s infinite;
+}
+
+.splash-particle {
+  position: absolute;
+  bottom: -10px;
+  width: 3px;
+  height: 3px;
+  background: rgba(245, 158, 11, 0.6);
+  border-radius: 50%;
+  animation: splash-particle-rise linear infinite;
+}
+

@@ -1,0 +1,90 @@
+# ==============================================
+# Netlify Headers — StageNation
+# Caching + Security
+# ==============================================
+
+# -----------------------------------------------
+# GLOBAL SECURITY HEADERS (all routes)
+# -----------------------------------------------
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  X-XSS-Protection: 1; mode=block
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://maps.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src https://www.google.com https://maps.google.com; object-src 'none'; base-uri 'self'; form-action 'self'
+
+# -----------------------------------------------
+# 1. HASHED STATIC ASSETS (JS, CSS) — immutable
+#    Vite outputs content-hashed filenames under /assets/
+# -----------------------------------------------
+/assets/*.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/*.css
+  Cache-Control: public, max-age=31536000, immutable
+
+# -----------------------------------------------
+# 2. IMAGES & FONTS — immutable (filenames don't change)
+# -----------------------------------------------
+/*.png
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.jpg
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.jpeg
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.svg
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.ico
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.webp
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.woff
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.woff2
+  Cache-Control: public, max-age=31536000, immutable
+
+# -----------------------------------------------
+# 3. PUBLIC SPA ENTRY POINT — short edge cache
+#    Serves all hash-router pages (home, agenda, events, etc.)
+# -----------------------------------------------
+/index.html
+  Cache-Control: public, max-age=60, s-maxage=60, stale-while-revalidate=30
+
+/
+  Cache-Control: public, max-age=60, s-maxage=60, stale-while-revalidate=30
+
+# -----------------------------------------------
+# 4. ADMIN / AUTH PAGES — never cache
+# -----------------------------------------------
+/superadmin
+  Cache-Control: no-store, no-cache, must-revalidate, private
+
+/superadmin.html
+  Cache-Control: no-store, no-cache, must-revalidate, private
+
+# -----------------------------------------------
+# 5. SUPABASE / API PROXIED ROUTES — never cache
+# -----------------------------------------------
+/functions/*
+  Cache-Control: no-store, no-cache, must-revalidate, private
+
+/rest/*
+  Cache-Control: no-store, no-cache, must-revalidate, private
+
+/auth/*
+  Cache-Control: no-store, no-cache, must-revalidate, private
+
+# -----------------------------------------------
+# 6. MANIFEST — short cache
+# -----------------------------------------------
+/manifest.json
+  Cache-Control: public, max-age=3600

@@ -1,0 +1,27 @@
+# Block sensitive paths — return 404 instead of serving index.html
+/.env              /404.html   404
+/.env.*            /404.html   404
+/.git/*            /404.html   404
+/.gitignore        /404.html   404
+/.svn/*            /404.html   404
+/.htaccess         /404.html   404
+/.htpasswd         /404.html   404
+/.DS_Store         /404.html   404
+/wp-admin/*        /404.html   404
+/wp-login.php      /404.html   404
+/wp-content/*      /404.html   404
+/config.php        /404.html   404
+/package.json      /404.html   404
+/package-lock.json /404.html   404
+/tsconfig.json     /404.html   404
+/vite.config.*     /404.html   404
+/node_modules/*    /404.html   404
+/supabase/*        /404.html   404
+/.claude/*         /404.html   404
+
+# Serve dedicated HTML entry points for multi-page routes
+/superadmin        /superadmin.html   200
+/superadmin-reset  /superadmin-reset.html  200
+
+# SPA fallback for all other client-side routing
+/*    /index.html   200
