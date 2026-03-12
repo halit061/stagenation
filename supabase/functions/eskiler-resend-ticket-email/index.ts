@@ -40,7 +40,7 @@ async function buildSingleTicketEmail(ticket: any, event: any, order: any): Prom
   const qrData = ticket.qr_code || ticket.token || ticket.id;
   const qrDataUrl = await generateQRCode(qrData);
 
-  const BASE_URL = Deno.env.get('BASE_URL') || 'https://bizimevents.be';
+  const BASE_URL = Deno.env.get('BASE_URL') || 'https://stagenation.be';
   const viewUrl = `${BASE_URL}/ticket-view?token=${ticket.public_token}`;
 
   const theme = ticket.ticket_types?.theme;
@@ -77,7 +77,7 @@ async function buildSingleTicketEmail(ticket: any, event: any, order: any): Prom
         Je ticket voor ${event.name}
       </h1>
       <p style="color: ${headerText}; opacity: 0.85; margin: 12px 0 0 0; font-size: 16px;">
-        Bedankt voor je aankoop bij Eskiler
+        Bedankt voor je aankoop bij StageNation
       </p>
     </div>
 
@@ -143,10 +143,10 @@ async function buildSingleTicketEmail(ticket: any, event: any, order: any): Prom
     <div style="background-color: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;">
       <p style="color: #64748b; margin: 0; font-size: 14px; line-height: 1.6;">
         Met vriendelijke groeten,<br />
-        <strong style="color: #0f172a;">Eskiler</strong>
+        <strong style="color: #0f172a;">StageNation</strong>
       </p>
       <p style="color: #94a3b8; margin: 16px 0 0 0; font-size: 12px;">
-        Voor vragen, neem contact met ons op via <a href="mailto:info@bizimevents.be" style="color: #0e7490; text-decoration: none;">info@bizimevents.be</a>
+        Voor vragen, neem contact met ons op via <a href="mailto:tickets@stagenation.be" style="color: #0e7490; text-decoration: none;">tickets@stagenation.be</a>
       </p>
     </div>
 
@@ -257,12 +257,12 @@ Deno.serve(async (req: Request) => {
     const emailSubject = `Je ticket voor ${event.name}`;
 
     const resend = new Resend(resendApiKey);
-    const emailFrom = Deno.env.get('EMAIL_FROM') || 'Eskiler Tickets <tickets@lumetrix.be>';
+    const emailFrom = Deno.env.get('EMAIL_FROM') || 'StageNation Tickets <tickets@lumetrix.be>';
 
     const result = await resend.emails.send({
       from: emailFrom,
       to: [recipientEmail],
-      reply_to: 'info@bizimevents.be',
+      reply_to: 'tickets@stagenation.be',
       subject: emailSubject,
       html,
     });

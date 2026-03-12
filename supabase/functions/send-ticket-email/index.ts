@@ -22,7 +22,7 @@ async function generateQRCode(data: string): Promise<string> {
 
 async function sendEmail({ to, subject, html, attachments }: { to: string; subject: string; html: string; attachments?: { filename: string; content: string }[] }): Promise<{ id: string }> {
   const resendApiKey = Deno.env.get('RESEND_API_KEY');
-  const emailFrom = Deno.env.get('EMAIL_FROM') || 'BizimEvents Tickets <tickets@lumetrix.be>';
+  const emailFrom = Deno.env.get('EMAIL_FROM') || 'StageNation Tickets <tickets@lumetrix.be>';
 
   if (!resendApiKey) {
     console.error('CRITICAL: RESEND_API_KEY is not configured!');
@@ -35,7 +35,7 @@ async function sendEmail({ to, subject, html, attachments }: { to: string; subje
     const emailPayload: any = {
       from: emailFrom,
       to: [to],
-      reply_to: 'info@bizimevents.be',
+      reply_to: 'tickets@stagenation.be',
       subject,
       html,
     };
@@ -189,11 +189,11 @@ async function buildTableReservationEmail(order: any, event: any, tableBookings:
     ? `${supabaseUrl}/storage/v1/object/public/${event.logo_url}`
     : 'https://i.imgur.com/placeholder.png';
 
-  const BASE_URL = Deno.env.get('BASE_URL') || 'https://bizimevents.be';
-  const eskilerLogoUrl = `${BASE_URL}/eskiler-logo-4.png`;
+  const BASE_URL = Deno.env.get('BASE_URL') || 'https://stagenation.be';
+  const brandLogoUrl = `${BASE_URL}/stagenation-logo.webp`;
 
-  const footerName = brand?.display_name || brand?.name || 'BizimEvents';
-  const footerEmail = brand?.support_email || brand?.email || 'info@bizimevents.be';
+  const footerName = brand?.display_name || brand?.name || 'StageNation';
+  const footerEmail = brand?.support_email || brand?.email || 'tickets@stagenation.be';
 
   const tableQrCodes = await Promise.all(
     tableBookings.map(async (booking) => {
@@ -265,7 +265,7 @@ async function buildTableReservationEmail(order: any, event: any, tableBookings:
         Je tafelreservatie voor ${event.name}
       </h1>
       <p style="color: #e0f2fe; margin: 12px 0 0 0; font-size: 16px;">
-        Bedankt voor je reservatie bij BizimEvents
+        Bedankt voor je reservatie bij StageNation
       </p>
     </div>
 
@@ -348,11 +348,11 @@ async function buildTicketEmail(order: any, event: any, tickets: any[], brand: a
     ? `${supabaseUrl}/storage/v1/object/public/${event.logo_url}`
     : 'https://i.imgur.com/placeholder.png';
 
-  const BASE_URL = Deno.env.get('BASE_URL') || 'https://bizimevents.be';
-  const eskilerLogoUrl = `${BASE_URL}/eskiler-logo-4.png`;
+  const BASE_URL = Deno.env.get('BASE_URL') || 'https://stagenation.be';
+  const brandLogoUrl = `${BASE_URL}/stagenation-logo.webp`;
 
-  const footerName = brand?.display_name || brand?.name || 'BizimEvents';
-  const footerEmail = brand?.support_email || brand?.email || 'info@bizimevents.be';
+  const footerName = brand?.display_name || brand?.name || 'StageNation';
+  const footerEmail = brand?.support_email || brand?.email || 'tickets@stagenation.be';
 
   const ticketRows = qrCodes
     .map(
@@ -435,7 +435,7 @@ async function buildTicketEmail(order: any, event: any, tickets: any[], brand: a
         Je tickets voor ${event.name}
       </h1>
       <p style="color: ${emailHeaderText}; opacity: 0.85; margin: 12px 0 0 0; font-size: 16px;">
-        Bedankt voor je aankoop bij BizimEvents
+        Bedankt voor je aankoop bij StageNation
       </p>
     </div>
 

@@ -72,12 +72,12 @@ Deno.serve(async (req: Request) => {
   function jsonResponse(body: Record<string, unknown>, status: number, extraHeaders?: Record<string, string>) {
     return new Response(JSON.stringify(body), {
       status,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json', 'X-Bizim-Version': VERSION, ...extraHeaders },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json', 'X-StageNation-Version': VERSION, ...extraHeaders },
     });
   }
 
   if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 200, headers: { ...corsHeaders, 'X-Bizim-Version': VERSION } });
+    return new Response(null, { status: 200, headers: { ...corsHeaders, 'X-StageNation-Version': VERSION } });
   }
 
   if (req.method === 'GET' || req.method === 'HEAD') {
@@ -172,8 +172,8 @@ Deno.serve(async (req: Request) => {
 
     // SECURITY: Whitelist allowed redirect origins to prevent open redirect attacks
     const ALLOWED_ORIGINS = [
-      'https://bizimevents.be',
-      'https://www.bizimevents.be',
+      'https://stagenation.be',
+      'https://www.stagenation.be',
       Deno.env.get('BASE_URL'),
     ].filter(Boolean) as string[];
 
@@ -185,7 +185,7 @@ Deno.serve(async (req: Request) => {
     if (ALLOWED_ORIGINS.some(allowed => sanitizedOrigin === allowed)) {
       BASE_URL = sanitizedOrigin;
     } else {
-      BASE_URL = Deno.env.get('BASE_URL') || 'https://bizimevents.be';
+      BASE_URL = Deno.env.get('BASE_URL') || 'https://stagenation.be';
       console.warn(`[create-payment] Blocked redirect to untrusted origin: ${sanitizedOrigin}`);
     }
 
@@ -204,7 +204,7 @@ Deno.serve(async (req: Request) => {
       },
       body: JSON.stringify({
         amount: { currency: 'EUR', value: amountInEuros },
-        description: 'BizimEvents Tickets',
+        description: 'StageNation Tickets',
         redirectUrl,
         cancelUrl,
         webhookUrl,
@@ -214,7 +214,7 @@ Deno.serve(async (req: Request) => {
           email: order.payer_email,
           event_id: order.event_id,
           type: 'tickets',
-          brand: 'bizimevents',
+          brand: 'stagenation',
         },
         method: null,
       }),

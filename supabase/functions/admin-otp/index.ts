@@ -19,7 +19,7 @@ async function sendOtpEmail(
 ): Promise<{ id: string }> {
   const resendApiKey = Deno.env.get('RESEND_API_KEY');
   const emailFrom =
-    Deno.env.get('EMAIL_FROM') || 'BizimEvents <noreply@lumetrix.be>';
+    Deno.env.get('EMAIL_FROM') || 'StageNation <noreply@lumetrix.be>';
 
   if (!resendApiKey) {
     throw new Error('Email service not configured - RESEND_API_KEY missing');
@@ -54,7 +54,7 @@ async function sendOtpEmail(
     </p>
     <hr style="border: none; border-top: 1px solid #333; margin: 30px 0;">
     <p style="color: #666; font-size: 12px; text-align: center;">
-      BizimEvents - SuperAdmin Security
+      StageNation - SuperAdmin Security
     </p>
   </div>
 </body>
@@ -63,8 +63,8 @@ async function sendOtpEmail(
   const result = await resend.emails.send({
     from: emailFrom,
     to: [to],
-    reply_to: 'info@bizimevents.be',
-    subject: 'SuperAdmin Verificatiecode - BizimEvents',
+    reply_to: 'tickets@stagenation.be',
+    subject: 'SuperAdmin Verificatiecode - StageNation',
     html,
   });
 

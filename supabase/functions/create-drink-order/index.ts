@@ -283,8 +283,8 @@ Deno.serve(async (req: Request) => {
     // Create Mollie payment
     // SECURITY: Whitelist allowed redirect origins to prevent open redirect attacks
     const ALLOWED_ORIGINS = [
-      'https://bizimevents.be',
-      'https://www.bizimevents.be',
+      'https://stagenation.be',
+      'https://www.stagenation.be',
       Deno.env.get('BASE_URL'),
     ].filter(Boolean) as string[];
 
@@ -295,7 +295,7 @@ Deno.serve(async (req: Request) => {
     if (ALLOWED_ORIGINS.some(allowed => sanitizedOrigin === allowed)) {
       BASE_URL = sanitizedOrigin;
     } else {
-      BASE_URL = Deno.env.get('BASE_URL') || 'https://bizimevents.be';
+      BASE_URL = Deno.env.get('BASE_URL') || 'https://stagenation.be';
       console.warn(`[create-drink-order] Blocked redirect to untrusted origin: ${sanitizedOrigin}`);
     }
 

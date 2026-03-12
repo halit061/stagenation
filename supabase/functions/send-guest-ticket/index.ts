@@ -377,7 +377,7 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
 
 async function sendEmail({ to, subject, html, attachments }: { to: string; subject: string; html: string; attachments?: Array<{ filename: string; content: Uint8Array }> }): Promise<{ id: string }> {
   const resendApiKey = Deno.env.get('RESEND_API_KEY');
-  const emailFrom = Deno.env.get('EMAIL_FROM') || 'Eskiler Tickets <tickets@lumetrix.be>';
+  const emailFrom = Deno.env.get('EMAIL_FROM') || 'StageNation Tickets <tickets@lumetrix.be>';
 
   if (!resendApiKey) {
     throw new Error('Email service not configured - RESEND_API_KEY missing');
@@ -388,7 +388,7 @@ async function sendEmail({ to, subject, html, attachments }: { to: string; subje
   const emailPayload: any = {
     from: emailFrom,
     to: [to],
-    reply_to: 'info@bizimevents.be',
+    reply_to: 'tickets@stagenation.be',
     subject,
     html,
   };
@@ -440,7 +440,7 @@ function buildMultiPersonEmail(event: any, recipientName: string, ticketCount: n
     ? `${supabaseUrl}/storage/v1/object/public/${event.logo_url}`
     : null;
 
-  const BASE_URL = Deno.env.get('BASE_URL') || 'https://bizimevents.be';
+  const BASE_URL = Deno.env.get('BASE_URL') || 'https://stagenation.be';
 
   return `
 <!DOCTYPE html>
@@ -533,18 +533,18 @@ function buildMultiPersonEmail(event: any, recipientName: string, ticketCount: n
       </div>
 
       <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 16px 0;">
-        Heb je vragen? Neem contact met ons op via <a href="mailto:info@bizimevents.be" style="color: #dc2626; text-decoration: none;">info@bizimevents.be</a>
+        Heb je vragen? Neem contact met ons op via <a href="mailto:tickets@stagenation.be" style="color: #dc2626; text-decoration: none;">tickets@stagenation.be</a>
       </p>
 
       <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0;">
         Tot binnenkort!<br />
-        <strong style="color: #0f172a;">Team ${event.brand_name || 'Eskiler'}</strong>
+        <strong style="color: #0f172a;">Team ${event.brand_name || 'StageNation'}</strong>
       </p>
     </div>
 
     <div style="background-color: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;">
       <p style="color: #64748b; font-size: 13px; margin: 0 0 8px 0;">
-        ${new Date().getFullYear()} ${event.brand_name || 'Eskiler'}. Alle rechten voorbehouden.
+        ${new Date().getFullYear()} ${event.brand_name || 'StageNation'}. Alle rechten voorbehouden.
       </p>
       <p style="color: #94a3b8; font-size: 12px; margin: 0;">
         Powered by Lumetrix

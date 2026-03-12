@@ -9,7 +9,7 @@ interface SendPasswordResetRequest {
 
 async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }): Promise<{ id: string }> {
   const resendApiKey = Deno.env.get('RESEND_API_KEY');
-  const emailFrom = Deno.env.get('EMAIL_FROM') || 'Eskiler <noreply@lumetrix.be>';
+  const emailFrom = Deno.env.get('EMAIL_FROM') || 'StageNation <noreply@lumetrix.be>';
 
   if (!resendApiKey) {
     throw new Error('Email service not configured - RESEND_API_KEY missing');
@@ -20,7 +20,7 @@ async function sendEmail({ to, subject, html }: { to: string; subject: string; h
   const result = await resend.emails.send({
     from: emailFrom,
     to: [to],
-    reply_to: 'info@bizimevents.be',
+    reply_to: 'tickets@stagenation.be',
     subject,
     html,
   });
@@ -80,7 +80,7 @@ Deno.serve(async (req: Request) => {
       throw new Error('user_id and email are required');
     }
 
-    const siteUrl = Deno.env.get('SITE_URL') || 'https://bizimevents.be';
+    const siteUrl = Deno.env.get('SITE_URL') || 'https://stagenation.be';
 
     const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
       type: 'recovery',
@@ -112,7 +112,7 @@ Deno.serve(async (req: Request) => {
   <div style="background-color: #1a1a2e; padding: 30px; border-radius: 10px;">
     <h1 style="color: #ffffff; margin-bottom: 20px;">Wachtwoord Resetten</h1>
     <p style="color: #e0e0e0; font-size: 16px; line-height: 1.6;">
-      Er is een verzoek ingediend om je wachtwoord te resetten voor je Eskiler account.
+      Er is een verzoek ingediend om je wachtwoord te resetten voor je StageNation account.
     </p>
     <p style="color: #e0e0e0; font-size: 16px; line-height: 1.6;">
       Klik op de onderstaande knop om een nieuw wachtwoord in te stellen:
@@ -130,7 +130,7 @@ Deno.serve(async (req: Request) => {
     </p>
     <hr style="border: none; border-top: 1px solid #333; margin: 30px 0;">
     <p style="color: #666; font-size: 12px; text-align: center;">
-      Eskiler - Event Management
+      StageNation - Event Management
     </p>
   </div>
 </body>
@@ -139,7 +139,7 @@ Deno.serve(async (req: Request) => {
 
     const emailResult = await sendEmail({
       to: email,
-      subject: 'Wachtwoord Resetten - Eskiler',
+      subject: 'Wachtwoord Resetten - StageNation',
       html: emailHtml,
     });
 

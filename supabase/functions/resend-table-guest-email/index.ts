@@ -27,7 +27,7 @@ async function generateQRCode(data: string): Promise<string> {
 async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }): Promise<{ id: string | null; error: string | null }> {
   try {
     const resendApiKey = Deno.env.get('RESEND_API_KEY');
-    const emailFrom = Deno.env.get('EMAIL_FROM') || 'Eskiler Tickets <tickets@lumetrix.be>';
+    const emailFrom = Deno.env.get('EMAIL_FROM') || 'StageNation Tickets <tickets@lumetrix.be>';
 
     if (!resendApiKey) {
       return { id: null, error: 'Email service not configured' };
@@ -38,7 +38,7 @@ async function sendEmail({ to, subject, html }: { to: string; subject: string; h
     const result = await resend.emails.send({
       from: emailFrom,
       to: [to],
-      reply_to: 'info@bizimevents.be',
+      reply_to: 'tickets@stagenation.be',
       subject,
       html,
     });
@@ -84,8 +84,8 @@ function buildTableGuestEmail(event: any, guestName: string, qrCodeDataURL: stri
     ? `${supabaseUrl}/storage/v1/object/public/${event.logo_url}`
     : null;
 
-  const BASE_URL = Deno.env.get('BASE_URL') || 'https://bizimevents.be';
-  const eskilerLogoUrl = `${BASE_URL}/eskiler-logo-4.png`;
+  const BASE_URL = Deno.env.get('BASE_URL') || 'https://stagenation.be';
+  const brandLogoUrl = `${BASE_URL}/stagenation-logo.webp`;
 
   return `
 <!DOCTYPE html>
@@ -137,7 +137,7 @@ function buildTableGuestEmail(event: any, guestName: string, qrCodeDataURL: stri
       </div>
       <div style="background-color: #ffffff; border: 2px solid #e2e8f0; border-radius: 12px; padding: 32px; margin-bottom: 32px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
         <div style="text-align: center; margin-bottom: 20px;">
-          <img src="${eskilerLogoUrl}" alt="Eskiler Logo" style="max-width: 150px; height: auto;" />
+          <img src="${brandLogoUrl}" alt="StageNation Logo" style="max-width: 150px; height: auto;" />
         </div>
         <h3 style="color: #0f172a; margin: 0 0 20px 0; font-size: 18px;">Tafel Reservering</h3>
         <div style="margin: 24px 0;">
@@ -151,16 +151,16 @@ function buildTableGuestEmail(event: any, guestName: string, qrCodeDataURL: stri
         </p>
       </div>
       <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 16px 0;">
-        Heb je vragen? Neem contact met ons op via <a href="mailto:info@bizimevents.be" style="color: #0891b2; text-decoration: none;">info@bizimevents.be</a>
+        Heb je vragen? Neem contact met ons op via <a href="mailto:tickets@stagenation.be" style="color: #0891b2; text-decoration: none;">tickets@stagenation.be</a>
       </p>
       <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0;">
         Tot binnenkort!<br />
-        <strong style="color: #0f172a;">Team Eskiler</strong>
+        <strong style="color: #0f172a;">Team StageNation</strong>
       </p>
     </div>
     <div style="background-color: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;">
       <p style="color: #64748b; font-size: 13px; margin: 0 0 8px 0;">
-        ${new Date().getFullYear()} Eskiler. Alle rechten voorbehouden.
+        ${new Date().getFullYear()} StageNation. Alle rechten voorbehouden.
       </p>
       <p style="color: #94a3b8; font-size: 12px; margin: 0;">Powered by Lumetrix</p>
     </div>

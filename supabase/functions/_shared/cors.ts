@@ -4,8 +4,9 @@
  */
 
 const ALLOWED_ORIGINS = [
-  "https://bizimevents.be",
-  "https://www.bizimevents.be",
+  "https://stagenation.be",
+  "https://www.stagenation.be",
+  "http://localhost:5173",
 ];
 
 export function getCorsHeaders(req?: Request): Record<string, string> {
