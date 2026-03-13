@@ -2,7 +2,7 @@
   # Add Entrances and Scanner Support
 
   ## Summary
-  Adds entrance management and scanner tracking for BizimEvents ticket scanning.
+                              Adds entrance management and scanner tracking for BizimEvents ticket scanning.
 
   ## New Tables
   1. `entrances`
