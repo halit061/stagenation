@@ -1726,7 +1726,7 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
           throw new Error('Sessie verlopen. Ververs de pagina en log opnieuw in.');
         }
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const response = await fetch(`${supabaseUrl}/functions/v1/eskiler-delete-ticket`, {
+        const response = await fetch(`${supabaseUrl}/functions/v1/delete-ticket`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${refreshData.session.access_token}`,
@@ -1745,7 +1745,7 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
         return;
       }
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const response = await fetch(`${supabaseUrl}/functions/v1/eskiler-delete-ticket`, {
+      const response = await fetch(`${supabaseUrl}/functions/v1/delete-ticket`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,

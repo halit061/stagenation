@@ -226,7 +226,7 @@ export function Admin({ onNavigate }: AdminProps = {}) {
       if (!token) throw new Error('Niet ingelogd');
 
       const response = await fetch(
-        `${EDGE_FUNCTION_BASE_URL}/eskiler-resend-ticket-email`,
+        `${EDGE_FUNCTION_BASE_URL}/resend-ticket-email`,
         {
           method: 'POST',
           headers: {
