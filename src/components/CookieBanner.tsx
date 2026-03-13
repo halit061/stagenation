@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Cookie, X, Check, Settings } from 'lucide-react';
+import { Cookie, X, Settings } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { txt } from '../lib/translations';
 
@@ -34,7 +34,6 @@ export function CookieBanner() {
     };
 
     localStorage.setItem('cookie_consent', JSON.stringify(consentData));
-
     setShowBanner(false);
     setShowSettings(false);
   };
@@ -62,161 +61,190 @@ export function CookieBanner() {
   if (!showBanner) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-4 pointer-events-none">
-      <div className="pointer-events-auto w-full max-w-4xl">
-        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-2 border-cyan-500/30 rounded-2xl shadow-2xl shadow-cyan-500/20 overflow-hidden">
+    <div className="fixed bottom-4 left-4 z-50 pointer-events-none">
+      <div className="pointer-events-auto w-[340px] sm:w-[370px]">
+        <div className="bg-slate-900/95 backdrop-blur-md border border-cyan-500/20 rounded-xl shadow-lg shadow-cyan-500/10 overflow-hidden">
           {!showSettings ? (
-            <div className="p-8">
-              <div className="flex items-start gap-4 mb-6">
-                <div className="p-3 bg-cyan-500/10 rounded-xl">
-                  <Cookie className="w-8 h-8 text-cyan-400" />
+            <div className="p-2.5">
+              <div className="flex items-start gap-2 mb-2">
+                <div className="p-1.5 bg-cyan-500/10 rounded-md shrink-0 mt-0.5">
+                  <Cookie className="w-3.5 h-3.5 text-cyan-400" />
                 </div>
-                <div className="flex-1">
-                  <h3 className="text-2xl font-bold text-white mb-2">
-                    {txt(language, { nl: 'Cookie Voorkeuren', tr: 'Çerez Tercihleri', fr: 'Préférences de cookies', de: 'Cookie-Einstellungen' })}
+
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-[13px] font-bold text-white leading-tight mb-0.5">
+                    {txt(language, {
+                      nl: 'Cookie Voorkeuren',
+                      tr: 'Çerez Tercihleri',
+                      fr: 'Préférences de cookies',
+                      de: 'Cookie-Einstellungen',
+                    })}
                   </h3>
-                  <p className="text-slate-300 leading-relaxed">
-                    {txt(language, { nl: 'Wij gebruiken cookies om je ervaring te verbeteren, voorkeuren te onthouden en onze diensten te optimaliseren. Strikt noodzakelijke cookies zijn altijd actief voor de basisfunctionaliteit van de website.', tr: 'Deneyiminizi geliştirmek, tercihlerinizi hatırlamak ve hizmetlerimizi optimize etmek için çerezler kullanıyoruz. Web sitesinin temel işlevselliği için kesinlikle gerekli çerezler her zaman etkindir.', fr: 'Nous utilisons des cookies pour améliorer votre expérience, mémoriser vos préférences et optimiser nos services. Les cookies strictement nécessaires sont toujours actifs pour le fonctionnement de base du site.', de: 'Wir verwenden Cookies, um Ihre Erfahrung zu verbessern, Einstellungen zu speichern und unsere Dienste zu optimieren. Unbedingt erforderliche Cookies sind für die Grundfunktionalität der Website immer aktiv.' })}
+
+                  <p className="text-[11px] text-slate-300 leading-4">
+                    {txt(language, {
+                      nl: 'Wij gebruiken cookies om de website goed te laten werken en je ervaring te verbeteren.',
+                      tr: 'Web sitesinin düzgün çalışması ve deneyiminizi iyileştirmek için çerezler kullanıyoruz.',
+                      fr: 'Nous utilisons des cookies pour assurer le bon fonctionnement du site et améliorer votre expérience.',
+                      de: 'Wir verwenden Cookies, damit die Website korrekt funktioniert und um Ihre Erfahrung zu verbessern.',
+                    })}
                   </p>
                 </div>
               </div>
 
-              <div className="bg-slate-800/50 rounded-xl p-4 mb-6">
-                <div className="grid md:grid-cols-3 gap-4">
-                  <div className="flex items-start gap-3">
-                    <div className="mt-1">
-                      <Check className="w-5 h-5 text-green-400" />
-                    </div>
-                    <div>
-                      <p className="text-white font-semibold text-sm mb-1">
-                        {txt(language, { nl: 'Noodzakelijk', tr: 'Gerekli', fr: 'Nécessaire', de: 'Erforderlich' })}
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        {txt(language, { nl: 'Altijd actief', tr: 'Her zaman aktif', fr: 'Toujours actif', de: 'Immer aktiv' })}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className="mt-1">
-                      <Cookie className="w-5 h-5 text-cyan-400" />
-                    </div>
-                    <div>
-                      <p className="text-white font-semibold text-sm mb-1">
-                        {txt(language, { nl: 'Voorkeuren', tr: 'Tercihler', fr: 'Préférences', de: 'Einstellungen' })}
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        {txt(language, { nl: 'Taal, thema', tr: 'Dil, tema', fr: 'Langue, thème', de: 'Sprache, Design' })}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className="mt-1">
-                      <Settings className="w-5 h-5 text-amber-400" />
-                    </div>
-                    <div>
-                      <p className="text-white font-semibold text-sm mb-1">
-                        {txt(language, { nl: 'Analytics', tr: 'Analitik', fr: 'Analytique', de: 'Analytik' })}
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        {txt(language, { nl: 'Gebruik meten', tr: 'Kullanım ölçümü', fr: 'Mesurer l\'utilisation', de: 'Nutzung messen' })}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-3">
+              <div className="grid grid-cols-3 gap-1.5 mb-2">
                 <button
                   onClick={acceptAll}
-                  className="flex-1 py-3 px-6 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white font-bold rounded-lg transition-all shadow-lg shadow-cyan-500/30"
+                  className="py-1.5 px-2 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white text-[11px] font-semibold rounded-md transition-all"
                 >
-                  {txt(language, { nl: 'Alles Accepteren', tr: 'Hepsini Kabul Et', fr: 'Tout accepter', de: 'Alle akzeptieren' })}
+                  {txt(language, {
+                    nl: 'Alles',
+                    tr: 'Hepsi',
+                    fr: 'Tout',
+                    de: 'Alle',
+                  })}
                 </button>
+
                 <button
                   onClick={acceptNecessary}
-                  className="flex-1 py-3 px-6 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg transition-all"
+                  className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-medium rounded-md transition-all"
                 >
-                  {txt(language, { nl: 'Alleen Noodzakelijk', tr: 'Sadece Gerekli', fr: 'Nécessaires uniquement', de: 'Nur erforderliche' })}
+                  {txt(language, {
+                    nl: 'Nodig',
+                    tr: 'Gerekli',
+                    fr: 'Nécessaires',
+                    de: 'Nur nötig',
+                  })}
                 </button>
+
                 <button
                   onClick={() => setShowSettings(true)}
-                  className="py-3 px-6 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-lg transition-all border border-slate-700"
+                  className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-medium rounded-md transition-all border border-slate-700"
                 >
-                  <Settings className="w-5 h-5 inline mr-2" />
-                  {txt(language, { nl: 'Aanpassen', tr: 'Özelleştir', fr: 'Personnaliser', de: 'Anpassen' })}
+                  <Settings className="w-3 h-3 inline mr-1" />
+                  {txt(language, {
+                    nl: 'Aanpassen',
+                    tr: 'Ayarla',
+                    fr: 'Options',
+                    de: 'Anpassen',
+                  })}
                 </button>
               </div>
 
-              <p className="text-xs text-slate-500 mt-4 text-center">
-                {txt(language, { nl: 'Door deze website te gebruiken, ga je akkoord met ons gebruik van cookies zoals beschreven in onze', tr: 'Bu web sitesini kullanarak, çerez kullanımımızı kabul etmiş olursunuz', fr: 'En utilisant ce site, vous acceptez notre utilisation des cookies comme décrit dans notre', de: 'Durch die Nutzung dieser Website stimmen Sie unserer Verwendung von Cookies zu, wie in unserer beschrieben' })}
-                {' '}
-                <button className="text-cyan-400 hover:underline" onClick={() => { window.history.pushState({}, '', '/privacy'); window.dispatchEvent(new PopStateEvent('popstate')); }}>
-                  {txt(language, { nl: 'Privacybeleid', tr: 'Gizlilik Politikası', fr: 'Politique de confidentialité', de: 'Datenschutzrichtlinie' })}
+              <p className="text-[10px] text-slate-500 leading-3">
+                {txt(language, {
+                  nl: 'Meer info in ons',
+                  tr: 'Daha fazla bilgi için',
+                  fr: 'Plus d’infos dans notre',
+                  de: 'Mehr Infos in unserer',
+                })}{' '}
+                <button
+                  className="text-cyan-400 hover:underline"
+                  onClick={() => {
+                    window.history.pushState({}, '', '/privacy');
+                    window.dispatchEvent(new PopStateEvent('popstate'));
+                  }}
+                >
+                  {txt(language, {
+                    nl: 'privacybeleid',
+                    tr: 'gizlilik politikası',
+                    fr: 'politique de confidentialité',
+                    de: 'Datenschutzrichtlinie',
+                  })}
                 </button>
               </p>
             </div>
           ) : (
-            <div className="p-8">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-bold text-white">
-                  {txt(language, { nl: 'Cookie Instellingen', tr: 'Çerez Ayarları', fr: 'Paramètres des cookies', de: 'Cookie-Einstellungen' })}
+            <div className="p-2.5">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-[13px] font-bold text-white">
+                  {txt(language, {
+                    nl: 'Cookie Instellingen',
+                    tr: 'Çerez Ayarları',
+                    fr: 'Paramètres des cookies',
+                    de: 'Cookie-Einstellungen',
+                  })}
                 </h3>
+
                 <button
                   onClick={() => setShowSettings(false)}
-                  className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+                  className="p-1 hover:bg-slate-700 rounded-md transition-colors"
                 >
-                  <X className="w-5 h-5 text-slate-400" />
+                  <X className="w-3.5 h-3.5 text-slate-400" />
                 </button>
               </div>
 
-              <div className="space-y-4 mb-6">
-                <div className="bg-slate-800/50 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-2">
+              <div className="space-y-2 mb-2">
+                <div className="bg-slate-800/60 rounded-md p-2">
+                  <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="text-white font-semibold">
-                        {txt(language, { nl: 'Strikt Noodzakelijk', tr: 'Kesinlikle Gerekli', fr: 'Strictement nécessaire', de: 'Unbedingt erforderlich' })}
+                      <p className="text-[12px] font-semibold text-white">
+                        {txt(language, {
+                          nl: 'Strikt noodzakelijk',
+                          tr: 'Kesinlikle gerekli',
+                          fr: 'Strictement nécessaire',
+                          de: 'Unbedingt erforderlich',
+                        })}
                       </p>
-                      <p className="text-sm text-slate-400">
-                        {txt(language, { nl: 'Vereist voor basisfunctionaliteit van de website', tr: 'Web sitesinin temel işlevselliği için gerekli', fr: 'Requis pour le fonctionnement de base du site', de: 'Erforderlich für die Grundfunktionalität der Website' })}
+                      <p className="text-[10px] text-slate-400 mt-0.5 leading-3.5">
+                        {txt(language, {
+                          nl: 'Altijd actief voor basisfuncties.',
+                          tr: 'Temel işlevler için her zaman aktif.',
+                          fr: 'Toujours actif pour les fonctions de base.',
+                          de: 'Immer aktiv für die Grundfunktionen.',
+                        })}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-green-400 font-semibold">
-                        {txt(language, { nl: 'ALTIJD AAN', tr: 'HER ZAMAN AÇIK', fr: 'TOUJOURS ACTIF', de: 'IMMER AKTIV' })}
-                      </span>
-                      <div className="w-12 h-6 bg-green-500 rounded-full flex items-center justify-end px-1">
-                        <div className="w-4 h-4 bg-white rounded-full" />
-                      </div>
-                    </div>
+
+                    <span className="text-[9px] text-green-400 font-semibold whitespace-nowrap">
+                      {txt(language, {
+                        nl: 'AAN',
+                        tr: 'AÇIK',
+                        fr: 'ACTIF',
+                        de: 'AKTIV',
+                      })}
+                    </span>
                   </div>
                 </div>
 
-                <div className="bg-slate-800/50 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <p className="text-white font-semibold">
-                        {txt(language, { nl: 'Voorkeuren', tr: 'Tercihler', fr: 'Préférences', de: 'Einstellungen' })}
+                <div className="bg-slate-800/60 rounded-md p-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="pr-2">
+                      <p className="text-[12px] font-semibold text-white">
+                        {txt(language, {
+                          nl: 'Voorkeuren',
+                          tr: 'Tercihler',
+                          fr: 'Préférences',
+                          de: 'Einstellungen',
+                        })}
                       </p>
-                      <p className="text-sm text-slate-400">
-                        {txt(language, { nl: 'Onthoudt taalinstellingen en andere voorkeuren', tr: 'Dil ayarlarını ve diğer tercihleri hatırlar', fr: 'Mémorise les paramètres de langue et autres préférences', de: 'Speichert Spracheinstellungen und andere Präferenzen' })}
+                      <p className="text-[10px] text-slate-400 mt-0.5 leading-3.5">
+                        {txt(language, {
+                          nl: 'Taal en voorkeuren onthouden.',
+                          tr: 'Dil ve tercihleri hatırlar.',
+                          fr: 'Mémorise la langue et les préférences.',
+                          de: 'Speichert Sprache und Einstellungen.',
+                        })}
                       </p>
                     </div>
+
                     <button
                       onClick={() =>
-                        setPreferences((prev) => ({ ...prev, preferences: !prev.preferences }))
+                        setPreferences((prev) => ({
+                          ...prev,
+                          preferences: !prev.preferences,
+                        }))
                       }
-                      className="relative"
+                      className="relative shrink-0"
                     >
                       <div
-                        className={`w-12 h-6 rounded-full transition-colors ${
+                        className={`w-10 h-5 rounded-full transition-colors ${
                           preferences.preferences ? 'bg-cyan-500' : 'bg-slate-700'
                         }`}
                       >
                         <div
-                          className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                            preferences.preferences ? 'translate-x-7' : 'translate-x-1'
+                          className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
+                            preferences.preferences ? 'translate-x-5' : 'translate-x-0.5'
                           }`}
                         />
                       </div>
@@ -224,30 +252,44 @@ export function CookieBanner() {
                   </div>
                 </div>
 
-                <div className="bg-slate-800/50 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <p className="text-white font-semibold">
-                        {txt(language, { nl: 'Analytics', tr: 'Analitik', fr: 'Analytique', de: 'Analytik' })}
+                <div className="bg-slate-800/60 rounded-md p-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="pr-2">
+                      <p className="text-[12px] font-semibold text-white">
+                        {txt(language, {
+                          nl: 'Analytics',
+                          tr: 'Analitik',
+                          fr: 'Analytique',
+                          de: 'Analytik',
+                        })}
                       </p>
-                      <p className="text-sm text-slate-400">
-                        {txt(language, { nl: 'Helpt ons te begrijpen hoe bezoekers de website gebruiken', tr: 'Ziyaretçilerin web sitesini nasıl kullandığını anlamamıza yardımcı olur', fr: 'Nous aide à comprendre comment les visiteurs utilisent le site', de: 'Hilft uns zu verstehen, wie Besucher die Website nutzen' })}
+                      <p className="text-[10px] text-slate-400 mt-0.5 leading-3.5">
+                        {txt(language, {
+                          nl: 'Helpt ons gebruik te begrijpen.',
+                          tr: 'Kullanımı anlamamıza yardımcı olur.',
+                          fr: 'Nous aide à comprendre l’utilisation.',
+                          de: 'Hilft uns, die Nutzung zu verstehen.',
+                        })}
                       </p>
                     </div>
+
                     <button
                       onClick={() =>
-                        setPreferences((prev) => ({ ...prev, analytics: !prev.analytics }))
+                        setPreferences((prev) => ({
+                          ...prev,
+                          analytics: !prev.analytics,
+                        }))
                       }
-                      className="relative"
+                      className="relative shrink-0"
                     >
                       <div
-                        className={`w-12 h-6 rounded-full transition-colors ${
+                        className={`w-10 h-5 rounded-full transition-colors ${
                           preferences.analytics ? 'bg-cyan-500' : 'bg-slate-700'
                         }`}
                       >
                         <div
-                          className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                            preferences.analytics ? 'translate-x-7' : 'translate-x-1'
+                          className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
+                            preferences.analytics ? 'translate-x-5' : 'translate-x-0.5'
                           }`}
                         />
                       </div>
@@ -256,18 +298,29 @@ export function CookieBanner() {
                 </div>
               </div>
 
-              <div className="flex gap-3">
+              <div className="grid grid-cols-2 gap-1.5">
                 <button
                   onClick={saveCustomPreferences}
-                  className="flex-1 py-3 px-6 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white font-bold rounded-lg transition-all"
+                  className="py-2 px-2 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white text-[11px] font-semibold rounded-md transition-all"
                 >
-                  {txt(language, { nl: 'Voorkeuren Opslaan', tr: 'Tercihleri Kaydet', fr: 'Enregistrer les préférences', de: 'Einstellungen speichern' })}
+                  {txt(language, {
+                    nl: 'Opslaan',
+                    tr: 'Kaydet',
+                    fr: 'Enregistrer',
+                    de: 'Speichern',
+                  })}
                 </button>
+
                 <button
                   onClick={() => setShowSettings(false)}
-                  className="py-3 px-6 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg transition-all"
+                  className="py-2 px-2 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-medium rounded-md transition-all"
                 >
-                  {txt(language, { nl: 'Annuleren', tr: 'İptal', fr: 'Annuler', de: 'Abbrechen' })}
+                  {txt(language, {
+                    nl: 'Terug',
+                    tr: 'Geri',
+                    fr: 'Retour',
+                    de: 'Zurück',
+                  })}
                 </button>
               </div>
             </div>
