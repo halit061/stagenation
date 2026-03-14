@@ -40,7 +40,7 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
   const { user, role, loading: authLoading, isSuperAdmin, logout, canManageRoles, getRedirectPath } = useAuth();
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<'dashboard' | 'events' | 'tickets' | 'orders' | 'ticketverkopen' | 'table_bookings' | 'floorplan' | 'roles' | 'gebruikers' | 'packages' | 'guest_tickets' | 'table_guests' | 'guest_audit' | 'analytics' | 'media' | 'debug'>('dashboard');
-  const [canUploadImages, _setCanUploadImages] = useState(false);
+  const canUploadImages = isSuperAdmin || role === 'admin';
   const [events, setEvents] = useState<Event[]>([]);
   const [ticketTypes, setTicketTypes] = useState<TicketType[]>([]);
   const [userRoles, setUserRoles] = useState<UserRole[]>([]);
