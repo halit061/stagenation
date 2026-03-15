@@ -1,50 +1,76 @@
 import { useState, useEffect, useRef } from 'react';
-import { Save, Trash2, ZoomIn, ZoomOut, Maximize2, Move, Grid3x3, Square, Circle, Copy } from 'lucide-react';
+import { Save, Trash2, ZoomIn, ZoomOut, Maximize2, Move, Grid3x3, Square, Circle, Copy, Rows3 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
-import type { Database } from '../lib/supabaseClient';
 import { useToast } from './Toast';
 
-type FloorplanTable = Database['public']['Tables']['floorplan_tables']['Row'];
-type TablePackage = Database['public']['Tables']['table_packages']['Row'];
+interface FloorplanTable {
+  id: string;
+  table_number: string;
+  table_type: string;
+  capacity: number;
+  price: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  is_active: boolean;
+  manual_status: string;
+  package_id: string | null;
+  max_guests: number | null;
+  included_text: string | null;
+  included_items: any[];
+  created_at: string;
+  updated_at: string;
+}
 
 interface FloorplanObject {
   id: string;
   event_id: string | null;
-  type: 'BAR' | 'STAGE' | 'DANCEFLOOR' | 'DECOR_TABLE' | 'DJ_BOOTH' | 'ENTRANCE' | 'EXIT' | 'RESTROOM';
+  type: string;
+  object_type: string;
   name: string;
-  label?: string;
+  label: string | null;
   x: number;
   y: number;
   width: number;
   height: number;
   rotation: number;
   color: string;
+  font_size: number | null;
+  font_color: string | null;
+  font_weight: string | null;
   is_active: boolean;
-  is_visible?: boolean;
-  font_size?: number;
-  font_color?: string;
-  font_weight?: string;
-  name_nl?: string;
-  name_tr?: string;
-  name_fr?: string;
-  name_de?: string;
+  is_visible: boolean;
+  name_nl: string | null;
+  name_tr: string | null;
+  name_fr: string | null;
+  name_de: string | null;
+  included_text: string | null;
   created_at: string;
   updated_at: string;
 }
 
-type EditorTool = 'select' | 'add_seated' | 'add_standing' | 'add_decor_table' | 'add_bar' | 'add_stage' | 'add_dancefloor' | 'add_label';
+interface TablePackage {
+  id: string;
+  name: string;
+  base_price: number;
+}
+
+type EditorTool = 'select' | 'add_seated' | 'add_standing' | 'add_decor' | 'add_bar' | 'add_stage' | 'add_dancefloor' | 'add_tribune';
+type ObjectType = 'BAR' | 'STAGE' | 'DANCEFLOOR' | 'DECOR_TABLE' | 'DJ_BOOTH' | 'ENTRANCE' | 'EXIT' | 'RESTROOM' | 'TRIBUNE';
 
 export function FloorPlanEditor() {
   const { showToast } = useToast();
   const [tables, setTables] = useState<FloorplanTable[]>([]);
   const [objects, setObjects] = useState<FloorplanObject[]>([]);
   const [packages, setPackages] = useState<TablePackage[]>([]);
-  const [selectedItem, setSelectedItem] = useState<{ type: 'table' | 'object', data: FloorplanTable | FloorplanObject } | null>(null);
+  const [selectedItem, setSelectedItem] = useState<{ type: 'table' | 'object'; data: FloorplanTable | FloorplanObject } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isResizing, setIsResizing] = useState(false);
   const [resizeHandle, setResizeHandle] = useState<'se' | 'sw' | 'ne' | 'nw' | null>(null);
-  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0, ox: 0, oy: 0 });
   const [zoom, setZoom] = useState(1);
   const [currentTool, setCurrentTool] = useState<EditorTool>('select');
   const [showGrid, setShowGrid] = useState(true);
@@ -52,514 +78,374 @@ export function FloorPlanEditor() {
   const svgRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
-    loadTables();
-    loadObjects();
-    loadPackages();
+    loadAll();
   }, []);
 
-  async function loadTables() {
-    try {
-      const { data, error } = await supabase
-        .from('floorplan_tables')
-        .select('*')
-        .order('table_number', { ascending: true });
+  async function loadAll() {
+    await Promise.all([loadTables(), loadObjects(), loadPackages()]);
+  }
 
-      if (error) throw error;
-      setTables(data || []);
-    } catch (error) {
-      console.error('Error loading tables:', error);
-    }
+  async function loadTables() {
+    const { data, error } = await supabase
+      .from('floorplan_tables')
+      .select('*')
+      .order('table_number', { ascending: true });
+    if (error) { console.error('loadTables error:', error); return; }
+    setTables((data as FloorplanTable[]) || []);
   }
 
   async function loadObjects() {
-    try {
-      const { data, error } = await supabase
-        .from('floorplan_objects')
-        .select('*')
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-      setObjects(data as FloorplanObject[] || []);
-    } catch (error) {
-      console.error('Error loading objects:', error);
-    }
+    const { data, error } = await supabase
+      .from('floorplan_objects')
+      .select('*')
+      .order('created_at', { ascending: true });
+    if (error) { console.error('loadObjects error:', error); return; }
+    const normalized = (data || []).map((o: any) => ({
+      ...o,
+      type: o.type || (o.object_type ? o.object_type.toUpperCase() : 'BAR'),
+      name: o.name || o.label || o.object_type || 'Object',
+    }));
+    setObjects(normalized as FloorplanObject[]);
   }
 
   async function loadPackages() {
-    try {
-      const { data, error } = await supabase
-        .from('table_packages')
-        .select('*')
-        .eq('is_active', true)
-        .order('name', { ascending: true });
-
-      if (error) throw error;
-      setPackages(data || []);
-    } catch (error) {
-      console.error('Error loading packages:', error);
-    }
+    const { data } = await supabase
+      .from('table_packages')
+      .select('id, name, base_price')
+      .eq('is_active', true)
+      .order('name', { ascending: true });
+    setPackages((data as TablePackage[]) || []);
   }
 
   async function saveTable(table: Partial<FloorplanTable>) {
-    try {
-      setSaving(true);
-      if (table.id) {
-        const tableData = table as any;
-        const { error } = await supabase
-          .from('floorplan_tables')
-          .update({
-            table_number: table.table_number,
-            x: table.x,
-            y: table.y,
-            width: table.width,
-            height: table.height,
-            rotation: table.rotation,
-            capacity: table.capacity,
-            price: table.price,
-            manual_status: table.manual_status,
-            table_type: table.table_type,
-            package_id: table.package_id,
-            max_guests: tableData.max_guests,
-            included_text: tableData.included_text,
-            included_items: tableData.included_items,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', table.id);
-
-        if (error) throw error;
-      }
-      await loadTables();
-    } catch (error) {
-      console.error('Error saving table:', error);
-    } finally {
-      setSaving(false);
-    }
+    if (!table.id) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from('floorplan_tables')
+      .update({
+        table_number: table.table_number,
+        x: table.x,
+        y: table.y,
+        width: table.width,
+        height: table.height,
+        rotation: table.rotation,
+        capacity: table.capacity,
+        price: table.price,
+        manual_status: table.manual_status,
+        table_type: table.table_type,
+        package_id: table.package_id,
+        max_guests: table.max_guests,
+        included_text: table.included_text,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', table.id);
+    if (error) { console.error('saveTable error:', error); showToast('Fout bij opslaan tafel: ' + error.message, 'error'); }
+    setSaving(false);
+    await loadTables();
   }
 
   async function saveObject(obj: Partial<FloorplanObject>) {
-    try {
-      setSaving(true);
-      if (obj.id) {
-        const { error } = await supabase
-          .from('floorplan_objects')
-          .update({
-            name: obj.name,
-            label: obj.label || obj.name,
-            x: obj.x,
-            y: obj.y,
-            width: obj.width,
-            height: obj.height,
-            rotation: obj.rotation,
-            color: obj.color,
-            is_active: obj.is_active,
-            is_visible: obj.is_visible,
-            font_size: obj.font_size,
-            font_color: obj.font_color,
-            font_weight: obj.font_weight,
-            name_nl: obj.name_nl,
-            name_tr: obj.name_tr,
-            name_fr: obj.name_fr,
-            name_de: obj.name_de,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', obj.id);
-
-        if (error) throw error;
-      }
-      await loadObjects();
-    } catch (error) {
-      console.error('Error saving object:', error);
-    } finally {
-      setSaving(false);
-    }
+    if (!obj.id) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from('floorplan_objects')
+      .update({
+        name: obj.name,
+        label: obj.label ?? obj.name,
+        x: obj.x,
+        y: obj.y,
+        width: obj.width,
+        height: obj.height,
+        rotation: obj.rotation,
+        color: obj.color,
+        is_active: obj.is_active,
+        is_visible: obj.is_visible,
+        font_size: obj.font_size,
+        font_color: obj.font_color,
+        font_weight: obj.font_weight,
+        name_nl: obj.name_nl,
+        name_tr: obj.name_tr,
+        name_fr: obj.name_fr,
+        name_de: obj.name_de,
+        included_text: obj.included_text,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', obj.id);
+    if (error) { console.error('saveObject error:', error); showToast('Fout bij opslaan object: ' + error.message, 'error'); }
+    setSaving(false);
+    await loadObjects();
   }
 
-  async function validateStatusChange(tableId: string, newStatus: string): Promise<boolean> {
-    if (newStatus === 'AVAILABLE') {
-      const { data: paidBookings } = await supabase
-        .from('table_bookings')
-        .select('id')
-        .eq('floorplan_table_id', tableId)
-        .eq('status', 'PAID')
-        .limit(1);
-
-      if (paidBookings && paidBookings.length > 0) {
-        showToast('Deze tafel heeft een actieve reservatie en kan niet beschikbaar worden gemaakt.', 'error');
-        return false;
-      }
-    }
-    return true;
-  }
-
-  async function updateTableStatus(table: FloorplanTable, newStatus: string) {
-    const isValid = await validateStatusChange(table.id, newStatus);
-    if (!isValid) {
+  async function addTable(tableType: 'SEATED' | 'STANDING') {
+    setSaving(true);
+    const nextNum = tables.length > 0
+      ? Math.max(...tables.map(t => parseInt(t.table_number.replace(/\D/g, '')) || 0)) + 1
+      : 1;
+    const { data: newTable, error } = await supabase
+      .from('floorplan_tables')
+      .insert({
+        table_number: `Tafel ${nextNum}`,
+        table_type: tableType,
+        capacity: 4,
+        price: 50,
+        x: 460,
+        y: 320,
+        width: 80,
+        height: 60,
+        rotation: 0,
+        is_active: true,
+        manual_status: 'AVAILABLE',
+      })
+      .select()
+      .single();
+    if (error) {
+      console.error('addTable error:', error);
+      showToast('Fout bij toevoegen tafel: ' + error.message, 'error');
+    } else if (newTable) {
       await loadTables();
-      return;
+      setSelectedItem({ type: 'table', data: newTable as FloorplanTable });
     }
-
-    const updatedTable = { ...table, manual_status: newStatus };
-    setSelectedItem({ type: 'table', data: updatedTable });
-    setTables((prev) =>
-      prev.map((t) => (t.id === table.id ? updatedTable : t))
-    );
-    await saveTable(updatedTable);
+    setCurrentTool('select');
+    setSaving(false);
   }
 
-  async function addTable(tableType: 'SEATED' | 'STANDING' = 'SEATED') {
-    try {
-      setSaving(true);
-
-      const nextTableNumber = tables.length > 0
-        ? Math.max(...tables.map(t => {
-            const num = parseInt(t.table_number.replace(/\D/g, ''));
-            return isNaN(num) ? 0 : num;
-          })) + 1
-        : 1;
-
-      const { data: newTable, error } = await supabase
-        .from('floorplan_tables')
-        .insert({
-          table_number: `Tafel ${nextTableNumber}`,
-          table_type: tableType,
-          capacity: 4,
-          price: 50,
-          x: 500 - 40,
-          y: 350 - 30,
-          width: 80,
-          height: 60,
-          rotation: 0,
-          is_active: true,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      await loadTables();
-      setSelectedItem({ type: 'table', data: newTable });
-      setCurrentTool('select');
-    } catch (error) {
-      console.error('Error adding table:', error);
-      showToast('Failed to add table. Please try again.', 'error');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function addObject(objectType: FloorplanObject['type']) {
-    try {
-      setSaving(true);
-
-      const colorMap: Record<FloorplanObject['type'], string> = {
-        BAR: '#f59e0b',
-        STAGE: '#7c3aed',
-        DANCEFLOOR: '#1e40af',
-        DECOR_TABLE: '#6b7280',
-        DJ_BOOTH: '#ec4899',
-        ENTRANCE: '#10b981',
-        EXIT: '#ef4444',
-        RESTROOM: '#3b82f6',
-      };
-
-      const sizeMap: Record<FloorplanObject['type'], { width: number, height: number }> = {
-        BAR: { width: 200, height: 80 },
-        STAGE: { width: 200, height: 90 },
-        DANCEFLOOR: { width: 300, height: 200 },
-        DECOR_TABLE: { width: 60, height: 50 },
-        DJ_BOOTH: { width: 120, height: 80 },
-        ENTRANCE: { width: 80, height: 60 },
-        EXIT: { width: 80, height: 60 },
-        RESTROOM: { width: 80, height: 60 },
-      };
-
-      const { data: newObject, error } = await supabase
-        .from('floorplan_objects')
-        .insert({
-          type: objectType,
-          name: objectType.replace('_', ' '),
-          label: objectType.replace('_', ' '),
-          x: 500 - sizeMap[objectType].width / 2,
-          y: 350 - sizeMap[objectType].height / 2,
-          width: sizeMap[objectType].width,
-          height: sizeMap[objectType].height,
-          rotation: 0,
-          color: colorMap[objectType],
-          is_active: true,
-          is_visible: true,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
+  async function addObject(objectType: ObjectType) {
+    setSaving(true);
+    const colorMap: Record<string, string> = {
+      BAR: '#f59e0b',
+      STAGE: '#1e40af',
+      DANCEFLOOR: '#1e3a8a',
+      DECOR_TABLE: '#6b7280',
+      DJ_BOOTH: '#ec4899',
+      ENTRANCE: '#10b981',
+      EXIT: '#ef4444',
+      RESTROOM: '#3b82f6',
+      TRIBUNE: '#92400e',
+    };
+    const sizeMap: Record<string, { width: number; height: number }> = {
+      BAR: { width: 200, height: 80 },
+      STAGE: { width: 200, height: 90 },
+      DANCEFLOOR: { width: 300, height: 200 },
+      DECOR_TABLE: { width: 60, height: 50 },
+      DJ_BOOTH: { width: 120, height: 80 },
+      ENTRANCE: { width: 80, height: 60 },
+      EXIT: { width: 80, height: 60 },
+      RESTROOM: { width: 80, height: 60 },
+      TRIBUNE: { width: 250, height: 80 },
+    };
+    const sz = sizeMap[objectType] ?? { width: 120, height: 80 };
+    const defaultName = objectType === 'TRIBUNE' ? 'Tribune' : objectType.replace(/_/g, ' ');
+    const { data: newObj, error } = await supabase
+      .from('floorplan_objects')
+      .insert({
+        object_type: objectType.toLowerCase(),
+        type: objectType,
+        name: defaultName,
+        label: defaultName,
+        x: 500 - sz.width / 2,
+        y: 350 - sz.height / 2,
+        width: sz.width,
+        height: sz.height,
+        rotation: 0,
+        color: colorMap[objectType] ?? '#6b7280',
+        font_color: '#ffffff',
+        font_size: 18,
+        font_weight: 'bold',
+        is_active: true,
+        is_visible: true,
+      })
+      .select()
+      .single();
+    if (error) {
+      console.error('addObject error:', error);
+      showToast('Fout bij toevoegen object: ' + error.message, 'error');
+    } else if (newObj) {
       await loadObjects();
-      setSelectedItem({ type: 'object', data: newObject as FloorplanObject });
-      setCurrentTool('select');
-    } catch (error) {
-      console.error('Error adding object:', error);
-      showToast('Failed to add object. Please try again.', 'error');
-    } finally {
-      setSaving(false);
+      const normalized = {
+        ...newObj,
+        type: (newObj as any).type || objectType,
+        name: (newObj as any).name || defaultName,
+      };
+      setSelectedItem({ type: 'object', data: normalized as FloorplanObject });
     }
+    setCurrentTool('select');
+    setSaving(false);
   }
 
   async function deleteItem() {
     if (!selectedItem) return;
-    if (!confirm('Are you sure you want to delete this item?')) return;
-
-    try {
-      if (selectedItem.type === 'table') {
-        const { error } = await supabase
-          .from('floorplan_tables')
-          .delete()
-          .eq('id', selectedItem.data.id);
-
-        if (error) throw error;
-        await loadTables();
-      } else {
-        const { error } = await supabase
-          .from('floorplan_objects')
-          .delete()
-          .eq('id', selectedItem.data.id);
-
-        if (error) throw error;
-        await loadObjects();
-      }
-      setSelectedItem(null);
-    } catch (error) {
-      console.error('Error deleting item:', error);
+    if (!confirm('Weet je zeker dat je dit item wilt verwijderen?')) return;
+    if (selectedItem.type === 'table') {
+      const { error } = await supabase.from('floorplan_tables').delete().eq('id', selectedItem.data.id);
+      if (error) { showToast('Fout bij verwijderen', 'error'); return; }
+      await loadTables();
+    } else {
+      const { error } = await supabase.from('floorplan_objects').delete().eq('id', selectedItem.data.id);
+      if (error) { showToast('Fout bij verwijderen', 'error'); return; }
+      await loadObjects();
     }
+    setSelectedItem(null);
   }
 
   async function duplicateItem() {
     if (!selectedItem) return;
-
-    try {
-      setSaving(true);
-
-      if (selectedItem.type === 'table') {
-        const table = selectedItem.data as FloorplanTable;
-        const tableData = table as any;
-
-        const nextTableNumber = tables.length > 0
-          ? Math.max(...tables.map(t => {
-              const num = parseInt(t.table_number.replace(/\D/g, ''));
-              return isNaN(num) ? 0 : num;
-            })) + 1
-          : 1;
-
-        const { data: newTable, error } = await supabase
-          .from('floorplan_tables')
-          .insert({
-            table_number: `Tafel ${nextTableNumber}`,
-            table_type: table.table_type,
-            capacity: table.capacity,
-            price: table.price,
-            x: table.x + 20,
-            y: table.y + 20,
-            width: table.width,
-            height: table.height,
-            rotation: table.rotation,
-            package_id: table.package_id,
-            max_guests: tableData.max_guests,
-            included_text: tableData.included_text,
-            included_items: tableData.included_items,
-            is_active: true,
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-        await loadTables();
-        setSelectedItem({ type: 'table', data: newTable });
-      } else {
-        const obj = selectedItem.data as FloorplanObject;
-
-        const { data: newObject, error } = await supabase
-          .from('floorplan_objects')
-          .insert({
-            type: obj.type,
-            name: obj.name + ' Copy',
-            label: (obj.label || obj.name) + ' Copy',
-            x: obj.x + 20,
-            y: obj.y + 20,
-            width: obj.width,
-            height: obj.height,
-            rotation: obj.rotation,
-            color: obj.color,
-            is_active: true,
-            is_visible: obj.is_visible ?? true,
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
+    setSaving(true);
+    if (selectedItem.type === 'table') {
+      const t = selectedItem.data as FloorplanTable;
+      const nextNum = tables.length > 0
+        ? Math.max(...tables.map(tb => parseInt(tb.table_number.replace(/\D/g, '')) || 0)) + 1
+        : 1;
+      const { data: nt, error } = await supabase
+        .from('floorplan_tables')
+        .insert({
+          table_number: `Tafel ${nextNum}`,
+          table_type: t.table_type,
+          capacity: t.capacity,
+          price: t.price,
+          x: t.x + 20,
+          y: t.y + 20,
+          width: t.width,
+          height: t.height,
+          rotation: t.rotation,
+          package_id: t.package_id,
+          max_guests: t.max_guests,
+          included_text: t.included_text,
+          is_active: true,
+          manual_status: 'AVAILABLE',
+        })
+        .select()
+        .single();
+      if (!error && nt) { await loadTables(); setSelectedItem({ type: 'table', data: nt as FloorplanTable }); }
+    } else {
+      const o = selectedItem.data as FloorplanObject;
+      const { data: no, error } = await supabase
+        .from('floorplan_objects')
+        .insert({
+          object_type: o.object_type || o.type?.toLowerCase() || 'bar',
+          type: o.type,
+          name: o.name + ' Kopie',
+          label: (o.label || o.name) + ' Kopie',
+          x: o.x + 20,
+          y: o.y + 20,
+          width: o.width,
+          height: o.height,
+          rotation: o.rotation,
+          color: o.color,
+          font_color: o.font_color,
+          font_size: o.font_size,
+          font_weight: o.font_weight,
+          is_active: true,
+          is_visible: o.is_visible ?? true,
+        })
+        .select()
+        .single();
+      if (!error && no) {
         await loadObjects();
-        setSelectedItem({ type: 'object', data: newObject as FloorplanObject });
+        setSelectedItem({ type: 'object', data: { ...no, type: (no as any).type || o.type, name: (no as any).name } as FloorplanObject });
       }
-    } catch (error) {
-      console.error('Error duplicating item:', error);
-    } finally {
-      setSaving(false);
     }
+    setSaving(false);
   }
 
-  void function _moveLayer(_direction: 'forward' | 'backward') {
-    showToast('Layer control will be implemented with z-index field', 'info');
-  };
-
-  const handleMouseDown = (e: React.MouseEvent, item: { type: 'table' | 'object', data: FloorplanTable | FloorplanObject }) => {
-    if (currentTool !== 'select') return;
-    e.stopPropagation();
-
+  function getSvgPoint(e: React.MouseEvent) {
     const svg = svgRef.current;
-    if (!svg) return;
-
+    if (!svg) return { x: 0, y: 0 };
     const pt = svg.createSVGPoint();
     pt.x = e.clientX;
     pt.y = e.clientY;
-    const svgP = pt.matrixTransform(svg.getScreenCTM()?.inverse());
+    const svgP = pt.matrixTransform(svg.getScreenCTM()!.inverse());
+    return { x: svgP.x, y: svgP.y };
+  }
 
+  const handleItemMouseDown = (e: React.MouseEvent, item: { type: 'table' | 'object'; data: FloorplanTable | FloorplanObject }) => {
+    if (currentTool !== 'select') return;
+    e.stopPropagation();
+    const p = getSvgPoint(e);
     setIsDragging(true);
     setSelectedItem(item);
-    setDragOffset({
-      x: svgP.x - item.data.x,
-      y: svgP.y - item.data.y,
-    });
+    setDragOffset({ x: p.x - item.data.x, y: p.y - item.data.y });
   };
 
   const handleResizeStart = (e: React.MouseEvent, handle: 'se' | 'sw' | 'ne' | 'nw') => {
     e.stopPropagation();
-    const svg = svgRef.current;
-    if (!svg || !selectedItem) return;
-
-    const pt = svg.createSVGPoint();
-    pt.x = e.clientX;
-    pt.y = e.clientY;
-    const svgP = pt.matrixTransform(svg.getScreenCTM()?.inverse());
-
+    if (!selectedItem) return;
+    const p = getSvgPoint(e);
     setIsResizing(true);
     setResizeHandle(handle);
     setResizeStart({
-      x: svgP.x,
-      y: svgP.y,
+      x: p.x, y: p.y,
       width: selectedItem.data.width,
       height: selectedItem.data.height,
+      ox: selectedItem.data.x,
+      oy: selectedItem.data.y,
     });
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    const svg = svgRef.current;
-    if (!svg) return;
+    if (!selectedItem) return;
+    const p = getSvgPoint(e);
 
-    const pt = svg.createSVGPoint();
-    pt.x = e.clientX;
-    pt.y = e.clientY;
-    const svgP = pt.matrixTransform(svg.getScreenCTM()?.inverse());
-
-    if (isResizing && selectedItem && resizeHandle) {
-      const deltaX = svgP.x - resizeStart.x;
-      const deltaY = svgP.y - resizeStart.y;
-
-      let newWidth = resizeStart.width;
-      let newHeight = resizeStart.height;
-      let newX = selectedItem.data.x;
-      let newY = selectedItem.data.y;
-
-      if (resizeHandle === 'se') {
-        newWidth = Math.max(40, resizeStart.width + deltaX);
-        newHeight = Math.max(30, resizeStart.height + deltaY);
-      } else if (resizeHandle === 'sw') {
-        newWidth = Math.max(40, resizeStart.width - deltaX);
-        newHeight = Math.max(30, resizeStart.height + deltaY);
-        newX = selectedItem.data.x + (resizeStart.width - newWidth);
-      } else if (resizeHandle === 'ne') {
-        newWidth = Math.max(40, resizeStart.width + deltaX);
-        newHeight = Math.max(30, resizeStart.height - deltaY);
-        newY = selectedItem.data.y + (resizeStart.height - newHeight);
-      } else if (resizeHandle === 'nw') {
-        newWidth = Math.max(40, resizeStart.width - deltaX);
-        newHeight = Math.max(30, resizeStart.height - deltaY);
-        newX = selectedItem.data.x + (resizeStart.width - newWidth);
-        newY = selectedItem.data.y + (resizeStart.height - newHeight);
-      }
-
-      newX = Math.max(0, Math.min(1000 - newWidth, newX));
-      newY = Math.max(0, Math.min(700 - newHeight, newY));
-
-      const updatedData = { ...selectedItem.data, x: newX, y: newY, width: newWidth, height: newHeight };
-
-      if (selectedItem.type === 'table') {
-        setTables((prev) =>
-          prev.map((t) =>
-            t.id === selectedItem.data.id
-              ? updatedData as FloorplanTable
-              : t
-          )
-        );
-      } else {
-        setObjects((prev) =>
-          prev.map((o) =>
-            o.id === selectedItem.data.id
-              ? updatedData as FloorplanObject
-              : o
-          )
-        );
-      }
-      setSelectedItem({ ...selectedItem, data: updatedData });
-    } else if (isDragging && selectedItem) {
-      const newX = Math.max(0, Math.min(1000 - selectedItem.data.width, svgP.x - dragOffset.x));
-      const newY = Math.max(0, Math.min(700 - selectedItem.data.height, svgP.y - dragOffset.y));
-
-      const updatedData = { ...selectedItem.data, x: newX, y: newY };
-
-      if (selectedItem.type === 'table') {
-        setTables((prev) =>
-          prev.map((t) =>
-            t.id === selectedItem.data.id
-              ? updatedData as FloorplanTable
-              : t
-          )
-        );
-      } else {
-        setObjects((prev) =>
-          prev.map((o) =>
-            o.id === selectedItem.data.id
-              ? updatedData as FloorplanObject
-              : o
-          )
-        );
-      }
-      setSelectedItem({ ...selectedItem, data: updatedData });
+    if (isResizing && resizeHandle) {
+      const dx = p.x - resizeStart.x;
+      const dy = p.y - resizeStart.y;
+      let nw = resizeStart.width, nh = resizeStart.height;
+      let nx = resizeStart.ox, ny = resizeStart.oy;
+      if (resizeHandle === 'se') { nw = Math.max(40, resizeStart.width + dx); nh = Math.max(30, resizeStart.height + dy); }
+      else if (resizeHandle === 'sw') { nw = Math.max(40, resizeStart.width - dx); nh = Math.max(30, resizeStart.height + dy); nx = resizeStart.ox + (resizeStart.width - nw); }
+      else if (resizeHandle === 'ne') { nw = Math.max(40, resizeStart.width + dx); nh = Math.max(30, resizeStart.height - dy); ny = resizeStart.oy + (resizeStart.height - nh); }
+      else if (resizeHandle === 'nw') { nw = Math.max(40, resizeStart.width - dx); nh = Math.max(30, resizeStart.height - dy); nx = resizeStart.ox + (resizeStart.width - nw); ny = resizeStart.oy + (resizeStart.height - nh); }
+      nx = Math.max(0, Math.min(1000 - nw, nx));
+      ny = Math.max(0, Math.min(700 - nh, ny));
+      applyLocalUpdate({ ...selectedItem.data, x: nx, y: ny, width: nw, height: nh });
+    } else if (isDragging) {
+      const nx = Math.max(0, Math.min(1000 - selectedItem.data.width, p.x - dragOffset.x));
+      const ny = Math.max(0, Math.min(700 - selectedItem.data.height, p.y - dragOffset.y));
+      applyLocalUpdate({ ...selectedItem.data, x: nx, y: ny });
     }
   };
 
+  function applyLocalUpdate(updated: FloorplanTable | FloorplanObject) {
+    if (selectedItem!.type === 'table') {
+      setTables(prev => prev.map(t => t.id === updated.id ? updated as FloorplanTable : t));
+    } else {
+      setObjects(prev => prev.map(o => o.id === updated.id ? updated as FloorplanObject : o));
+    }
+    setSelectedItem({ ...selectedItem!, data: updated });
+  }
+
   const handleMouseUp = () => {
     if ((isDragging || isResizing) && selectedItem) {
-      if (selectedItem.type === 'table') {
-        saveTable(selectedItem.data as FloorplanTable);
-      } else {
-        saveObject(selectedItem.data as FloorplanObject);
-      }
+      if (selectedItem.type === 'table') saveTable(selectedItem.data as FloorplanTable);
+      else saveObject(selectedItem.data as FloorplanObject);
     }
     setIsDragging(false);
     setIsResizing(false);
     setResizeHandle(null);
   };
 
-  const handleZoomIn = () => setZoom((z) => Math.min(z + 0.25, 3));
-  const handleZoomOut = () => setZoom((z) => Math.max(z - 0.25, 0.5));
-  const handleResetView = () => setZoom(1);
-
   const handleToolClick = (tool: EditorTool) => {
-    setCurrentTool(tool);
-
     if (tool === 'add_seated') addTable('SEATED');
     else if (tool === 'add_standing') addTable('STANDING');
-    else if (tool === 'add_decor_table') addObject('DECOR_TABLE');
+    else if (tool === 'add_decor') addObject('DECOR_TABLE');
     else if (tool === 'add_bar') addObject('BAR');
     else if (tool === 'add_stage') addObject('STAGE');
     else if (tool === 'add_dancefloor') addObject('DANCEFLOOR');
+    else if (tool === 'add_tribune') addObject('TRIBUNE');
+    else setCurrentTool(tool);
   };
+
+  const ResizeHandles = ({ item }: { item: FloorplanTable | FloorplanObject }) => (
+    <>
+      {(['se', 'sw', 'ne', 'nw'] as const).map(h => {
+        const cx = h.includes('e') ? item.x + item.width : item.x;
+        const cy = h.includes('s') ? item.y + item.height : item.y;
+        return (
+          <circle key={h} cx={cx} cy={cy} r="7" fill="#ef4444" stroke="white" strokeWidth="2"
+            style={{ cursor: `${h}-resize` }} onMouseDown={(e) => handleResizeStart(e, h)} />
+        );
+      })}
+    </>
+  );
 
   return (
     <div className="bg-slate-900 rounded-xl overflow-hidden border border-slate-700">
@@ -567,130 +453,38 @@ export function FloorPlanEditor() {
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold text-white">Floorplan Editor</h2>
           <div className="flex gap-2">
-            <button
-              onClick={handleZoomIn}
-              className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
-              title="Zoom In"
-            >
-              <ZoomIn className="w-5 h-5" />
-            </button>
-            <button
-              onClick={handleZoomOut}
-              className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
-              title="Zoom Out"
-            >
-              <ZoomOut className="w-5 h-5" />
-            </button>
-            <button
-              onClick={handleResetView}
-              className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
-              title="Reset View"
-            >
-              <Maximize2 className="w-5 h-5" />
-            </button>
+            <button onClick={() => setZoom(z => Math.min(z + 0.25, 3))} className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors" title="Zoom In"><ZoomIn className="w-5 h-5" /></button>
+            <button onClick={() => setZoom(z => Math.max(z - 0.25, 0.5))} className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors" title="Zoom Out"><ZoomOut className="w-5 h-5" /></button>
+            <button onClick={() => setZoom(1)} className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors" title="Reset"><Maximize2 className="w-5 h-5" /></button>
           </div>
         </div>
       </div>
 
       <div className="flex">
-        {/* LEFT SIDEBAR - TOOLS */}
-        <div className="w-20 bg-slate-800 border-r border-slate-700 p-2 space-y-2 flex-shrink-0">
-          <button
-            onClick={() => setCurrentTool('select')}
-            className={`w-full aspect-square flex flex-col items-center justify-center rounded-lg transition-all ${
-              currentTool === 'select'
-                ? 'bg-slate-600 text-white shadow-lg'
-                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-            }`}
-            title="Select / Move"
-          >
-            <Move className="w-6 h-6" />
-            <span className="text-[10px] mt-1 font-medium">Select</span>
-          </button>
-
-          <div className="border-t border-slate-600 pt-2" />
-
-          <button
-            onClick={() => handleToolClick('add_seated')}
-            className="w-full aspect-square flex flex-col items-center justify-center rounded-lg bg-slate-700 text-slate-300 hover:bg-green-600 hover:text-white transition-all"
-            title="Add Seated Table"
-          >
-            <Square className="w-6 h-6" />
-            <span className="text-[10px] mt-1 font-medium">Seated</span>
-          </button>
-
-          <button
-            onClick={() => handleToolClick('add_standing')}
-            className="w-full aspect-square flex flex-col items-center justify-center rounded-lg bg-slate-700 text-slate-300 hover:bg-blue-600 hover:text-white transition-all"
-            title="Add Standing Table"
-          >
-            <Circle className="w-6 h-6" />
-            <span className="text-[10px] mt-1 font-medium">Standing</span>
-          </button>
-
-          <button
-            onClick={() => handleToolClick('add_decor_table')}
-            className="w-full aspect-square flex flex-col items-center justify-center rounded-lg bg-slate-700 text-slate-300 hover:bg-gray-600 hover:text-white transition-all"
-            title="Add Decorative Table"
-          >
-            <Square className="w-6 h-6 opacity-60" />
-            <span className="text-[10px] mt-1 font-medium">Decor</span>
-          </button>
-
-          <div className="border-t border-slate-600 pt-2" />
-
-          <button
-            onClick={() => handleToolClick('add_bar')}
-            className="w-full aspect-square flex flex-col items-center justify-center rounded-lg bg-slate-700 text-slate-300 hover:bg-orange-600 hover:text-white transition-all"
-            title="Add Bar"
-          >
-            <Square className="w-6 h-6" />
-            <span className="text-[10px] mt-1 font-medium">Bar</span>
-          </button>
-
-          <button
-            onClick={() => handleToolClick('add_stage')}
-            className="w-full aspect-square flex flex-col items-center justify-center rounded-lg bg-slate-700 text-slate-300 hover:bg-purple-600 hover:text-white transition-all"
-            title="Add Stage"
-          >
-            <Square className="w-6 h-6" />
-            <span className="text-[10px] mt-1 font-medium">Stage</span>
-          </button>
-
-          <button
-            onClick={() => handleToolClick('add_dancefloor')}
-            className="w-full aspect-square flex flex-col items-center justify-center rounded-lg bg-slate-700 text-slate-300 hover:bg-blue-700 hover:text-white transition-all"
-            title="Add Dancefloor"
-          >
-            <Square className="w-6 h-6 opacity-70" />
-            <span className="text-[10px] mt-1 font-medium">Dance</span>
-          </button>
-
-          <div className="border-t border-slate-600 pt-2" />
-
-          <button
-            onClick={() => setShowGrid(!showGrid)}
-            className={`w-full aspect-square flex flex-col items-center justify-center rounded-lg transition-all ${
-              showGrid
-                ? 'bg-slate-600 text-white'
-                : 'bg-slate-700 text-slate-400'
-            }`}
-            title="Toggle Grid"
-          >
-            <Grid3x3 className="w-6 h-6" />
-            <span className="text-[10px] mt-1 font-medium">Grid</span>
-          </button>
+        <div className="w-20 bg-slate-800 border-r border-slate-700 p-2 space-y-1.5 flex-shrink-0">
+          <ToolButton active={currentTool === 'select'} onClick={() => setCurrentTool('select')} icon={<Move className="w-5 h-5" />} label="Select" />
+          <div className="border-t border-slate-600 my-1" />
+          <ToolButton active={false} onClick={() => handleToolClick('add_seated')} icon={<Square className="w-5 h-5" />} label="Seated" hoverColor="hover:bg-green-600" />
+          <ToolButton active={false} onClick={() => handleToolClick('add_standing')} icon={<Circle className="w-5 h-5" />} label="Standing" hoverColor="hover:bg-blue-600" />
+          <ToolButton active={false} onClick={() => handleToolClick('add_decor')} icon={<Square className="w-4 h-4 opacity-60" />} label="Decor" hoverColor="hover:bg-slate-500" />
+          <div className="border-t border-slate-600 my-1" />
+          <ToolButton active={false} onClick={() => handleToolClick('add_bar')} icon={<Square className="w-5 h-5" />} label="Bar" hoverColor="hover:bg-amber-600" />
+          <ToolButton active={false} onClick={() => handleToolClick('add_stage')} icon={<Square className="w-5 h-5" />} label="Stage" hoverColor="hover:bg-blue-700" />
+          <ToolButton active={false} onClick={() => handleToolClick('add_dancefloor')} icon={<Square className="w-5 h-5 opacity-70" />} label="Dance" hoverColor="hover:bg-blue-800" />
+          <ToolButton active={false} onClick={() => handleToolClick('add_tribune')} icon={<Rows3 className="w-5 h-5" />} label="Tribune" hoverColor="hover:bg-amber-800" />
+          <div className="border-t border-slate-600 my-1" />
+          <ToolButton active={showGrid} onClick={() => setShowGrid(!showGrid)} icon={<Grid3x3 className="w-5 h-5" />} label="Grid" />
         </div>
 
-        {/* CANVAS AND RIGHT SIDEBAR */}
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-4 p-4">
-          <div className="lg:col-span-3">
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-0">
+          <div className="lg:col-span-3 p-3">
             <div
               className="bg-slate-950 rounded-lg overflow-hidden"
               style={{ height: '600px' }}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
+              onClick={() => { if (!isDragging && !isResizing) setSelectedItem(null); }}
             >
               <svg
                 ref={svgRef}
@@ -698,6 +492,7 @@ export function FloorPlanEditor() {
                 className="w-full h-full"
                 style={{
                   transform: `scale(${zoom})`,
+                  transformOrigin: 'top left',
                   transition: isDragging || isResizing ? 'none' : 'transform 0.2s ease-out',
                   cursor: currentTool === 'select' ? 'default' : 'crosshair',
                 }}
@@ -715,222 +510,93 @@ export function FloorPlanEditor() {
                   </>
                 )}
 
-                {/* Render floorplan objects (Bar, Stage, Dancefloor, etc.) */}
                 {objects.map((obj) => {
                   const isSelected = selectedItem?.type === 'object' && selectedItem.data.id === obj.id;
-                  const displayName = obj.label || obj.name;
+                  const displayName = obj.name || obj.label || obj.type || '';
+                  const isDancefloor = obj.type === 'DANCEFLOOR';
+                  const isTribune = obj.type === 'TRIBUNE';
 
                   return (
                     <g key={obj.id}>
                       <g
-                        onMouseDown={(e) => handleMouseDown(e, { type: 'object', data: obj })}
+                        onMouseDown={(e) => handleItemMouseDown(e, { type: 'object', data: obj })}
+                        onClick={(e) => { e.stopPropagation(); setSelectedItem({ type: 'object', data: obj }); }}
                         style={{ cursor: currentTool === 'select' ? 'move' : 'default' }}
                       >
-                        <rect
-                          x={obj.x}
-                          y={obj.y}
-                          width={obj.width}
-                          height={obj.height}
-                          fill={obj.color}
-                          stroke={isSelected ? '#a855f7' : '#475569'}
-                          strokeWidth={isSelected ? '3' : '2'}
-                          rx="4"
-                          opacity={obj.type === 'DANCEFLOOR' ? 0.3 : 1}
-                          className="transition-all duration-200"
-                        />
-
-                        <text
-                          x={obj.x + obj.width / 2}
-                          y={obj.y + obj.height / 2}
-                          textAnchor="middle"
-                          dominantBaseline="middle"
-                          fill={obj.font_color || 'white'}
-                          fontSize={obj.font_size || (obj.type === 'DANCEFLOOR' ? 16 : 20)}
-                          fontWeight={obj.font_weight || 'bold'}
-                          className="pointer-events-none"
-                          opacity={obj.type === 'DANCEFLOOR' ? 0.6 : 1}
-                        >
-                          {displayName.toUpperCase()}
-                        </text>
+                        {isTribune ? (
+                          <>
+                            <rect x={obj.x} y={obj.y} width={obj.width} height={obj.height}
+                              fill={obj.color} stroke={isSelected ? '#ef4444' : '#78350f'}
+                              strokeWidth={isSelected ? '3' : '2'} rx="4" />
+                            {[0.2, 0.4, 0.6, 0.8].map((frac) => (
+                              <line key={frac}
+                                x1={obj.x + obj.width * frac} y1={obj.y + 4}
+                                x2={obj.x + obj.width * frac} y2={obj.y + obj.height - 4}
+                                stroke="rgba(0,0,0,0.3)" strokeWidth="1.5"
+                              />
+                            ))}
+                            <text x={obj.x + obj.width / 2} y={obj.y + obj.height / 2}
+                              textAnchor="middle" dominantBaseline="middle"
+                              fill={obj.font_color || '#fff'} fontSize={obj.font_size || 16}
+                              fontWeight={obj.font_weight || 'bold'} className="pointer-events-none">
+                              {displayName}
+                            </text>
+                          </>
+                        ) : (
+                          <>
+                            <rect x={obj.x} y={obj.y} width={obj.width} height={obj.height}
+                              fill={obj.color} stroke={isSelected ? '#ef4444' : '#475569'}
+                              strokeWidth={isSelected ? '3' : '2'} rx="4"
+                              opacity={isDancefloor ? 0.35 : 1} />
+                            <text x={obj.x + obj.width / 2} y={obj.y + obj.height / 2}
+                              textAnchor="middle" dominantBaseline="middle"
+                              fill={obj.font_color || '#fff'} fontSize={obj.font_size || (isDancefloor ? 16 : 18)}
+                              fontWeight={obj.font_weight || 'bold'} className="pointer-events-none"
+                              opacity={isDancefloor ? 0.7 : 1}>
+                              {displayName.toUpperCase()}
+                            </text>
+                          </>
+                        )}
                       </g>
-
-                      {isSelected && currentTool === 'select' && (
-                        <>
-                          <circle
-                            cx={obj.x + obj.width}
-                            cy={obj.y + obj.height}
-                            r="6"
-                            fill="#a855f7"
-                            stroke="white"
-                            strokeWidth="2"
-                            style={{ cursor: 'se-resize' }}
-                            onMouseDown={(e) => handleResizeStart(e, 'se')}
-                          />
-                          <circle
-                            cx={obj.x}
-                            cy={obj.y + obj.height}
-                            r="6"
-                            fill="#a855f7"
-                            stroke="white"
-                            strokeWidth="2"
-                            style={{ cursor: 'sw-resize' }}
-                            onMouseDown={(e) => handleResizeStart(e, 'sw')}
-                          />
-                          <circle
-                            cx={obj.x + obj.width}
-                            cy={obj.y}
-                            r="6"
-                            fill="#a855f7"
-                            stroke="white"
-                            strokeWidth="2"
-                            style={{ cursor: 'ne-resize' }}
-                            onMouseDown={(e) => handleResizeStart(e, 'ne')}
-                          />
-                          <circle
-                            cx={obj.x}
-                            cy={obj.y}
-                            r="6"
-                            fill="#a855f7"
-                            stroke="white"
-                            strokeWidth="2"
-                            style={{ cursor: 'nw-resize' }}
-                            onMouseDown={(e) => handleResizeStart(e, 'nw')}
-                          />
-                        </>
-                      )}
+                      {isSelected && currentTool === 'select' && <ResizeHandles item={obj} />}
                     </g>
                   );
                 })}
 
-                {/* Render reservable tables */}
                 {tables.map((table) => {
                   const isSelected = selectedItem?.type === 'table' && selectedItem.data.id === table.id;
                   const isSeated = table.table_type === 'SEATED';
                   const isSold = table.manual_status === 'SOLD';
+                  const fillColor = isSold ? '#ef4444' : isSeated ? '#22c55e' : '#3b82f6';
 
                   return (
                     <g key={table.id}>
                       <g
-                        onMouseDown={(e) => handleMouseDown(e, { type: 'table', data: table })}
+                        onMouseDown={(e) => handleItemMouseDown(e, { type: 'table', data: table })}
+                        onClick={(e) => { e.stopPropagation(); setSelectedItem({ type: 'table', data: table }); }}
                         style={{ cursor: currentTool === 'select' ? 'move' : 'default' }}
                       >
-                        <rect
-                          x={table.x}
-                          y={table.y}
-                          width={table.width}
-                          height={table.height}
-                          fill={isSold ? '#ef4444' : (isSeated ? '#22c55e' : '#3b82f6')}
-                          stroke={isSelected ? '#a855f7' : '#475569'}
-                          strokeWidth={isSelected ? '3' : '2'}
-                          rx="4"
-                          className="transition-all duration-200"
-                        />
-
-                        {isSeated && (
-                          <>
-                            <circle
-                              cx={table.x + 15}
-                              cy={table.y + 15}
-                              r="8"
-                              fill="#334155"
-                              stroke="#64748b"
-                              strokeWidth="1"
-                            />
-                            <circle
-                              cx={table.x + table.width - 15}
-                              cy={table.y + 15}
-                              r="8"
-                              fill="#334155"
-                              stroke="#64748b"
-                              strokeWidth="1"
-                            />
-                            <circle
-                              cx={table.x + 15}
-                              cy={table.y + table.height - 15}
-                              r="8"
-                              fill="#334155"
-                              stroke="#64748b"
-                              strokeWidth="1"
-                            />
-                            <circle
-                              cx={table.x + table.width - 15}
-                              cy={table.y + table.height - 15}
-                              r="8"
-                              fill="#334155"
-                              stroke="#64748b"
-                              strokeWidth="1"
-                            />
-                          </>
-                        )}
-
-                        <text
-                          x={table.x + table.width / 2}
-                          y={table.y + table.height / 2}
-                          textAnchor="middle"
-                          fill="white"
-                          fontSize="18"
-                          fontWeight="bold"
-                          className="pointer-events-none"
-                        >
+                        <rect x={table.x} y={table.y} width={table.width} height={table.height}
+                          fill={fillColor} stroke={isSelected ? '#ef4444' : '#475569'}
+                          strokeWidth={isSelected ? '3' : '2'} rx="4" />
+                        {isSeated && [
+                          [table.x + 12, table.y + 12],
+                          [table.x + table.width - 12, table.y + 12],
+                          [table.x + 12, table.y + table.height - 12],
+                          [table.x + table.width - 12, table.y + table.height - 12],
+                        ].map(([cx, cy], i) => (
+                          <circle key={i} cx={cx} cy={cy} r="7" fill="#1e293b" stroke="#475569" strokeWidth="1" />
+                        ))}
+                        <text x={table.x + table.width / 2} y={table.y + table.height / 2 - 7}
+                          textAnchor="middle" fill="white" fontSize="14" fontWeight="bold" className="pointer-events-none">
                           {table.table_number}
                         </text>
-
-                        <text
-                          x={table.x + table.width / 2}
-                          y={table.y + table.height / 2 + 18}
-                          textAnchor="middle"
-                          fill="white"
-                          fontSize="12"
-                          className="pointer-events-none"
-                        >
+                        <text x={table.x + table.width / 2} y={table.y + table.height / 2 + 9}
+                          textAnchor="middle" fill="rgba(255,255,255,0.8)" fontSize="11" className="pointer-events-none">
                           {table.capacity}p
                         </text>
                       </g>
-
-                      {isSelected && currentTool === 'select' && (
-                        <>
-                          <circle
-                            cx={table.x + table.width}
-                            cy={table.y + table.height}
-                            r="6"
-                            fill="#a855f7"
-                            stroke="white"
-                            strokeWidth="2"
-                            style={{ cursor: 'se-resize' }}
-                            onMouseDown={(e) => handleResizeStart(e, 'se')}
-                          />
-                          <circle
-                            cx={table.x}
-                            cy={table.y + table.height}
-                            r="6"
-                            fill="#a855f7"
-                            stroke="white"
-                            strokeWidth="2"
-                            style={{ cursor: 'sw-resize' }}
-                            onMouseDown={(e) => handleResizeStart(e, 'sw')}
-                          />
-                          <circle
-                            cx={table.x + table.width}
-                            cy={table.y}
-                            r="6"
-                            fill="#a855f7"
-                            stroke="white"
-                            strokeWidth="2"
-                            style={{ cursor: 'ne-resize' }}
-                            onMouseDown={(e) => handleResizeStart(e, 'ne')}
-                          />
-                          <circle
-                            cx={table.x}
-                            cy={table.y}
-                            r="6"
-                            fill="#a855f7"
-                            stroke="white"
-                            strokeWidth="2"
-                            style={{ cursor: 'nw-resize' }}
-                            onMouseDown={(e) => handleResizeStart(e, 'nw')}
-                          />
-                        </>
-                      )}
+                      {isSelected && currentTool === 'select' && <ResizeHandles item={table} />}
                     </g>
                   );
                 })}
@@ -938,29 +604,16 @@ export function FloorPlanEditor() {
             </div>
           </div>
 
-          {/* RIGHT SIDEBAR - PROPERTIES */}
-          <div className="space-y-4">
-            {selectedItem && (
+          <div className="p-3 space-y-3 bg-slate-800/30 border-l border-slate-700 overflow-y-auto" style={{ maxHeight: '636px' }}>
+            {selectedItem ? (
               <div className="bg-slate-800 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-white">
-                    {selectedItem.type === 'table' ? 'Table Properties' : 'Object Properties'}
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-white">
+                    {selectedItem.type === 'table' ? 'Tafel eigenschappen' : 'Object eigenschappen'}
                   </h3>
                   <div className="flex gap-1">
-                    <button
-                      onClick={duplicateItem}
-                      className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors"
-                      title="Duplicate"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={deleteItem}
-                      className="p-2 bg-red-600 hover:bg-red-500 text-white rounded transition-colors"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <button onClick={duplicateItem} className="p-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors" title="Dupliceren"><Copy className="w-3.5 h-3.5" /></button>
+                    <button onClick={deleteItem} className="p-1.5 bg-red-600 hover:bg-red-500 text-white rounded transition-colors" title="Verwijderen"><Trash2 className="w-3.5 h-3.5" /></button>
                   </div>
                 </div>
 
@@ -969,49 +622,61 @@ export function FloorPlanEditor() {
                     table={selectedItem.data as FloorplanTable}
                     packages={packages}
                     onUpdate={(updates) => {
-                      const updatedTable = { ...selectedItem.data, ...updates } as FloorplanTable;
-                      setSelectedItem({ type: 'table', data: updatedTable });
-                      setTables((prev) =>
-                        prev.map((t) => (t.id === selectedItem.data.id ? updatedTable : t))
-                      );
+                      const updated = { ...selectedItem.data, ...updates } as FloorplanTable;
+                      setSelectedItem({ type: 'table', data: updated });
+                      setTables(prev => prev.map(t => t.id === updated.id ? updated : t));
                     }}
                     onSave={() => saveTable(selectedItem.data as FloorplanTable)}
-                    onStatusChange={(newStatus) => updateTableStatus(selectedItem.data as FloorplanTable, newStatus)}
                   />
                 ) : (
                   <ObjectProperties
                     object={selectedItem.data as FloorplanObject}
                     onUpdate={(updates) => {
-                      const updatedObject = { ...selectedItem.data, ...updates } as FloorplanObject;
-                      setSelectedItem({ type: 'object', data: updatedObject });
-                      setObjects((prev) =>
-                        prev.map((o) => (o.id === selectedItem.data.id ? updatedObject : o))
-                      );
+                      const updated = { ...selectedItem.data, ...updates } as FloorplanObject;
+                      setSelectedItem({ type: 'object', data: updated });
+                      setObjects(prev => prev.map(o => o.id === updated.id ? updated : o));
                     }}
                     onSave={() => saveObject(selectedItem.data as FloorplanObject)}
                   />
                 )}
               </div>
-            )}
-
-            {!selectedItem && (
+            ) : (
               <div className="bg-slate-800 rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-                <div className="space-y-2 text-sm text-slate-400">
-                  <p>• Select an item to edit properties</p>
-                  <p>• Use left sidebar to add new items</p>
-                  <p>• Drag to move, resize handles to scale</p>
-                  <p>• Toggle grid for alignment</p>
+                <h3 className="text-sm font-semibold text-white mb-3">Snelle acties</h3>
+                <div className="space-y-1.5 text-xs text-slate-400">
+                  <p>• Selecteer een item om eigenschappen te bewerken</p>
+                  <p>• Gebruik de linkerzijbalk om items toe te voegen</p>
+                  <p>• Sleep om te verplaatsen</p>
+                  <p>• Rode hoeken om te vergroten/verkleinen</p>
+                  <p>• Tribune knop voor tribunes</p>
                 </div>
               </div>
             )}
 
             {saving && (
-              <div className="bg-green-600 text-white rounded-lg p-3 text-center">
-                <Save className="w-5 h-5 inline-block mr-2" />
-                Saving...
+              <div className="bg-green-700/80 text-white rounded-lg p-2.5 text-center text-sm flex items-center justify-center gap-2">
+                <Save className="w-4 h-4 animate-pulse" /> Opslaan...
               </div>
             )}
+
+            <div className="bg-slate-800 rounded-lg p-3">
+              <p className="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Legenda</p>
+              <div className="space-y-1.5">
+                {[
+                  { color: '#22c55e', label: 'Seated tafel' },
+                  { color: '#3b82f6', label: 'Standing tafel' },
+                  { color: '#ef4444', label: 'Verkocht' },
+                  { color: '#f59e0b', label: 'Bar' },
+                  { color: '#1e40af', label: 'Stage / Dancefloor' },
+                  { color: '#92400e', label: 'Tribune' },
+                ].map(({ color, label }) => (
+                  <div key={label} className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded flex-shrink-0" style={{ backgroundColor: color }} />
+                    <span className="text-xs text-slate-300">{label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1019,330 +684,192 @@ export function FloorPlanEditor() {
   );
 }
 
-// Table Properties Component
-function TableProperties({
-  table,
-  packages,
-  onUpdate,
-  onSave,
-  onStatusChange
-}: {
-  table: FloorplanTable;
-  packages: TablePackage[];
-  onUpdate: (updates: Partial<FloorplanTable>) => void;
-  onSave: () => void;
-  onStatusChange: (status: string) => void;
+function ToolButton({ active, onClick, icon, label, hoverColor = 'hover:bg-slate-600' }: {
+  active: boolean; onClick: () => void; icon: React.ReactNode; label: string; hoverColor?: string;
 }) {
-  const tableData = table as any;
-
   return (
-    <div className="space-y-3 text-sm">
-      <div>
-        <label className="block text-slate-300 mb-1 font-medium">Name</label>
-        <input
-          type="text"
-          value={table.table_number}
-          onChange={(e) => onUpdate({ table_number: e.target.value })}
-          onBlur={onSave}
-          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white focus:border-purple-500 focus:outline-none"
-        />
-      </div>
+    <button
+      onClick={onClick}
+      className={`w-full aspect-square flex flex-col items-center justify-center rounded-lg transition-all text-[10px] font-medium gap-0.5
+        ${active ? 'bg-red-600 text-white shadow-lg' : `bg-slate-700 text-slate-300 ${hoverColor} hover:text-white`}`}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+}
 
-      <div>
-        <label className="block text-slate-300 mb-1 font-medium">Type</label>
-        <select
-          value={table.table_type || 'SEATED'}
-          onChange={(e) => {
-            onUpdate({ table_type: e.target.value as 'SEATED' | 'STANDING' });
-            onSave();
-          }}
-          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white focus:border-purple-500 focus:outline-none"
-        >
-          <option value="SEATED">Seated</option>
-          <option value="STANDING">Standing</option>
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-slate-300 mb-1 font-medium">Status</label>
-        <select
-          value={table.manual_status || 'AVAILABLE'}
-          onChange={(e) => onStatusChange(e.target.value)}
-          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white focus:border-purple-500 focus:outline-none"
-        >
-          <option value="AVAILABLE">Available</option>
-          <option value="SOLD">Sold</option>
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-slate-300 mb-1 font-medium">Capacity</label>
-        <input
-          type="number"
-          min="1"
-          max="50"
-          value={table.capacity}
-          onChange={(e) => onUpdate({ capacity: parseInt(e.target.value) || 1 })}
-          onBlur={onSave}
-          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white focus:border-purple-500 focus:outline-none"
-        />
-      </div>
-
-      <div>
-        <label className="block text-slate-300 mb-1 font-medium">Price (€)</label>
-        <input
-          type="number"
-          min="0"
-          step="0.01"
-          value={table.price}
-          onChange={(e) => onUpdate({ price: parseFloat(e.target.value) || 0 })}
-          onBlur={onSave}
-          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white focus:border-purple-500 focus:outline-none"
-        />
-      </div>
-
-      <div>
-        <label className="block text-slate-300 mb-1 font-medium">Package</label>
-        <select
-          value={table.package_id || ''}
-          onChange={(e) => {
-            onUpdate({ package_id: e.target.value || null });
-            onSave();
-          }}
-          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white focus:border-purple-500 focus:outline-none"
-        >
-          <option value="">No package</option>
-          {packages.map((pkg) => (
-            <option key={pkg.id} value={pkg.id}>
-              {pkg.name} - €{pkg.base_price}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-slate-300 mb-1 font-medium">Position & Size</label>
-        <div className="grid grid-cols-2 gap-2">
-          <input
-            type="number"
-            value={Math.round(table.x)}
-            onChange={(e) => onUpdate({ x: parseInt(e.target.value) || 0 })}
-            onBlur={onSave}
-            placeholder="X"
-            className="px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white focus:border-purple-500 focus:outline-none"
-          />
-          <input
-            type="number"
-            value={Math.round(table.y)}
-            onChange={(e) => onUpdate({ y: parseInt(e.target.value) || 0 })}
-            onBlur={onSave}
-            placeholder="Y"
-            className="px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white focus:border-purple-500 focus:outline-none"
-          />
-          <input
-            type="number"
-            value={Math.round(table.width)}
-            onChange={(e) => onUpdate({ width: parseInt(e.target.value) || 40 })}
-            onBlur={onSave}
-            placeholder="Width"
-            className="px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white focus:border-purple-500 focus:outline-none"
-          />
-          <input
-            type="number"
-            value={Math.round(table.height)}
-            onChange={(e) => onUpdate({ height: parseInt(e.target.value) || 30 })}
-            onBlur={onSave}
-            placeholder="Height"
-            className="px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white focus:border-purple-500 focus:outline-none"
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-slate-300 mb-1 font-medium">Included Text</label>
-        <input
-          type="text"
-          value={tableData.included_text || ''}
-          onChange={(e) => onUpdate({ included_text: e.target.value } as any)}
-          onBlur={onSave}
-          placeholder="What's included"
-          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white focus:border-purple-500 focus:outline-none"
-        />
-      </div>
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className={labelCls}>{label}</label>
+      {children}
     </div>
   );
 }
 
-// Object Properties Component
-function ObjectProperties({
-  object,
-  onUpdate,
-  onSave
-}: {
+function TableProperties({ table, packages, onUpdate, onSave }: {
+  table: FloorplanTable;
+  packages: TablePackage[];
+  onUpdate: (updates: Partial<FloorplanTable>) => void;
+  onSave: () => void;
+}) {
+  return (
+    <div className="space-y-2.5 text-sm">
+      <Field label="Naam">
+        <input type="text" value={table.table_number}
+          onChange={(e) => onUpdate({ table_number: e.target.value })}
+          onBlur={onSave} className={inputCls} />
+      </Field>
+
+      <Field label="Type">
+        <select value={table.table_type || 'SEATED'}
+          onChange={(e) => { onUpdate({ table_type: e.target.value }); onSave(); }} className={inputCls}>
+          <option value="SEATED">Seated (zittend)</option>
+          <option value="STANDING">Standing (staand)</option>
+        </select>
+      </Field>
+
+      <Field label="Status">
+        <select value={table.manual_status || 'AVAILABLE'}
+          onChange={(e) => { onUpdate({ manual_status: e.target.value }); onSave(); }} className={inputCls}>
+          <option value="AVAILABLE">Beschikbaar</option>
+          <option value="SOLD">Verkocht</option>
+        </select>
+      </Field>
+
+      <Field label="Capaciteit">
+        <input type="number" min="1" max="200" value={table.capacity}
+          onChange={(e) => onUpdate({ capacity: parseInt(e.target.value) || 1 })}
+          onBlur={onSave} className={inputCls} />
+      </Field>
+
+      <Field label="Prijs (€)">
+        <input type="number" min="0" step="0.01" value={table.price}
+          onChange={(e) => onUpdate({ price: parseFloat(e.target.value) || 0 })}
+          onBlur={onSave} className={inputCls} />
+      </Field>
+
+      <Field label="Package">
+        <select value={table.package_id || ''}
+          onChange={(e) => { onUpdate({ package_id: e.target.value || null }); onSave(); }} className={inputCls}>
+          <option value="">Geen package</option>
+          {packages.map(pkg => (
+            <option key={pkg.id} value={pkg.id}>{pkg.name} — €{pkg.base_price}</option>
+          ))}
+        </select>
+      </Field>
+
+      <Field label="Inbegrepen tekst">
+        <input type="text" value={table.included_text || ''}
+          onChange={(e) => onUpdate({ included_text: e.target.value })}
+          onBlur={onSave} placeholder="bv. 1 fles + mixers" className={inputCls} />
+      </Field>
+
+      <div>
+        <label className={labelCls}>Positie & Grootte</label>
+        <div className="grid grid-cols-2 gap-1.5">
+          {([['X', 'x'], ['Y', 'y'], ['Breedte', 'width'], ['Hoogte', 'height']] as const).map(([ph, key]) => (
+            <input key={key} type="number" placeholder={ph} value={Math.round((table as any)[key])}
+              onChange={(e) => onUpdate({ [key]: parseInt(e.target.value) || 0 } as any)}
+              onBlur={onSave} className={inputCls} />
+          ))}
+        </div>
+      </div>
+
+      <button onClick={onSave} className={saveBtnCls}>
+        <Save className="w-3.5 h-3.5" /> Opslaan
+      </button>
+    </div>
+  );
+}
+
+function ObjectProperties({ object, onUpdate, onSave }: {
   object: FloorplanObject;
   onUpdate: (updates: Partial<FloorplanObject>) => void;
   onSave: () => void;
 }) {
   return (
-    <div className="space-y-3 text-sm">
-      <div>
-        <label className="block text-slate-300 mb-1 font-medium">Name</label>
-        <input
-          type="text"
-          value={object.name}
+    <div className="space-y-2.5 text-sm">
+      <Field label="Naam / Label">
+        <input type="text" value={object.name || ''}
           onChange={(e) => onUpdate({ name: e.target.value, label: e.target.value })}
-          onBlur={onSave}
-          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white focus:border-purple-500 focus:outline-none"
-        />
+          onBlur={onSave} className={inputCls} />
+      </Field>
+
+      <Field label="Type">
+        <input type="text" value={object.type || object.object_type || ''} disabled
+          className="w-full px-2.5 py-1.5 bg-slate-600 border border-slate-500 rounded text-slate-400 text-sm" />
+      </Field>
+
+      <Field label="Achtergrondkleur">
+        <input type="color" value={object.color || '#6b7280'}
+          onChange={(e) => onUpdate({ color: e.target.value })}
+          onBlur={onSave} className="w-full h-9 bg-slate-700 border border-slate-600 rounded cursor-pointer" />
+      </Field>
+
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Tekstkleur">
+          <input type="color" value={object.font_color || '#ffffff'}
+            onChange={(e) => onUpdate({ font_color: e.target.value })}
+            onBlur={onSave} className="w-full h-9 bg-slate-700 border border-slate-600 rounded cursor-pointer" />
+        </Field>
+        <Field label="Grootte">
+          <input type="number" min="8" max="60" value={object.font_size ?? 18}
+            onChange={(e) => onUpdate({ font_size: parseInt(e.target.value) || 18 })}
+            onBlur={onSave} className={inputCls} />
+        </Field>
       </div>
 
-      {/* Translated Names */}
+      <Field label="Tekstgewicht">
+        <select value={object.font_weight ?? 'bold'}
+          onChange={(e) => { onUpdate({ font_weight: e.target.value }); onSave(); }} className={inputCls}>
+          <option value="normal">Normaal</option>
+          <option value="bold">Vet</option>
+          <option value="800">Extra vet</option>
+        </select>
+      </Field>
+
       <div>
-        <label className="block text-slate-300 mb-1 font-medium">Translated Names</label>
-        <div className="space-y-2">
-          {([
-            ['name_nl', '🇳🇱 NL'],
-            ['name_tr', '🇹🇷 TR'],
-            ['name_fr', '🇫🇷 FR'],
-            ['name_de', '🇩🇪 DE'],
-          ] as const).map(([field, label]) => (
+        <label className={labelCls}>Vertalingen (leeg = standaard naam)</label>
+        <div className="space-y-1.5">
+          {([['name_nl', 'NL'], ['name_tr', 'TR'], ['name_fr', 'FR'], ['name_de', 'DE']] as const).map(([field, lang]) => (
             <div key={field} className="flex items-center gap-2">
-              <span className="text-xs text-slate-400 w-12 shrink-0">{label}</span>
-              <input
-                type="text"
-                value={(object as any)[field] ?? ''}
-                placeholder={object.name}
+              <span className="text-xs text-slate-400 w-7 shrink-0 font-semibold">{lang}</span>
+              <input type="text" value={(object as any)[field] ?? ''} placeholder={object.name}
                 onChange={(e) => onUpdate({ [field]: e.target.value || null } as any)}
                 onBlur={onSave}
-                className="flex-1 px-3 py-1.5 bg-slate-700 border border-slate-600 rounded text-white text-xs focus:border-purple-500 focus:outline-none"
-              />
+                className="flex-1 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs focus:border-red-500 focus:outline-none" />
             </div>
           ))}
         </div>
-        <p className="text-xs text-slate-500 mt-1">Leave empty to use default name</p>
       </div>
 
       <div>
-        <label className="block text-slate-300 mb-1 font-medium">Type</label>
-        <input
-          type="text"
-          value={object.type}
-          disabled
-          className="w-full px-3 py-2 bg-slate-600 border border-slate-500 rounded text-slate-400"
-        />
-      </div>
-
-      <div>
-        <label className="block text-slate-300 mb-1 font-medium">Color</label>
-        <input
-          type="color"
-          value={object.color}
-          onChange={(e) => onUpdate({ color: e.target.value })}
-          onBlur={onSave}
-          className="w-full h-10 bg-slate-700 border border-slate-600 rounded cursor-pointer"
-        />
-      </div>
-
-      <div>
-        <label className="block text-slate-300 mb-1 font-medium">Position & Size</label>
-        <div className="grid grid-cols-2 gap-2">
-          <input
-            type="number"
-            value={Math.round(object.x)}
-            onChange={(e) => onUpdate({ x: parseInt(e.target.value) || 0 })}
-            onBlur={onSave}
-            placeholder="X"
-            className="px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white focus:border-purple-500 focus:outline-none"
-          />
-          <input
-            type="number"
-            value={Math.round(object.y)}
-            onChange={(e) => onUpdate({ y: parseInt(e.target.value) || 0 })}
-            onBlur={onSave}
-            placeholder="Y"
-            className="px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white focus:border-purple-500 focus:outline-none"
-          />
-          <input
-            type="number"
-            value={Math.round(object.width)}
-            onChange={(e) => onUpdate({ width: parseInt(e.target.value) || 40 })}
-            onBlur={onSave}
-            placeholder="Width"
-            className="px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white focus:border-purple-500 focus:outline-none"
-          />
-          <input
-            type="number"
-            value={Math.round(object.height)}
-            onChange={(e) => onUpdate({ height: parseInt(e.target.value) || 40 })}
-            onBlur={onSave}
-            placeholder="Height"
-            className="px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white focus:border-purple-500 focus:outline-none"
-          />
+        <label className={labelCls}>Positie & Grootte</label>
+        <div className="grid grid-cols-2 gap-1.5">
+          {([['X', 'x'], ['Y', 'y'], ['Breedte', 'width'], ['Hoogte', 'height']] as const).map(([ph, key]) => (
+            <input key={key} type="number" placeholder={ph} value={Math.round((object as any)[key])}
+              onChange={(e) => onUpdate({ [key]: parseInt(e.target.value) || 0 } as any)}
+              onBlur={onSave} className={inputCls} />
+          ))}
         </div>
       </div>
 
-      {/* Font Properties */}
-      <div>
-        <label className="block text-slate-300 mb-1 font-medium">Font Size</label>
-        <input
-          type="number"
-          min={8}
-          max={48}
-          value={object.font_size ?? 14}
-          onChange={(e) => onUpdate({ font_size: parseInt(e.target.value) || 14 })}
-          onBlur={onSave}
-          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white focus:border-purple-500 focus:outline-none"
-        />
-      </div>
-
-      <div>
-        <label className="block text-slate-300 mb-1 font-medium">Font Color</label>
-        <input
-          type="color"
-          value={object.font_color ?? '#ffffff'}
-          onChange={(e) => onUpdate({ font_color: e.target.value })}
-          onBlur={onSave}
-          className="w-full h-10 bg-slate-700 border border-slate-600 rounded cursor-pointer"
-        />
-      </div>
-
-      <div>
-        <label className="block text-slate-300 mb-1 font-medium">Font Weight</label>
-        <select
-          value={object.font_weight ?? 'bold'}
-          onChange={(e) => {
-            onUpdate({ font_weight: e.target.value });
-            onSave();
-          }}
-          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white focus:border-purple-500 focus:outline-none"
-        >
-          <option value="normal">Normal</option>
-          <option value="bold">Bold</option>
-          <option value="800">Extra Bold</option>
-        </select>
-      </div>
-
       <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id="is_visible"
-          checked={object.is_visible ?? true}
-          onChange={(e) => {
-            onUpdate({ is_visible: e.target.checked });
-            onSave();
-          }}
-          className="w-4 h-4 bg-slate-700 border-slate-600 rounded"
-        />
-        <label htmlFor="is_visible" className="text-slate-300 font-medium">Visible on public floorplan</label>
+        <input type="checkbox" id="obj_visible" checked={object.is_visible ?? true}
+          onChange={(e) => { onUpdate({ is_visible: e.target.checked }); onSave(); }}
+          className="w-4 h-4 rounded bg-slate-700 border-slate-600 accent-red-500" />
+        <label htmlFor="obj_visible" className="text-slate-300 text-xs">Zichtbaar op publieke floorplan</label>
       </div>
 
-      <button
-        onClick={onSave}
-        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-medium rounded transition-colors"
-      >
-        <Save className="w-4 h-4" />
-        Save
+      <button onClick={onSave} className={saveBtnCls}>
+        <Save className="w-3.5 h-3.5" /> Opslaan
       </button>
     </div>
   );
 }
+
+const inputCls = "w-full px-2.5 py-1.5 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500/20";
+const labelCls = "block text-slate-400 text-xs font-medium mb-1";
+const saveBtnCls = "w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-500 text-white font-medium rounded transition-colors text-sm";
