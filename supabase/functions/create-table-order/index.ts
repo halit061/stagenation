@@ -208,12 +208,12 @@ Deno.serve(async (req: Request) => {
       }
       return sum + serverPrice;
     }, 0);
-    const randomPart = Array.from(crypto.getRandomValues(new Uint8Array(6)))
+    const randomPart = Array.from(crypto.getRandomValues(new Uint8Array(8)))
       .map(b => b.toString(36).padStart(2, '0'))
       .join('')
       .toUpperCase()
-      .substring(0, 9);
-    const orderNumber = `TBL-${Date.now()}-${randomPart}`;
+      .substring(0, 12);
+    const orderNumber = `TBL-${randomPart}`;
 
     const { data: order, error: orderError } = await supabase
       .from('orders')

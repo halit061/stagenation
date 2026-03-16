@@ -415,15 +415,16 @@ Deno.serve(async (req: Request) => {
       for (const item of cart) {
         const ticketType = ticketTypes?.find(tt => tt.id === item.ticket_type_id);
         const ticketProductType = ticketType?.name.toUpperCase().includes('VIP') ? 'VIP' : 'REGULAR';
+        const prefix = (ticketType?.name || 'TKT').replace(/[^A-Za-z]/g, '').toUpperCase().substring(0, 3).padEnd(3, 'X');
 
         for (let i = 0; i < item.quantity; i++) {
-          const randomPart = Array.from(crypto.getRandomValues(new Uint8Array(5)))
+          const randomPart = Array.from(crypto.getRandomValues(new Uint8Array(8)))
             .map(b => b.toString(36).padStart(2, '0'))
             .join('')
             .toUpperCase()
-            .substring(0, 8);
-          const ticketNumber = `TKT-${Date.now()}-${randomPart}`;
-          const token = createHmac('sha256', supabaseServiceKey).update(`${reservedOrderId}-${ticketNumber}-${Date.now()}`).digest('hex');
+            .substring(0, 12);
+          const ticketNumber = `${prefix}-${randomPart}`;
+          const token = createHmac('sha256', supabaseServiceKey).update(`${reservedOrderId}-${ticketNumber}-${crypto.randomUUID()}`).digest('hex');
           ticketsToCreate.push({
             order_id: reservedOrderId, event_id, ticket_type_id: item.ticket_type_id, ticket_number: ticketNumber,
             token: token.substring(0, 32), status: 'pending', holder_email: customer_email, holder_name: customer_name, qr_data: token,
@@ -496,7 +497,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const idempotencyKey = clientIdempotencyKey || `checkout:${customer_email}:${event_id}:${Date.now()}`;
+    const idempotencyKey = clientIdempotencyKey || `checkout:${customer_email}:${event_id}:${crypto.randomUUID()}`;
 
     // Check 1: Exact idempotency key match
     const { data: existingOrder } = await supabase
@@ -559,12 +560,12 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: 'Stock check failed', message: msg }, 500);
     }
 
-    const orderRandomPart = Array.from(crypto.getRandomValues(new Uint8Array(6)))
+    const orderRandomPart = Array.from(crypto.getRandomValues(new Uint8Array(8)))
       .map(b => b.toString(36).padStart(2, '0'))
       .join('')
       .toUpperCase()
-      .substring(0, 9);
-    const orderNumber = `TKT-${Date.now()}-${orderRandomPart}`;
+      .substring(0, 12);
+    const orderNumber = `ORD-${orderRandomPart}`;
 
     const { data: newOrder, error: orderError } = await supabase.from('orders').insert({
       event_id, order_number: orderNumber, payer_email: customer_email, payer_name: customer_name, payer_phone: customer_phone,
@@ -606,15 +607,16 @@ Deno.serve(async (req: Request) => {
     for (const item of cart) {
       const ticketType = ticketTypes?.find(tt => tt.id === item.ticket_type_id);
       const ticketProductType = ticketType?.name.toUpperCase().includes('VIP') ? 'VIP' : 'REGULAR';
+      const prefix = (ticketType?.name || 'TKT').replace(/[^A-Za-z]/g, '').toUpperCase().substring(0, 3).padEnd(3, 'X');
 
       for (let i = 0; i < item.quantity; i++) {
-        const randomPart = Array.from(crypto.getRandomValues(new Uint8Array(5)))
+        const randomPart = Array.from(crypto.getRandomValues(new Uint8Array(8)))
           .map(b => b.toString(36).padStart(2, '0'))
           .join('')
           .toUpperCase()
-          .substring(0, 8);
-        const ticketNumber = `TKT-${Date.now()}-${randomPart}`;
-        const token = createHmac('sha256', supabaseServiceKey).update(`${newOrder.id}-${ticketNumber}-${Date.now()}`).digest('hex');
+          .substring(0, 12);
+        const ticketNumber = `${prefix}-${randomPart}`;
+        const token = createHmac('sha256', supabaseServiceKey).update(`${newOrder.id}-${ticketNumber}-${crypto.randomUUID()}`).digest('hex');
         ticketsToCreate.push({
           order_id: newOrder.id, event_id, ticket_type_id: item.ticket_type_id, ticket_number: ticketNumber,
           token: token.substring(0, 32), status: 'pending', holder_email: customer_email, holder_name: customer_name, qr_data: token,

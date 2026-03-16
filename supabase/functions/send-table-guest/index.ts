@@ -361,7 +361,7 @@ Deno.serve(async (req: Request) => {
 
     const tableInfo: TableInfo = tableData;
 
-    const ticketNumber = 'TABLE-' + Date.now() + '-' + generateHexToken(4).toUpperCase();
+    const ticketNumber = 'TBL-' + Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => b.toString(36).padStart(2, '0')).join('').toUpperCase().substring(0, 12);
     const token = generateHexToken(16);
     const qrCode = generateHexToken(32);
 
@@ -437,7 +437,7 @@ Deno.serve(async (req: Request) => {
           .from('orders')
           .insert({
             event_id,
-            order_number: 'GUEST-ORDER-' + Date.now(),
+            order_number: 'GST-' + Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => b.toString(36).padStart(2, '0')).join('').toUpperCase().substring(0, 12),
             payer_email: 'system@eventgate.app',
             payer_name: 'Table Guest System',
             total_amount: 0,
@@ -497,7 +497,12 @@ Deno.serve(async (req: Request) => {
       console.error('SEND-TABLE-GUEST: Ticket creation exception (non-blocking):', ticketException);
     }
 
-    const bookingCode = `GUEST-${Date.now().toString(36).toUpperCase()}`;
+    const bookingCodeRandom = Array.from(crypto.getRandomValues(new Uint8Array(8)))
+      .map(b => b.toString(36).padStart(2, '0'))
+      .join('')
+      .toUpperCase()
+      .substring(0, 12);
+    const bookingCode = `GST-${bookingCodeRandom}`;
     await adminClient
       .from('table_bookings')
       .insert({

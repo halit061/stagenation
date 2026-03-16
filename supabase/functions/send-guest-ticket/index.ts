@@ -693,7 +693,8 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const orderNumber = `GUEST-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    const guestRandom = Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => b.toString(36).padStart(2, '0')).join('').toUpperCase().substring(0, 12);
+    const orderNumber = `GST-${guestRandom}`;
 
     const { data: order, error: orderError } = await adminClient
       .from('orders')
@@ -777,7 +778,9 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const ticketNumber = `${orderNumber}-1`;
+    const ttPrefix = (ticketType.name || 'TKT').replace(/[^A-Za-z]/g, '').toUpperCase().substring(0, 3).padEnd(3, 'X');
+    const tktRandom = Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => b.toString(36).padStart(2, '0')).join('').toUpperCase().substring(0, 12);
+    const ticketNumber = `${ttPrefix}-${tktRandom}`;
     const mainToken = qrEntries.length > 0 ? qrEntries[0].qr_token : generateSecureToken();
 
     const { data: ticket, error: ticketError } = await adminClient
