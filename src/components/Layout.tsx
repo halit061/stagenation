@@ -290,6 +290,14 @@ export function Layout({ children, currentPage = 'home', onNavigate }: LayoutPro
                     {t('footer.terms')}
                   </button>
                 </li>
+                <li>
+                  <button
+                    onClick={() => handleNavClick('privacy')}
+                    className="hover:text-white transition-colors"
+                  >
+                    {t('footer.privacy')}
+                  </button>
+                </li>
               </ul>
             </div>
           </div>

@@ -62,6 +62,7 @@ export const translations = {
       rights: 'Alle rechten voorbehouden.',
       tagline: 'Premium evenementen voor iedereen',
       terms: 'Algemene Voorwaarden',
+      privacy: 'Privacybeleid',
       ticker: 'ONVERGETELIJKE ERVARINGEN CREËREN',
     },
     tickets: {
@@ -313,6 +314,7 @@ export const translations = {
       rights: 'Tüm hakları saklıdır.',
       tagline: 'Herkes için premium etkinlikler',
       terms: 'Genel Şartlar',
+      privacy: 'Gizlilik Politikası',
       ticker: 'UNUTULMAZ DENEYİMLER YAŞATIYORUZ',
     },
     tickets: {
@@ -564,6 +566,7 @@ export const translations = {
       rights: 'Tous droits r\u00e9serv\u00e9s.',
       tagline: '\u00c9v\u00e9nements premium pour tous',
       terms: 'Conditions G\u00e9n\u00e9rales',
+      privacy: 'Politique de Confidentialit\u00e9',
       ticker: 'CRÉER DES EXPÉRIENCES INOUBLIABLES',
     },
     tickets: {
@@ -815,6 +818,7 @@ export const translations = {
       rights: 'Alle Rechte vorbehalten.',
       tagline: 'Premium-Veranstaltungen f\u00fcr alle',
       terms: 'Allgemeine Gesch\u00e4ftsbedingungen',
+      privacy: 'Datenschutzerkl\u00e4rung',
       ticker: 'UNVERGESSLICHE ERLEBNISSE SCHAFFEN',
     },
     tickets: {
