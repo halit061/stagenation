@@ -1,0 +1,521 @@
+import { supabase } from '../lib/supabaseClient';
+import type {
+  VenueLayout,
+  SeatSection,
+  Seat,
+  SeatHold,
+  SeatStatus,
+  SeatWithSection,
+  GenerateSeatsConfig,
+  BestAvailablePreferences,
+} from '../types/seats';
+
+// ---------------------------------------------------------------------------
+// Layout CRUD
+// ---------------------------------------------------------------------------
+
+export async function getLayoutByEvent(eventId: string): Promise<VenueLayout | null> {
+  const { data, error } = await supabase
+    .from('venue_layouts')
+    .select('*')
+    .eq('event_id', eventId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function getLayoutById(layoutId: string): Promise<VenueLayout | null> {
+  const { data, error } = await supabase
+    .from('venue_layouts')
+    .select('*')
+    .eq('id', layoutId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function saveLayout(
+  layout: Partial<VenueLayout> & Pick<VenueLayout, 'name'>
+): Promise<VenueLayout> {
+  if (layout.id) {
+    const { data, error } = await supabase
+      .from('venue_layouts')
+      .update({
+        name: layout.name,
+        venue_id: layout.venue_id,
+        event_id: layout.event_id,
+        layout_data: layout.layout_data ?? {},
+      })
+      .eq('id', layout.id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  const { data, error } = await supabase
+    .from('venue_layouts')
+    .insert({
+      name: layout.name,
+      venue_id: layout.venue_id ?? null,
+      event_id: layout.event_id ?? null,
+      layout_data: layout.layout_data ?? {},
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// ---------------------------------------------------------------------------
+// Section CRUD
+// ---------------------------------------------------------------------------
+
+export async function getSectionsByLayout(layoutId: string): Promise<SeatSection[]> {
+  const { data, error } = await supabase
+    .from('seat_sections')
+    .select('*')
+    .eq('layout_id', layoutId)
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function createSection(
+  section: Omit<SeatSection, 'id' | 'created_at' | 'updated_at'>
+): Promise<SeatSection> {
+  const { data, error } = await supabase
+    .from('seat_sections')
+    .insert(section)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateSection(
+  id: string,
+  updates: Partial<Omit<SeatSection, 'id' | 'created_at' | 'updated_at'>>
+): Promise<SeatSection> {
+  const { data, error } = await supabase
+    .from('seat_sections')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteSection(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('seat_sections')
+    .update({ is_active: false })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// Seat queries
+// ---------------------------------------------------------------------------
+
+export async function getSeatsBySection(sectionId: string): Promise<Seat[]> {
+  const { data, error } = await supabase
+    .from('seats')
+    .select('*')
+    .eq('section_id', sectionId)
+    .eq('is_active', true)
+    .order('row_label', { ascending: true })
+    .order('seat_number', { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function getSeatsByLayout(layoutId: string): Promise<SeatWithSection[]> {
+  const { data: sections, error: secErr } = await supabase
+    .from('seat_sections')
+    .select('id')
+    .eq('layout_id', layoutId)
+    .eq('is_active', true);
+  if (secErr) throw secErr;
+  if (!sections || sections.length === 0) return [];
+
+  const sectionIds = sections.map((s) => s.id);
+
+  const { data: seats, error: seatErr } = await supabase
+    .from('seats')
+    .select('*, section:seat_sections(*)')
+    .in('section_id', sectionIds)
+    .eq('is_active', true)
+    .order('row_label', { ascending: true })
+    .order('seat_number', { ascending: true });
+  if (seatErr) throw seatErr;
+  return (seats ?? []) as SeatWithSection[];
+}
+
+// ---------------------------------------------------------------------------
+// Seat generation
+// ---------------------------------------------------------------------------
+
+function nextRowLabel(current: string): string {
+  if (/^\d+$/.test(current)) return String(Number(current) + 1);
+  const chars = current.split('');
+  let carry = true;
+  for (let i = chars.length - 1; i >= 0 && carry; i--) {
+    const code = chars[i].charCodeAt(0);
+    if (code < 90) {
+      chars[i] = String.fromCharCode(code + 1);
+      carry = false;
+    } else {
+      chars[i] = 'A';
+    }
+  }
+  if (carry) chars.unshift('A');
+  return chars.join('');
+}
+
+export async function generateSeats(config: GenerateSeatsConfig): Promise<Seat[]> {
+  const {
+    section_id,
+    rows,
+    seats_per_row,
+    start_row_label,
+    numbering_direction,
+    row_spacing,
+    seat_spacing,
+    curve,
+  } = config;
+
+  const { error: delErr } = await supabase
+    .from('seats')
+    .delete()
+    .eq('section_id', section_id);
+  if (delErr) throw delErr;
+
+  const newSeats: Array<{
+    section_id: string;
+    row_label: string;
+    seat_number: number;
+    x_position: number;
+    y_position: number;
+    status: SeatStatus;
+    seat_type: string;
+  }> = [];
+
+  let rowLabel = start_row_label;
+
+  for (let r = 0; r < rows; r++) {
+    const yPos = r * row_spacing;
+    const curveOffset = curve * r * r * 0.5;
+
+    for (let s = 0; s < seats_per_row; s++) {
+      const centerOffset = s - (seats_per_row - 1) / 2;
+      const xBase = centerOffset * seat_spacing;
+      const yCurve = curveOffset * Math.abs(centerOffset) / ((seats_per_row - 1) / 2 || 1);
+
+      let seatNum: number;
+      if (numbering_direction === 'right-to-left') {
+        seatNum = seats_per_row - s;
+      } else if (numbering_direction === 'center-out') {
+        const mid = Math.floor(seats_per_row / 2);
+        seatNum = s <= mid ? mid - s + 1 : s - mid + (seats_per_row % 2 === 0 ? 1 : 0);
+      } else {
+        seatNum = s + 1;
+      }
+
+      newSeats.push({
+        section_id,
+        row_label: rowLabel,
+        seat_number: seatNum,
+        x_position: xBase,
+        y_position: yPos + yCurve,
+        status: 'available',
+        seat_type: 'regular',
+      });
+    }
+
+    rowLabel = nextRowLabel(rowLabel);
+  }
+
+  const BATCH_SIZE = 500;
+  const allInserted: Seat[] = [];
+
+  for (let i = 0; i < newSeats.length; i += BATCH_SIZE) {
+    const batch = newSeats.slice(i, i + BATCH_SIZE);
+    const { data, error } = await supabase
+      .from('seats')
+      .insert(batch)
+      .select();
+    if (error) throw error;
+    if (data) allInserted.push(...data);
+  }
+
+  await supabase
+    .from('seat_sections')
+    .update({ capacity: newSeats.length, rows_count: rows, seats_per_row })
+    .eq('id', section_id);
+
+  return allInserted;
+}
+
+// ---------------------------------------------------------------------------
+// Seat bulk operations
+// ---------------------------------------------------------------------------
+
+export async function updateSeatStatus(
+  seatIds: string[],
+  status: SeatStatus
+): Promise<void> {
+  const { error } = await supabase
+    .from('seats')
+    .update({ status })
+    .in('id', seatIds);
+  if (error) throw error;
+}
+
+export async function updateSeatPrice(
+  seatIds: string[],
+  priceOverride: number | null
+): Promise<void> {
+  const { error } = await supabase
+    .from('seats')
+    .update({ price_override: priceOverride })
+    .in('id', seatIds);
+  if (error) throw error;
+}
+
+export async function deleteSeatsBySection(sectionId: string): Promise<void> {
+  const { error } = await supabase
+    .from('seats')
+    .delete()
+    .eq('section_id', sectionId);
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// Hold management
+// ---------------------------------------------------------------------------
+
+export async function holdSeats(
+  seatIds: string[],
+  eventId: string,
+  userId: string | null,
+  sessionId: string | null,
+  holdMinutes = 10
+): Promise<SeatHold[]> {
+  await supabase.rpc('release_expired_holds');
+
+  const { data: seats, error: checkErr } = await supabase
+    .from('seats')
+    .select('id, status')
+    .in('id', seatIds)
+    .eq('is_active', true);
+  if (checkErr) throw checkErr;
+
+  const unavailable = (seats ?? []).filter((s) => s.status !== 'available');
+  if (unavailable.length > 0) {
+    const labels = unavailable.map((s) => s.id).join(', ');
+    throw new Error(`Seats not available: ${labels}`);
+  }
+
+  if ((seats ?? []).length !== seatIds.length) {
+    throw new Error('One or more seats not found');
+  }
+
+  const expiresAt = new Date(Date.now() + holdMinutes * 60_000).toISOString();
+
+  const holds = seatIds.map((seat_id) => ({
+    seat_id,
+    event_id: eventId,
+    user_id: userId,
+    session_id: sessionId,
+    expires_at: expiresAt,
+    status: 'held' as const,
+  }));
+
+  const { data: holdData, error: holdErr } = await supabase
+    .from('seat_holds')
+    .insert(holds)
+    .select();
+  if (holdErr) throw holdErr;
+
+  const { error: statusErr } = await supabase
+    .from('seats')
+    .update({ status: 'reserved' })
+    .in('id', seatIds);
+  if (statusErr) throw statusErr;
+
+  return holdData ?? [];
+}
+
+export async function releaseHolds(holdIds: string[]): Promise<void> {
+  const { data: holds, error: fetchErr } = await supabase
+    .from('seat_holds')
+    .select('seat_id')
+    .in('id', holdIds)
+    .eq('status', 'held');
+  if (fetchErr) throw fetchErr;
+
+  const seatIds = (holds ?? []).map((h) => h.seat_id);
+
+  const { error: updateErr } = await supabase
+    .from('seat_holds')
+    .update({ status: 'released' })
+    .in('id', holdIds);
+  if (updateErr) throw updateErr;
+
+  if (seatIds.length > 0) {
+    const { error: seatErr } = await supabase
+      .from('seats')
+      .update({ status: 'available' })
+      .in('id', seatIds);
+    if (seatErr) throw seatErr;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Best-available algorithm
+// ---------------------------------------------------------------------------
+
+export async function findBestAvailable(
+  layoutId: string,
+  count: number,
+  preferences: BestAvailablePreferences = {}
+): Promise<Seat[]> {
+  const { data: sections, error: secErr } = await supabase
+    .from('seat_sections')
+    .select('*')
+    .eq('layout_id', layoutId)
+    .eq('is_active', true);
+  if (secErr) throw secErr;
+  if (!sections || sections.length === 0) return [];
+
+  let filteredSections = sections;
+  if (preferences.section_id) {
+    filteredSections = sections.filter((s) => s.id === preferences.section_id);
+  }
+  if (preferences.price_category) {
+    filteredSections = filteredSections.filter(
+      (s) => s.price_category === preferences.price_category
+    );
+  }
+
+  const sectionIds = filteredSections.map((s) => s.id);
+
+  const { data: seats, error: seatErr } = await supabase
+    .from('seats')
+    .select('*')
+    .in('section_id', sectionIds)
+    .eq('status', 'available')
+    .eq('is_active', true)
+    .order('row_label', { ascending: true })
+    .order('seat_number', { ascending: true });
+  if (seatErr) throw seatErr;
+  if (!seats || seats.length === 0) return [];
+
+  let available = seats as Seat[];
+  if (preferences.seat_type) {
+    available = available.filter((s) => s.seat_type === preferences.seat_type);
+  }
+
+  const sectionMap = new Map(filteredSections.map((s) => [s.id, s]));
+
+  const scored = available.map((seat) => {
+    const section = sectionMap.get(seat.section_id);
+    const sectionW = section?.width ?? 200;
+    const sectionH = section?.height ?? 150;
+
+    const centerX = sectionW / 2;
+    const centerY = sectionH / 2;
+    const dx = seat.x_position - centerX;
+    const dy = seat.y_position - centerY;
+    const distFromCenter = Math.sqrt(dx * dx + dy * dy);
+    const maxDist = Math.sqrt(centerX * centerX + centerY * centerY);
+    const centerScore = 1 - distFromCenter / (maxDist || 1);
+
+    const frontScore = 1 - seat.y_position / (sectionH || 1);
+
+    const score = centerScore * 0.6 + frontScore * 0.4;
+    return { seat, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+
+  if (preferences.keep_together && count > 1) {
+    const byRow = new Map<string, typeof scored>();
+    for (const item of scored) {
+      const key = `${item.seat.section_id}::${item.seat.row_label}`;
+      if (!byRow.has(key)) byRow.set(key, []);
+      byRow.get(key)!.push(item);
+    }
+
+    let bestGroup: typeof scored | null = null;
+    let bestGroupScore = -1;
+
+    for (const rowSeats of byRow.values()) {
+      rowSeats.sort((a, b) => a.seat.seat_number - b.seat.seat_number);
+
+      for (let i = 0; i <= rowSeats.length - count; i++) {
+        let contiguous = true;
+        for (let j = 1; j < count; j++) {
+          if (
+            rowSeats[i + j].seat.seat_number !==
+            rowSeats[i + j - 1].seat.seat_number + 1
+          ) {
+            contiguous = false;
+            break;
+          }
+        }
+        if (!contiguous) continue;
+
+        const group = rowSeats.slice(i, i + count);
+        const groupScore = group.reduce((sum, g) => sum + g.score, 0) / count;
+        if (groupScore > bestGroupScore) {
+          bestGroupScore = groupScore;
+          bestGroup = group;
+        }
+      }
+    }
+
+    if (bestGroup) return bestGroup.map((g) => g.seat);
+  }
+
+  return scored.slice(0, count).map((s) => s.seat);
+}
+
+// ---------------------------------------------------------------------------
+// Realtime subscription
+// ---------------------------------------------------------------------------
+
+export function subscribeToSeatChanges(
+  layoutId: string,
+  callback: (payload: {
+    eventType: 'INSERT' | 'UPDATE' | 'DELETE';
+    new: Partial<Seat>;
+    old: Partial<Seat>;
+  }) => void
+) {
+  const channel = supabase
+    .channel(`seats-layout-${layoutId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'seats',
+      },
+      (payload) => {
+        callback({
+          eventType: payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE',
+          new: payload.new as Partial<Seat>,
+          old: payload.old as Partial<Seat>,
+        });
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}
