@@ -1,4 +1,4 @@
-import { Shield, ShieldCheck, Calendar, Grid2x2 as Grid, MapPin, Ticket, LogOut, ShoppingCart, Users, AlertCircle, RefreshCw, X, Mail, Plus, CheckCircle, Loader2, ChevronDown, DoorOpen, Euro, TrendingUp, BarChart3, Ban } from 'lucide-react';
+import { Shield, ShieldCheck, Calendar, Grid2x2 as Grid, MapPin, Ticket, LogOut, ShoppingCart, Users, AlertCircle, RefreshCw, X, Mail, Plus, CheckCircle, Loader2, ChevronDown, DoorOpen, Euro, TrendingUp, BarChart3, Ban, Armchair } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import type { Database } from '../lib/supabaseClient';
@@ -12,6 +12,8 @@ import { EDGE_FUNCTION_BASE_URL } from '../config/brand';
 import { callEdgeFunction } from '../lib/callEdge';
 import { adminFetch } from '../lib/adminApi';
 import { useToast } from '../components/Toast';
+import { getAllLayouts, saveLayout } from '../services/seatService';
+import type { VenueLayout } from '../types/seats';
 
 type Event = Database['public']['Tables']['events']['Row'];
 type TicketType = Database['public']['Tables']['ticket_types']['Row'];
@@ -105,6 +107,8 @@ export function Admin({ onNavigate }: AdminProps = {}) {
   const [cancelOrderTarget, setCancelOrderTarget] = useState<any>(null);
   const [cancelOrderLoading, setCancelOrderLoading] = useState(false);
 
+  const [venueLayouts, setVenueLayouts] = useState<VenueLayout[]>([]);
+
   async function handleCancelOrder(order: any) {
     setCancelOrderLoading(true);
     try {
@@ -193,6 +197,7 @@ export function Admin({ onNavigate }: AdminProps = {}) {
       }
 
       await loadGuestTickets();
+      await loadVenueLayouts();
 
       if (activeTab === 'table_guests') {
         await loadTableGuests();
@@ -202,6 +207,34 @@ export function Admin({ onNavigate }: AdminProps = {}) {
       }
     } catch (error) {
       console.error('Error loading data:', error);
+    }
+  }
+
+  async function loadVenueLayouts() {
+    try {
+      const data = await getAllLayouts();
+      setVenueLayouts(data);
+    } catch {
+      // silently fail
+    }
+  }
+
+  async function handleAssignLayout(eventId: string, layoutId: string) {
+    try {
+      const prevLayout = venueLayouts.find((l) => l.event_id === eventId);
+      if (prevLayout) {
+        await saveLayout({ id: prevLayout.id, name: prevLayout.name, event_id: null });
+      }
+      if (layoutId) {
+        const layout = venueLayouts.find((l) => l.id === layoutId);
+        if (layout) {
+          await saveLayout({ id: layout.id, name: layout.name, event_id: eventId });
+        }
+      }
+      await loadVenueLayouts();
+      showToast('Zaalindeling bijgewerkt', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Fout bij toewijzen layout', 'error');
     }
   }
 
@@ -892,31 +925,54 @@ export function Admin({ onNavigate }: AdminProps = {}) {
               <p className="text-slate-400 mb-8">Bekijk alle events</p>
 
               <div className="grid gap-4">
-                {events.map((event) => (
-                  <div key={event.id} className="bg-slate-800/80 border border-slate-700 rounded-xl p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-xl font-bold text-white">{event.name}</h3>
-                        <p className="text-slate-400 text-sm mt-1">
-                          {new Date(event.start_date).toLocaleDateString('nl-BE', {
-                            weekday: 'long',
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                            timeZone: 'Europe/Brussels',
-                          })}
-                        </p>
+                {events.map((event) => {
+                  const assignedLayout = venueLayouts.find((l) => l.event_id === event.id);
+                  const availableLayouts = venueLayouts.filter((l) => !l.event_id || l.event_id === event.id);
+                  return (
+                    <div key={event.id} className="bg-slate-800/80 border border-slate-700 rounded-xl p-6">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <h3 className="text-xl font-bold text-white">{event.name}</h3>
+                          <p className="text-slate-400 text-sm mt-1">
+                            {new Date(event.start_date).toLocaleDateString('nl-BE', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                              timeZone: 'Europe/Brussels',
+                            })}
+                          </p>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          event.is_active
+                            ? 'bg-green-500/20 text-green-400'
+                            : 'bg-slate-600/20 text-slate-400'
+                        }`}>
+                          {event.is_active ? 'Actief' : 'Inactief'}
+                        </span>
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        event.is_active
-                          ? 'bg-green-500/20 text-green-400'
-                          : 'bg-slate-600/20 text-slate-400'
-                      }`}>
-                        {event.is_active ? 'Actief' : 'Inactief'}
-                      </span>
+                      <div className="flex items-center gap-3 pt-3 border-t border-slate-700">
+                        <Armchair className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                        <label className="text-sm text-slate-400 flex-shrink-0">Zaalindeling:</label>
+                        <select
+                          value={assignedLayout?.id || ''}
+                          onChange={(e) => handleAssignLayout(event.id, e.target.value)}
+                          className="flex-1 px-3 py-1.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:border-red-500 focus:outline-none max-w-xs"
+                        >
+                          <option value="">Geen layout</option>
+                          {availableLayouts.map((l) => (
+                            <option key={l.id} value={l.id}>{l.name}</option>
+                          ))}
+                        </select>
+                        {assignedLayout && (
+                          <span className="text-xs text-slate-500">
+                            {assignedLayout.name}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

@@ -10,9 +10,24 @@ import type {
   BestAvailablePreferences,
 } from '../types/seats';
 
+async function requireAuth() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Niet geautoriseerd');
+  return session;
+}
+
 // ---------------------------------------------------------------------------
 // Layout CRUD
 // ---------------------------------------------------------------------------
+
+export async function getAllLayouts(): Promise<VenueLayout[]> {
+  const { data, error } = await supabase
+    .from('venue_layouts')
+    .select('*')
+    .order('updated_at', { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
 
 export async function getLayoutByEvent(eventId: string): Promise<VenueLayout | null> {
   const { data, error } = await supabase
@@ -37,6 +52,8 @@ export async function getLayoutById(layoutId: string): Promise<VenueLayout | nul
 export async function saveLayout(
   layout: Partial<VenueLayout> & Pick<VenueLayout, 'name'>
 ): Promise<VenueLayout> {
+  await requireAuth();
+
   if (layout.id) {
     const { data, error } = await supabase
       .from('venue_layouts')
@@ -67,6 +84,88 @@ export async function saveLayout(
   return data;
 }
 
+export async function deleteLayout(layoutId: string): Promise<void> {
+  await requireAuth();
+  const { error } = await supabase
+    .from('venue_layouts')
+    .delete()
+    .eq('id', layoutId);
+  if (error) throw error;
+}
+
+export async function duplicateLayout(
+  sourceId: string,
+  newName: string
+): Promise<VenueLayout> {
+  await requireAuth();
+
+  const source = await getLayoutById(sourceId);
+  if (!source) throw new Error('Layout niet gevonden');
+
+  const { data: newLayout, error: layoutErr } = await supabase
+    .from('venue_layouts')
+    .insert({
+      name: newName,
+      venue_id: source.venue_id,
+      event_id: null,
+      layout_data: source.layout_data,
+    })
+    .select()
+    .single();
+  if (layoutErr) throw layoutErr;
+
+  const sections = await getSectionsByLayout(sourceId);
+  for (const sec of sections) {
+    const { data: newSec, error: secErr } = await supabase
+      .from('seat_sections')
+      .insert({
+        layout_id: newLayout.id,
+        name: sec.name,
+        section_type: sec.section_type,
+        capacity: sec.capacity,
+        color: sec.color,
+        price_category: sec.price_category,
+        price_amount: sec.price_amount,
+        position_x: sec.position_x,
+        position_y: sec.position_y,
+        width: sec.width,
+        height: sec.height,
+        rotation: sec.rotation,
+        rows_count: sec.rows_count,
+        seats_per_row: sec.seats_per_row,
+        row_curve: sec.row_curve,
+        sort_order: sec.sort_order,
+        is_active: true,
+      })
+      .select()
+      .single();
+    if (secErr) throw secErr;
+
+    const seats = await getSeatsBySection(sec.id);
+    if (seats.length > 0) {
+      const BATCH = 500;
+      for (let i = 0; i < seats.length; i += BATCH) {
+        const batch = seats.slice(i, i + BATCH).map((s) => ({
+          section_id: newSec.id,
+          row_label: s.row_label,
+          seat_number: s.seat_number,
+          x_position: s.x_position,
+          y_position: s.y_position,
+          status: 'available' as const,
+          seat_type: s.seat_type,
+          price_override: s.price_override,
+          metadata: s.metadata,
+          is_active: true,
+        }));
+        const { error: seatErr } = await supabase.from('seats').insert(batch);
+        if (seatErr) throw seatErr;
+      }
+    }
+  }
+
+  return newLayout;
+}
+
 // ---------------------------------------------------------------------------
 // Section CRUD
 // ---------------------------------------------------------------------------
@@ -85,6 +184,7 @@ export async function getSectionsByLayout(layoutId: string): Promise<SeatSection
 export async function createSection(
   section: Omit<SeatSection, 'id' | 'created_at' | 'updated_at'>
 ): Promise<SeatSection> {
+  await requireAuth();
   const { data, error } = await supabase
     .from('seat_sections')
     .insert(section)
@@ -98,6 +198,7 @@ export async function updateSection(
   id: string,
   updates: Partial<Omit<SeatSection, 'id' | 'created_at' | 'updated_at'>>
 ): Promise<SeatSection> {
+  await requireAuth();
   const { data, error } = await supabase
     .from('seat_sections')
     .update(updates)
@@ -109,6 +210,7 @@ export async function updateSection(
 }
 
 export async function deleteSection(id: string): Promise<void> {
+  await requireAuth();
   const { error } = await supabase
     .from('seat_sections')
     .update({ is_active: false })
@@ -176,6 +278,8 @@ function nextRowLabel(current: string): string {
 }
 
 export async function generateSeats(config: GenerateSeatsConfig): Promise<Seat[]> {
+  await requireAuth();
+
   const {
     section_id,
     rows,
@@ -267,6 +371,7 @@ export async function updateSeatStatus(
   seatIds: string[],
   status: SeatStatus
 ): Promise<void> {
+  await requireAuth();
   const { error } = await supabase
     .from('seats')
     .update({ status })
@@ -278,6 +383,7 @@ export async function updateSeatPrice(
   seatIds: string[],
   priceOverride: number | null
 ): Promise<void> {
+  await requireAuth();
   const { error } = await supabase
     .from('seats')
     .update({ price_override: priceOverride })
@@ -286,6 +392,7 @@ export async function updateSeatPrice(
 }
 
 export async function deleteSeatsBySection(sectionId: string): Promise<void> {
+  await requireAuth();
   const { error } = await supabase
     .from('seats')
     .delete()
@@ -306,6 +413,12 @@ export async function holdSeats(
 ): Promise<SeatHold[]> {
   await supabase.rpc('release_expired_holds');
 
+  const { data: allowed } = await supabase.rpc('check_seat_hold_rate_limit', {
+    p_user_id: userId,
+    p_session_id: sessionId,
+  });
+  if (!allowed) throw new Error('Te veel reserveringen. Probeer het later opnieuw.');
+
   const { data: seats, error: checkErr } = await supabase
     .from('seats')
     .select('id, status')
@@ -315,12 +428,11 @@ export async function holdSeats(
 
   const unavailable = (seats ?? []).filter((s) => s.status !== 'available');
   if (unavailable.length > 0) {
-    const labels = unavailable.map((s) => s.id).join(', ');
-    throw new Error(`Seats not available: ${labels}`);
+    throw new Error('Een of meer stoelen zijn niet meer beschikbaar');
   }
 
   if ((seats ?? []).length !== seatIds.length) {
-    throw new Error('One or more seats not found');
+    throw new Error('Een of meer stoelen niet gevonden');
   }
 
   const expiresAt = new Date(Date.now() + holdMinutes * 60_000).toISOString();
