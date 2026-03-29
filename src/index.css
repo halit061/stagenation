@@ -690,3 +690,21 @@ select {
   animation: marquee-dash 0.4s linear infinite;
 }
 
+@keyframes action-bar-slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes action-bar-slide-down {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(100%); opacity: 0; }
+}
+
+.action-bar-enter {
+  animation: action-bar-slide-up 200ms ease-out forwards;
+}
+
+.action-bar-exit {
+  animation: action-bar-slide-down 150ms ease-in forwards;
+}
+

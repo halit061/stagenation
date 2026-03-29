@@ -9,6 +9,8 @@ import { SectionPropertiesPanel } from './SectionPropertiesPanel';
 import { SeatInteractionLayer } from './SeatInteractionLayer';
 import { SeatPropertiesPanel } from './SeatPropertiesPanel';
 import { SelectionCounter } from './SelectionCounter';
+import { SeatActionBar } from './SeatActionBar';
+import { SeatContextMenu } from './SeatContextMenu';
 import type { SectionFormData } from './SectionConfigModal';
 import type { VenueLayout, SeatSection, Seat } from '../types/seats';
 import { getSectionsByLayout, createSection, updateSection, deleteSection, generateSeats, getSeatsBySection, updateSeat as updateSeatDb } from '../services/seatService';
@@ -102,6 +104,9 @@ export function FloorPlanEditor() {
   const [sectionSeats, setSectionSeats] = useState<Record<string, Seat[]>>({});
   const [selectedSeatIds, setSelectedSeatIds] = useState<Set<string>>(new Set());
   const [marqueeActive, setMarqueeActive] = useState(false);
+  const [seatContextMenu, setSeatContextMenu] = useState<{
+    seat: Seat; section: SeatSection; position: { x: number; y: number };
+  } | null>(null);
 
   useEffect(() => {
     loadAll();
@@ -375,6 +380,27 @@ export function FloorPlanEditor() {
       showToast(err.message || 'Fout bij bijwerken stoelen', 'error');
     }
   }, [showToast]);
+
+  const handleSeatContextMenu = useCallback((e: React.MouseEvent, seat: Seat, section: SeatSection) => {
+    setSeatContextMenu({ seat, section, position: { x: e.clientX, y: e.clientY } });
+  }, []);
+
+  const handleSelectRow = useCallback((sectionId: string, rowLabel: string) => {
+    const seats = sectionSeats[sectionId] || [];
+    const rowSeats = seats.filter(s => s.row_label === rowLabel);
+    const newSet = new Set(selectedSeatIds);
+    for (const s of rowSeats) newSet.add(s.id);
+    setSelectedSeatIds(newSet);
+    setSelectedItem(null);
+  }, [sectionSeats, selectedSeatIds]);
+
+  const handleSelectSection = useCallback((sectionId: string) => {
+    const seats = sectionSeats[sectionId] || [];
+    const newSet = new Set(selectedSeatIds);
+    for (const s of seats) newSet.add(s.id);
+    setSelectedSeatIds(newSet);
+    setSelectedItem(null);
+  }, [sectionSeats, selectedSeatIds]);
 
   async function loadTables() {
     const { data, error } = await supabase
@@ -852,11 +878,11 @@ export function FloorPlanEditor() {
           <div className="lg:col-span-3 p-3">
             <div
               className="bg-slate-950 rounded-lg overflow-auto relative"
-              style={{ height: '800px' }}
+              style={{ height: '800px', paddingBottom: selectedSeatIds.size > 0 ? 60 : 0 }}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
-              onClick={() => { if (!isDragging && !isResizing) { setSelectedItem(null); setContextMenu(null); if (!marqueeActive) setSelectedSeatIds(new Set()); } }}
+              onClick={() => { if (!isDragging && !isResizing) { setSelectedItem(null); setContextMenu(null); setSeatContextMenu(null); if (!marqueeActive) setSelectedSeatIds(new Set()); } }}
             >
               <svg
                 ref={svgRef}
@@ -973,6 +999,7 @@ export function FloorPlanEditor() {
                   zoom={zoom}
                   isSelectTool={currentTool === 'select'}
                   marqueeActive={marqueeActive}
+                  onSeatContextMenu={handleSeatContextMenu}
                 />
 
                 {tables.map((table) => {
@@ -1156,6 +1183,33 @@ export function FloorPlanEditor() {
         editMode={!!editingSection}
         loading={sectionSaving}
       />
+
+      <SeatActionBar
+        selectedSeats={selectedSeats}
+        sections={seatSections}
+        sectionSeats={sectionSeats}
+        onDeselectAll={() => setSelectedSeatIds(new Set())}
+        setSectionSeats={setSectionSeats}
+        setSeatSections={setSeatSections}
+        setSelectedSeatIds={setSelectedSeatIds}
+        showToast={showToast}
+      />
+
+      {seatContextMenu && (
+        <SeatContextMenu
+          seat={seatContextMenu.seat}
+          section={seatContextMenu.section}
+          position={seatContextMenu.position}
+          sectionSeats={sectionSeats}
+          onClose={() => setSeatContextMenu(null)}
+          onSelectRow={handleSelectRow}
+          onSelectSection={handleSelectSection}
+          setSectionSeats={setSectionSeats}
+          setSeatSections={setSeatSections}
+          setSelectedSeatIds={setSelectedSeatIds}
+          showToast={showToast}
+        />
+      )}
     </div>
   );
 }

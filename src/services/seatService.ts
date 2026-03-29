@@ -403,6 +403,57 @@ export async function updateSeat(
   if (error) throw error;
 }
 
+export async function deleteSeatsById(seatIds: string[]): Promise<void> {
+  await requireAuth();
+  const { error } = await supabase
+    .from('seats')
+    .delete()
+    .in('id', seatIds);
+  if (error) throw error;
+}
+
+export async function insertSeats(
+  seats: Array<{
+    section_id: string;
+    row_label: string;
+    seat_number: number;
+    x_position: number;
+    y_position: number;
+    status: SeatStatus;
+    seat_type: string;
+  }>
+): Promise<Seat[]> {
+  await requireAuth();
+  const { data, error } = await supabase
+    .from('seats')
+    .insert(seats)
+    .select();
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function updateSeatNumbers(
+  updates: Array<{ id: string; seat_number: number }>
+): Promise<void> {
+  await requireAuth();
+  for (const u of updates) {
+    const { error } = await supabase
+      .from('seats')
+      .update({ seat_number: u.seat_number })
+      .eq('id', u.id);
+    if (error) throw error;
+  }
+}
+
+export async function updateSectionCapacity(sectionId: string, capacity: number): Promise<void> {
+  await requireAuth();
+  const { error } = await supabase
+    .from('seat_sections')
+    .update({ capacity })
+    .eq('id', sectionId);
+  if (error) throw error;
+}
+
 export async function deleteSeatsBySection(sectionId: string): Promise<void> {
   await requireAuth();
   const { error } = await supabase

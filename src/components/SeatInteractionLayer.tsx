@@ -55,6 +55,7 @@ interface Props {
   zoom: number;
   isSelectTool: boolean;
   marqueeActive: boolean;
+  onSeatContextMenu?: (e: React.MouseEvent, seat: Seat, section: SeatSection) => void;
 }
 
 function computeSeatPositions(section: SeatSection, seats: Seat[]): ComputedSeat[] {
@@ -157,6 +158,7 @@ export function SeatInteractionLayer({
   zoom,
   isSelectTool,
   marqueeActive,
+  onSeatContextMenu,
 }: Props) {
   const [hoveredSeat, setHoveredSeat] = useState<ComputedSeat | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
@@ -511,6 +513,14 @@ export function SeatInteractionLayer({
               }}
               onClick={(e) => handleSeatClick(e, seat)}
               onMouseMove={handleMouseMove}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (onSeatContextMenu) {
+                  const sec = sections.find(s => s.id === seat.sectionId);
+                  if (sec) onSeatContextMenu(e, seat, sec);
+                }
+              }}
             />
             <SeatIcon seat={seat} r={r} />
           </g>
