@@ -28,6 +28,7 @@ const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy').then(m => ({ de
 const Archive = lazy(() => import('./pages/Archive').then(m => ({ default: m.Archive })));
 const TicketView = lazy(() => import('./pages/TicketView').then(m => ({ default: m.TicketView })));
 const SuperAdminReset = lazy(() => import('./pages/SuperAdminReset').then(m => ({ default: m.SuperAdminReset })));
+const SeatPicker = lazy(() => import('./pages/SeatPicker').then(m => ({ default: m.SeatPicker })));
 
 function getPageFromUrl(): string {
   const path = window.location.pathname.replace(/^\/+/, '') || 'home';
@@ -211,6 +212,12 @@ case 'contact':
         const tokenParam = params.get('token') || '';
         return <TicketView token={tokenParam} />;
       }
+      case 'seat-picker': {
+        const seatParams = new URLSearchParams(window.location.search);
+        const seatEventId = seatParams.get('event') || '';
+        if (!seatEventId) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">Event ID ontbreekt</div>;
+        return <SeatPicker eventId={seatEventId} onNavigate={navigate} />;
+      }
       default:
         return (
           <div className="min-h-screen flex items-center justify-center p-4">
@@ -249,7 +256,7 @@ case 'contact':
   }
 
   const page = currentPage.split('?')[0].replace(/^\/+/, '');
-  const isAdminPage = ['superadmin', 'admin', 'dashboard', 'scanner', 'login', 'superadmin-reset', 'superadmin-reset.html'].includes(page);
+  const isAdminPage = ['superadmin', 'admin', 'dashboard', 'scanner', 'login', 'superadmin-reset', 'superadmin-reset.html', 'seat-picker'].includes(page);
 
   if (isAdminPage) {
     return (

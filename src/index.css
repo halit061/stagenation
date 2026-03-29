@@ -716,3 +716,52 @@ select {
   animation: seat-collision-flash-kf 150ms ease-in-out 2;
 }
 
+/* ============================================
+   SEAT PICKER PUBLIC PAGE
+   ============================================ */
+
+.seat-picker-hover {
+  transition: r 120ms ease, fill-opacity 120ms ease, filter 120ms ease;
+}
+
+@keyframes seat-picker-pop {
+  0% { r: 5; }
+  50% { r: 7; }
+  100% { r: 5; }
+}
+
+.seat-picker-selected {
+  animation: seat-picker-pop 200ms ease-out;
+}
+
+@keyframes countdown-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.countdown-urgent {
+  animation: countdown-pulse 1s ease-in-out infinite;
+}
+
+.countdown-critical {
+  animation: countdown-pulse 0.5s ease-in-out infinite;
+  color: #ef4444;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.3);
+  border-radius: 2px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.5);
+}
+
