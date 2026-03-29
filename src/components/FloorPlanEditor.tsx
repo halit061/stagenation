@@ -4,9 +4,11 @@ import { supabase } from '../lib/supabaseClient';
 import { useToast } from './Toast';
 import { LayoutToolbar } from './LayoutToolbar';
 import { SectionConfigModal } from './SectionConfigModal';
+import { SeatSectionRenderer } from './SeatSectionRenderer';
+import { SectionPropertiesPanel } from './SectionPropertiesPanel';
 import type { SectionFormData } from './SectionConfigModal';
-import type { VenueLayout, SeatSection } from '../types/seats';
-import { getSectionsByLayout, createSection, updateSection, deleteSection, generateSeats } from '../services/seatService';
+import type { VenueLayout, SeatSection, Seat } from '../types/seats';
+import { getSectionsByLayout, createSection, updateSection, deleteSection, generateSeats, getSeatsBySection } from '../services/seatService';
 
 interface FloorplanTable {
   id: string;
@@ -66,6 +68,9 @@ type EditorTool = 'select' | 'add_seated' | 'add_standing' | 'add_decor' | 'add_
 type ObjectType = 'BAR' | 'STAGE' | 'DANCEFLOOR' | 'DECOR_TABLE' | 'DJ_BOOTH' | 'ENTRANCE' | 'EXIT' | 'RESTROOM' | 'TRIBUNE';
 type SelectedItemType = { type: 'table' | 'object' | 'section'; data: FloorplanTable | FloorplanObject | SeatSection };
 
+const CANVAS_W = 1600;
+const CANVAS_H = 1000;
+
 export function FloorPlanEditor() {
   const { showToast } = useToast();
   const [tables, setTables] = useState<FloorplanTable[]>([]);
@@ -91,6 +96,7 @@ export function FloorPlanEditor() {
   const [editingSection, setEditingSection] = useState<SeatSection | null>(null);
   const [sectionSaving, setSectionSaving] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; section: SeatSection } | null>(null);
+  const [sectionSeats, setSectionSeats] = useState<Record<string, Seat[]>>({});
 
   useEffect(() => {
     loadAll();
@@ -100,14 +106,32 @@ export function FloorPlanEditor() {
     await Promise.all([loadTables(), loadObjects(), loadPackages()]);
   }
 
+  const loadAllSectionSeats = useCallback(async (sections: SeatSection[]) => {
+    if (sections.length === 0) { setSectionSeats({}); return; }
+    try {
+      const results = await Promise.all(
+        sections.map(async (s) => {
+          const seats = await getSeatsBySection(s.id);
+          return [s.id, seats] as const;
+        })
+      );
+      const map: Record<string, Seat[]> = {};
+      for (const [id, seats] of results) map[id] = seats;
+      setSectionSeats(map);
+    } catch {
+      showToast('Fout bij laden stoelen', 'error');
+    }
+  }, [showToast]);
+
   const loadSections = useCallback(async (layoutId: string) => {
     try {
       const data = await getSectionsByLayout(layoutId);
       setSeatSections(data);
+      await loadAllSectionSeats(data);
     } catch {
       showToast('Fout bij laden secties', 'error');
     }
-  }, [showToast]);
+  }, [showToast, loadAllSectionSeats]);
 
   function handleLayoutChange(layout: VenueLayout | null) {
     setCurrentLayout(layout);
@@ -117,11 +141,13 @@ export function FloorPlanEditor() {
       loadSections(layout.id);
     } else {
       setSeatSections([]);
+      setSectionSeats({});
     }
   }
 
   function handleLayoutReset() {
     setSeatSections([]);
+    setSectionSeats({});
     setSelectedItem(null);
   }
 
@@ -191,8 +217,8 @@ export function FloorPlanEditor() {
           color: formData.color,
           price_category: formData.price_category || null,
           price_amount: formData.price_amount,
-          position_x: 500 - sectionWidth / 2,
-          position_y: 350 - sectionHeight / 2,
+          position_x: CANVAS_W / 2 - sectionWidth / 2,
+          position_y: CANVAS_H / 2 - sectionHeight / 2,
           width: sectionWidth,
           height: sectionHeight,
           rotation: 0,
@@ -214,7 +240,9 @@ export function FloorPlanEditor() {
         });
         showToast('Sectie aangemaakt!', 'success');
       }
-      await loadSections(currentLayout.id);
+      const sections = await getSectionsByLayout(currentLayout.id);
+      setSeatSections(sections);
+      await loadAllSectionSeats(sections);
       setShowSectionModal(false);
       setEditingSection(null);
     } catch (err: any) {
@@ -252,8 +280,8 @@ export function FloorPlanEditor() {
         color: section.color,
         price_category: section.price_category,
         price_amount: section.price_amount,
-        position_x: Math.min(section.position_x + 30, 1000 - section.width),
-        position_y: Math.min(section.position_y + 30, 700 - section.height),
+        position_x: Math.min(section.position_x + 30, CANVAS_W - section.width),
+        position_y: Math.min(section.position_y + 30, CANVAS_H - section.height),
         width: section.width,
         height: section.height,
         rotation: section.rotation,
@@ -277,6 +305,29 @@ export function FloorPlanEditor() {
       showToast('Sectie gedupliceerd!', 'success');
     } catch (err: any) {
       showToast(err.message || 'Fout bij dupliceren', 'error');
+    }
+    setSectionSaving(false);
+  }
+
+  async function handleRegenerateSeats(section: SeatSection) {
+    if (!currentLayout) return;
+    setSectionSaving(true);
+    try {
+      await generateSeats({
+        section_id: section.id,
+        rows: section.rows_count,
+        seats_per_row: section.seats_per_row,
+        start_row_label: 'A',
+        numbering_direction: 'left-to-right',
+        row_spacing: 35,
+        seat_spacing: 25,
+        curve: section.row_curve,
+      });
+      const seats = await getSeatsBySection(section.id);
+      setSectionSeats(prev => ({ ...prev, [section.id]: seats }));
+      showToast('Stoelen hergegenereerd!', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Fout bij hergenereren', 'error');
     }
     setSectionSaving(false);
   }
@@ -438,8 +489,8 @@ export function FloorPlanEditor() {
         type: objectType,
         name: defaultName,
         label: defaultName,
-        x: 500 - sz.width / 2,
-        y: 350 - sz.height / 2,
+        x: CANVAS_W / 2 - sz.width / 2,
+        y: CANVAS_H / 2 - sz.height / 2,
         width: sz.width,
         height: sz.height,
         rotation: 0,
@@ -603,14 +654,14 @@ export function FloorPlanEditor() {
         else if (resizeHandle === 'sw') { nw = Math.max(80, resizeStart.width - dx); nh = Math.max(60, resizeStart.height + dy); nx = resizeStart.ox + (resizeStart.width - nw); }
         else if (resizeHandle === 'ne') { nw = Math.max(80, resizeStart.width + dx); nh = Math.max(60, resizeStart.height - dy); ny = resizeStart.oy + (resizeStart.height - nh); }
         else if (resizeHandle === 'nw') { nw = Math.max(80, resizeStart.width - dx); nh = Math.max(60, resizeStart.height - dy); nx = resizeStart.ox + (resizeStart.width - nw); ny = resizeStart.oy + (resizeStart.height - nh); }
-        nx = Math.max(0, Math.min(1000 - nw, nx));
-        ny = Math.max(0, Math.min(700 - nh, ny));
+        nx = Math.max(0, Math.min(CANVAS_W - nw, nx));
+        ny = Math.max(0, Math.min(CANVAS_H - nh, ny));
         const updated = { ...sec, position_x: nx, position_y: ny, width: nw, height: nh };
         setSeatSections(prev => prev.map(s => s.id === sec.id ? updated : s));
         setSelectedItem({ type: 'section', data: updated });
       } else if (isDragging) {
-        const nx = Math.max(0, Math.min(1000 - sec.width, p.x - dragOffset.x));
-        const ny = Math.max(0, Math.min(700 - sec.height, p.y - dragOffset.y));
+        const nx = Math.max(0, Math.min(CANVAS_W - sec.width, p.x - dragOffset.x));
+        const ny = Math.max(0, Math.min(CANVAS_H - sec.height, p.y - dragOffset.y));
         const updated = { ...sec, position_x: nx, position_y: ny };
         setSeatSections(prev => prev.map(s => s.id === sec.id ? updated : s));
         setSelectedItem({ type: 'section', data: updated });
@@ -627,13 +678,13 @@ export function FloorPlanEditor() {
       else if (resizeHandle === 'sw') { nw = Math.max(40, resizeStart.width - dx); nh = Math.max(30, resizeStart.height + dy); nx = resizeStart.ox + (resizeStart.width - nw); }
       else if (resizeHandle === 'ne') { nw = Math.max(40, resizeStart.width + dx); nh = Math.max(30, resizeStart.height - dy); ny = resizeStart.oy + (resizeStart.height - nh); }
       else if (resizeHandle === 'nw') { nw = Math.max(40, resizeStart.width - dx); nh = Math.max(30, resizeStart.height - dy); nx = resizeStart.ox + (resizeStart.width - nw); ny = resizeStart.oy + (resizeStart.height - nh); }
-      nx = Math.max(0, Math.min(1000 - nw, nx));
-      ny = Math.max(0, Math.min(700 - nh, ny));
+      nx = Math.max(0, Math.min(CANVAS_W - nw, nx));
+      ny = Math.max(0, Math.min(CANVAS_H - nh, ny));
       applyLocalUpdate({ ...selectedItem.data, x: nx, y: ny, width: nw, height: nh } as FloorplanTable | FloorplanObject);
     } else if (isDragging) {
       const item = selectedItem.data as FloorplanTable | FloorplanObject;
-      const nx = Math.max(0, Math.min(1000 - item.width, p.x - dragOffset.x));
-      const ny = Math.max(0, Math.min(700 - item.height, p.y - dragOffset.y));
+      const nx = Math.max(0, Math.min(CANVAS_W - item.width, p.x - dragOffset.x));
+      const ny = Math.max(0, Math.min(CANVAS_H - item.height, p.y - dragOffset.y));
       applyLocalUpdate({ ...item, x: nx, y: ny } as FloorplanTable | FloorplanObject);
     }
   };
@@ -723,7 +774,8 @@ export function FloorPlanEditor() {
       <div className="bg-slate-800 border-b border-slate-700 p-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold text-white">Floorplan Editor</h2>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400 text-sm font-mono tabular-nums min-w-[52px] text-center">{Math.round(zoom * 100)}%</span>
             <button onClick={() => setZoom(z => Math.min(z + 0.25, 3))} className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors" title="Zoom In"><ZoomIn className="w-5 h-5" /></button>
             <button onClick={() => setZoom(z => Math.max(z - 0.25, 0.5))} className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors" title="Zoom Out"><ZoomOut className="w-5 h-5" /></button>
             <button onClick={() => setZoom(1)} className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors" title="Reset"><Maximize2 className="w-5 h-5" /></button>
@@ -754,8 +806,8 @@ export function FloorPlanEditor() {
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-0">
           <div className="lg:col-span-3 p-3">
             <div
-              className="bg-slate-950 rounded-lg overflow-hidden"
-              style={{ height: '600px' }}
+              className="bg-slate-950 rounded-lg overflow-auto"
+              style={{ height: '800px' }}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
@@ -763,25 +815,29 @@ export function FloorPlanEditor() {
             >
               <svg
                 ref={svgRef}
-                viewBox="0 0 1000 700"
-                className="w-full h-full"
+                viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`}
                 style={{
-                  transform: `scale(${zoom})`,
-                  transformOrigin: 'top left',
-                  transition: isDragging || isResizing ? 'none' : 'transform 0.2s ease-out',
+                  width: CANVAS_W * zoom,
+                  height: CANVAS_H * zoom,
+                  minWidth: '100%',
+                  minHeight: '100%',
                   cursor: currentTool === 'select' ? 'default' : 'crosshair',
                 }}
               >
-                <rect x="0" y="0" width="1000" height="700" fill="#0f172a" />
+                <rect x="0" y="0" width={CANVAS_W} height={CANVAS_H} fill="#0f172a" />
 
                 {showGrid && (
                   <>
                     <defs>
-                      <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
-                        <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#1e293b" strokeWidth="0.5" />
+                      <pattern id="gridMinor" width="50" height="50" patternUnits="userSpaceOnUse">
+                        <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#1e293b" strokeWidth="0.4" />
+                      </pattern>
+                      <pattern id="gridMajor" width="200" height="200" patternUnits="userSpaceOnUse">
+                        <path d="M 200 0 L 0 0 0 200" fill="none" stroke="#334155" strokeWidth="0.8" />
                       </pattern>
                     </defs>
-                    <rect x="0" y="0" width="1000" height="700" fill="url(#grid)" />
+                    <rect x="0" y="0" width={CANVAS_W} height={CANVAS_H} fill="url(#gridMinor)" />
+                    <rect x="0" y="0" width={CANVAS_W} height={CANVAS_H} fill="url(#gridMajor)" />
                   </>
                 )}
 
@@ -840,99 +896,26 @@ export function FloorPlanEditor() {
 
                 {seatSections.map((section) => {
                   const isSel = selectedItem?.type === 'section' && selectedItem.data.id === section.id;
-                  const seatCount = section.rows_count * section.seats_per_row;
-                  const isTribuneType = section.section_type === 'tribune';
                   return (
-                    <g key={`sec-${section.id}`}>
-                      <g
-                        onMouseDown={(e) => handleItemMouseDown(e, { type: 'section', data: section })}
-                        onClick={(e) => { e.stopPropagation(); setSelectedItem({ type: 'section', data: section }); }}
-                        onDoubleClick={(e) => { e.stopPropagation(); openEditSection(section); }}
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setContextMenu({ x: e.clientX, y: e.clientY, section });
-                        }}
-                        style={{ cursor: currentTool === 'select' ? 'move' : 'default' }}
-                      >
-                        <rect
-                          x={section.position_x} y={section.position_y}
-                          width={section.width} height={section.height}
-                          fill={section.color} fillOpacity={0.15}
-                          stroke={isSel ? '#ef4444' : section.color}
-                          strokeWidth={isSel ? 3 : 2}
-                          strokeDasharray={isTribuneType ? 'none' : '8 4'}
-                          rx="6"
-                        />
-                        <rect
-                          x={section.position_x} y={section.position_y}
-                          width={section.width} height={24}
-                          fill={section.color} fillOpacity={0.35} rx="6"
-                        />
-                        <rect
-                          x={section.position_x} y={section.position_y + 18}
-                          width={section.width} height={6}
-                          fill={section.color} fillOpacity={0.35}
-                        />
-                        <text
-                          x={section.position_x + 8} y={section.position_y + 16}
-                          fill="white" fontSize="12" fontWeight="bold"
-                          className="pointer-events-none"
-                        >
-                          {isTribuneType ? 'T' : 'P'} {section.name}
-                        </text>
-                        <text
-                          x={section.position_x + section.width - 8} y={section.position_y + 16}
-                          fill="rgba(255,255,255,0.7)" fontSize="10" textAnchor="end"
-                          className="pointer-events-none"
-                        >
-                          {seatCount} stoelen
-                        </text>
-                        {section.price_category && (
-                          <text
-                            x={section.position_x + 8} y={section.position_y + section.height - 8}
-                            fill="rgba(255,255,255,0.6)" fontSize="10"
-                            className="pointer-events-none"
-                          >
-                            {section.price_category} — EUR {section.price_amount.toFixed(2)}
-                          </text>
-                        )}
-                        {isTribuneType && section.height > 50 && (() => {
-                          const rowCount = Math.min(section.rows_count, Math.floor((section.height - 30) / 8));
-                          return Array.from({ length: rowCount }).map((_, i) => {
-                            const ry = section.position_y + 30 + i * ((section.height - 36) / rowCount);
-                            return (
-                              <line key={i}
-                                x1={section.position_x + 6} y1={ry}
-                                x2={section.position_x + section.width - 6} y2={ry}
-                                stroke={section.color} strokeOpacity={0.3} strokeWidth={1}
-                              />
-                            );
-                          });
-                        })()}
-                        {!isTribuneType && section.width > 60 && section.height > 50 && (() => {
-                          const dotRows = Math.min(3, section.rows_count);
-                          const dotCols = Math.min(6, section.seats_per_row);
-                          const dots: React.ReactNode[] = [];
-                          const startY = section.position_y + 32;
-                          const endY = section.position_y + section.height - 12;
-                          const startX = section.position_x + 12;
-                          const endX = section.position_x + section.width - 12;
-                          for (let r = 0; r < dotRows; r++) {
-                            for (let c = 0; c < dotCols; c++) {
-                              const cx = startX + (endX - startX) * (c / (dotCols - 1 || 1));
-                              const cy = startY + (endY - startY) * (r / (dotRows - 1 || 1));
-                              dots.push(
-                                <circle key={`${r}-${c}`} cx={cx} cy={cy} r={3}
-                                  fill={section.color} fillOpacity={0.5} className="pointer-events-none" />
-                              );
-                            }
-                          }
-                          return dots;
-                        })()}
-                      </g>
-                      {isSel && currentTool === 'select' && <ResizeHandles item={section} />}
-                    </g>
+                    <SeatSectionRenderer
+                      key={`sec-${section.id}`}
+                      section={section}
+                      seats={sectionSeats[section.id] || []}
+                      zoom={zoom}
+                      isSelected={isSel}
+                      currentTool={currentTool}
+                      onMouseDown={(e) => handleItemMouseDown(e, { type: 'section', data: section })}
+                      onClick={(e) => { e.stopPropagation(); setSelectedItem({ type: 'section', data: section }); }}
+                      onDoubleClick={(e) => { e.stopPropagation(); openEditSection(section); }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setContextMenu({ x: e.clientX, y: e.clientY, section });
+                      }}
+                      renderResizeHandles={() =>
+                        isSel && currentTool === 'select' ? <ResizeHandles item={section} /> : null
+                      }
+                    />
                   );
                 })}
 
@@ -977,32 +960,30 @@ export function FloorPlanEditor() {
             </div>
           </div>
 
-          <div className="p-3 space-y-3 bg-slate-800/30 border-l border-slate-700 overflow-y-auto" style={{ maxHeight: '636px' }}>
+          <div className="p-3 space-y-3 bg-slate-800/30 border-l border-slate-700 overflow-y-auto" style={{ maxHeight: '836px' }}>
             {selectedItem ? (
+              selectedItem.type === 'section' ? (
+                <SectionPropertiesPanel
+                  section={selectedItem.data as SeatSection}
+                  seats={sectionSeats[(selectedItem.data as SeatSection).id] || []}
+                  onEdit={openEditSection}
+                  onRegenerate={handleRegenerateSeats}
+                  onDuplicate={handleDuplicateSection}
+                  onDelete={handleDeleteSection}
+                />
+              ) : (
               <div className="bg-slate-800 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold text-white">
-                    {selectedItem.type === 'table' ? 'Tafel eigenschappen' : selectedItem.type === 'section' ? 'Sectie eigenschappen' : 'Object eigenschappen'}
+                    {selectedItem.type === 'table' ? 'Tafel eigenschappen' : 'Object eigenschappen'}
                   </h3>
                   <div className="flex gap-1">
-                    {selectedItem.type !== 'section' && (
-                      <button onClick={duplicateItem} className="p-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors" title="Dupliceren"><Copy className="w-3.5 h-3.5" /></button>
-                    )}
-                    {selectedItem.type === 'section' ? (
-                      <>
-                        <button onClick={() => openEditSection(selectedItem.data as SeatSection)} className="p-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors" title="Bewerken"><Edit className="w-3.5 h-3.5" /></button>
-                        <button onClick={() => handleDuplicateSection(selectedItem.data as SeatSection)} className="p-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors" title="Dupliceren"><Copy className="w-3.5 h-3.5" /></button>
-                        <button onClick={() => handleDeleteSection(selectedItem.data as SeatSection)} className="p-1.5 bg-red-600 hover:bg-red-500 text-white rounded transition-colors" title="Verwijderen"><Trash2 className="w-3.5 h-3.5" /></button>
-                      </>
-                    ) : (
-                      <button onClick={deleteItem} className="p-1.5 bg-red-600 hover:bg-red-500 text-white rounded transition-colors" title="Verwijderen"><Trash2 className="w-3.5 h-3.5" /></button>
-                    )}
+                    <button onClick={duplicateItem} className="p-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors" title="Dupliceren"><Copy className="w-3.5 h-3.5" /></button>
+                    <button onClick={deleteItem} className="p-1.5 bg-red-600 hover:bg-red-500 text-white rounded transition-colors" title="Verwijderen"><Trash2 className="w-3.5 h-3.5" /></button>
                   </div>
                 </div>
 
-                {selectedItem.type === 'section' ? (
-                  <SectionProperties section={selectedItem.data as SeatSection} />
-                ) : selectedItem.type === 'table' ? (
+                {selectedItem.type === 'table' ? (
                   <TableProperties
                     table={selectedItem.data as FloorplanTable}
                     packages={packages}
@@ -1025,6 +1006,7 @@ export function FloorPlanEditor() {
                   />
                 )}
               </div>
+              )
             ) : (
               <div className="bg-slate-800 rounded-lg p-4">
                 <h3 className="text-sm font-semibold text-white mb-3">Snelle acties</h3>
@@ -1050,14 +1032,13 @@ export function FloorPlanEditor() {
               <p className="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Legenda</p>
               <div className="space-y-1.5">
                 {[
-                  { color: '#22c55e', label: 'Seated tafel' },
+                  { color: '#22c55e', label: 'Seated tafel / Beschikbaar' },
                   { color: '#3b82f6', label: 'Standing tafel' },
                   { color: '#ef4444', label: 'Verkocht' },
-                  { color: '#f59e0b', label: 'Bar' },
+                  { color: '#f59e0b', label: 'Gereserveerd / Bar' },
+                  { color: '#6b7280', label: 'Geblokkeerd' },
                   { color: '#1e40af', label: 'Stage / Dancefloor' },
                   { color: '#92400e', label: 'Tribune (object)' },
-                  { color: '#3b82f6', label: 'Tribune Sectie (stoelen)', border: true },
-                  { color: '#14b8a6', label: 'Plein Sectie (stoelen)', border: true },
                 ].map(({ color, label }) => (
                   <div key={label} className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded flex-shrink-0" style={{ backgroundColor: color }} />
@@ -1111,59 +1092,6 @@ export function FloorPlanEditor() {
         editMode={!!editingSection}
         loading={sectionSaving}
       />
-    </div>
-  );
-}
-
-function SectionProperties({ section }: { section: SeatSection }) {
-  return (
-    <div className="space-y-2.5 text-sm">
-      <div>
-        <label className={labelCls}>Naam</label>
-        <p className="text-white text-sm">{section.name}</p>
-      </div>
-      <div>
-        <label className={labelCls}>Type</label>
-        <p className="text-white text-sm">{section.section_type === 'tribune' ? 'Tribune' : 'Plein'}</p>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className={labelCls}>Rijen</label>
-          <p className="text-white text-sm">{section.rows_count}</p>
-        </div>
-        <div>
-          <label className={labelCls}>Stoelen/Rij</label>
-          <p className="text-white text-sm">{section.seats_per_row}</p>
-        </div>
-      </div>
-      <div>
-        <label className={labelCls}>Totaal</label>
-        <p className="text-white text-sm font-semibold">{section.capacity} stoelen</p>
-      </div>
-      {section.price_category && (
-        <div>
-          <label className={labelCls}>Categorie</label>
-          <p className="text-white text-sm">{section.price_category}</p>
-        </div>
-      )}
-      <div>
-        <label className={labelCls}>Prijs</label>
-        <p className="text-white text-sm">EUR {section.price_amount.toFixed(2)}</p>
-      </div>
-      <div>
-        <label className={labelCls}>Kleur</label>
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded" style={{ backgroundColor: section.color }} />
-          <span className="text-slate-400 text-xs">{section.color}</span>
-        </div>
-      </div>
-      <div>
-        <label className={labelCls}>Positie</label>
-        <p className="text-slate-400 text-xs">
-          X: {Math.round(section.position_x)}, Y: {Math.round(section.position_y)} | {Math.round(section.width)} x {Math.round(section.height)}
-        </p>
-      </div>
-      <p className="text-slate-500 text-xs italic mt-2">Dubbelklik op de sectie om te bewerken</p>
     </div>
   );
 }
