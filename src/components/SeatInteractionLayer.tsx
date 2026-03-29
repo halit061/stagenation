@@ -520,6 +520,20 @@ export function SeatInteractionLayer({
     return sections.find(s => s.id === seat.sectionId) || null;
   }, [seatById, sections]);
 
+  const sectionMap = useMemo(() => {
+    const map = new Map<string, typeof sections[0]>();
+    for (const s of sections) map.set(s.id, s);
+    return map;
+  }, [sections]);
+
+  function getSectionTransform(sectionId: string) {
+    const sec = sectionMap.get(sectionId);
+    if (!sec || !sec.rotation) return undefined;
+    const cx = sec.position_x + sec.width / 2;
+    const cy = sec.position_y + sec.height / 2;
+    return { transform: `rotate(${sec.rotation}deg)`, transformOrigin: `${cx}px ${cy}px` } as React.CSSProperties;
+  }
+
   return (
     <>
       <g
@@ -533,34 +547,36 @@ export function SeatInteractionLayer({
         )}
       </g>
 
-      {rowLabels.map((rl) => (
-        <text
-          key={`rl-${rl.sectionId}-${rl.label}`}
-          x={rl.x}
-          y={rl.y}
-          textAnchor="end"
-          dominantBaseline="middle"
-          fill="rgba(255,255,255,0.35)"
-          fontSize="9"
-          fontWeight="500"
-          style={{ cursor: isSelectTool ? 'pointer' : 'default', pointerEvents: isSelectTool ? 'all' : 'none' }}
-          onClick={(e) => handleRowLabelClick(e, rl.sectionId, rl.label)}
-        >
-          {rl.label}
-        </text>
-      ))}
-
       {sections.map((section) => (
-        <rect
-          key={`header-click-${section.id}`}
-          x={section.position_x}
-          y={section.position_y}
-          width={section.width}
-          height={HEADER_H}
-          fill="transparent"
-          style={{ cursor: isSelectTool ? 'pointer' : 'default', pointerEvents: isSelectTool ? 'all' : 'none' }}
-          onClick={(e) => handleSectionHeaderClick(e, section.id)}
-        />
+        <g key={`labels-${section.id}`} style={getSectionTransform(section.id)}>
+          {rowLabels
+            .filter(rl => rl.sectionId === section.id)
+            .map((rl) => (
+              <text
+                key={`rl-${rl.sectionId}-${rl.label}`}
+                x={rl.x}
+                y={rl.y}
+                textAnchor="end"
+                dominantBaseline="middle"
+                fill="rgba(255,255,255,0.35)"
+                fontSize="9"
+                fontWeight="500"
+                style={{ cursor: isSelectTool ? 'pointer' : 'default', pointerEvents: isSelectTool ? 'all' : 'none' }}
+                onClick={(e) => handleRowLabelClick(e, rl.sectionId, rl.label)}
+              >
+                {rl.label}
+              </text>
+            ))}
+          <rect
+            x={section.position_x}
+            y={section.position_y}
+            width={section.width}
+            height={HEADER_H}
+            fill="transparent"
+            style={{ cursor: isSelectTool ? 'pointer' : 'default', pointerEvents: isSelectTool ? 'all' : 'none' }}
+            onClick={(e) => handleSectionHeaderClick(e, section.id)}
+          />
+        </g>
       ))}
 
       {dragState?.active && dragState.outsideSection && sections.map(sec => {
@@ -587,69 +603,77 @@ export function SeatInteractionLayer({
         );
       })}
 
-      {allComputedSeats.map((seat) => {
-        const isDragTarget = dragState?.active && dragState.seatIds.has(seat.id);
-        const isCollisionFlash = dragState?.collisionFlash === seat.id;
-        const isSelected = selectedSeatIds.has(seat.id);
-        const isHovered = hoveredSeat?.id === seat.id && !dragState?.active;
-        const isMarqueePreview = marqueePreviewIds.has(seat.id);
-        const isReserved = seat.status === 'reserved';
-        const isVip = seat.seat_type === 'vip' && seat.status === 'available';
-        const baseColor = isCollisionFlash ? '#ef4444' : isVip ? '#eab308' : STATUS_COLOR[seat.status as SeatStatus] || '#22c55e';
-        const r = isHovered ? hoverRadius : seatRadius;
-
-        const manyDragging = dragState?.active && dragState.seatIds.size > 50;
-        const renderCx = isDragTarget ? seat.cx + (dragState?.dx ?? 0) : seat.cx;
-        const renderCy = isDragTarget ? seat.cy + (dragState?.dy ?? 0) : seat.cy;
-
+      {sections.map((section) => {
+        const sectionSeatsComputed = allComputedSeats.filter(s => s.sectionId === section.id);
+        if (sectionSeatsComputed.length === 0) return null;
         return (
-          <g key={seat.id} style={{ pointerEvents: (isSelectTool && !dragState?.active) ? 'all' : 'none' }}>
-            {isDragTarget && (
-              <circle
-                cx={seat.cx}
-                cy={seat.cy}
-                r={seatRadius}
-                fill={baseColor}
-                fillOpacity={0.25}
-                stroke="rgba(255,255,255,0.15)"
-                strokeWidth={0.5}
-                className="pointer-events-none"
-              />
-            )}
-            <circle
-              cx={renderCx}
-              cy={renderCy}
-              r={r}
-              fill={baseColor}
-              fillOpacity={isReserved ? undefined : isDragTarget ? 0.95 : 0.9}
-              stroke={isSelected ? '#ffffff' : isMarqueePreview ? '#93c5fd' : isVip ? '#fbbf24' : 'rgba(0,0,0,0.3)'}
-              strokeWidth={isSelected ? 2 : isMarqueePreview ? 1.5 : isVip ? 1.5 : 0.5}
-              className={`seat-hover-grow ${isReserved && !isDragTarget ? 'seat-reserved-pulse' : ''} ${isCollisionFlash ? 'seat-collision-flash' : ''}`}
-              style={{
-                cursor: isDragTarget ? 'grabbing' : isSelectTool ? 'pointer' : 'default',
-                filter: isDragTarget
-                  ? 'drop-shadow(0 2px 6px rgba(0,0,0,0.5))'
-                  : isSelected ? 'drop-shadow(0 0 3px rgba(255,255,255,0.6))'
-                  : isHovered ? 'drop-shadow(0 0 2px rgba(255,255,255,0.3))' : undefined,
-                transition: isCollisionFlash ? 'fill 150ms' : undefined,
-              }}
-              onClick={(e) => handleSeatClick(e, seat)}
-              onMouseDown={(e) => handleSeatMouseDown(e, seat)}
-              onMouseMove={handleMouseMove}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (onSeatContextMenu) {
-                  const sec = sections.find(s => s.id === seat.sectionId);
-                  if (sec) onSeatContextMenu(e, seat, sec);
-                }
-              }}
-            />
-            {(!manyDragging || !isDragTarget) && (
-              <g transform={isDragTarget ? `translate(${dragState?.dx ?? 0}, ${dragState?.dy ?? 0})` : undefined}>
-                <SeatIcon seat={seat} r={r} />
-              </g>
-            )}
+          <g key={`seats-${section.id}`} style={getSectionTransform(section.id)}>
+            {sectionSeatsComputed.map((seat) => {
+              const isDragTarget = dragState?.active && dragState.seatIds.has(seat.id);
+              const isCollisionFlash = dragState?.collisionFlash === seat.id;
+              const isSelected = selectedSeatIds.has(seat.id);
+              const isHovered = hoveredSeat?.id === seat.id && !dragState?.active;
+              const isMarqueePreview = marqueePreviewIds.has(seat.id);
+              const isReserved = seat.status === 'reserved';
+              const isVip = seat.seat_type === 'vip' && seat.status === 'available';
+              const baseColor = isCollisionFlash ? '#ef4444' : isVip ? '#eab308' : STATUS_COLOR[seat.status as SeatStatus] || '#22c55e';
+              const r = isHovered ? hoverRadius : seatRadius;
+
+              const manyDragging = dragState?.active && dragState.seatIds.size > 50;
+              const renderCx = isDragTarget ? seat.cx + (dragState?.dx ?? 0) : seat.cx;
+              const renderCy = isDragTarget ? seat.cy + (dragState?.dy ?? 0) : seat.cy;
+
+              return (
+                <g key={seat.id} style={{ pointerEvents: (isSelectTool && !dragState?.active) ? 'all' : 'none' }}>
+                  {isDragTarget && (
+                    <circle
+                      cx={seat.cx}
+                      cy={seat.cy}
+                      r={seatRadius}
+                      fill={baseColor}
+                      fillOpacity={0.25}
+                      stroke="rgba(255,255,255,0.15)"
+                      strokeWidth={0.5}
+                      className="pointer-events-none"
+                    />
+                  )}
+                  <circle
+                    cx={renderCx}
+                    cy={renderCy}
+                    r={r}
+                    fill={baseColor}
+                    fillOpacity={isReserved ? undefined : isDragTarget ? 0.95 : 0.9}
+                    stroke={isSelected ? '#ffffff' : isMarqueePreview ? '#93c5fd' : isVip ? '#fbbf24' : 'rgba(0,0,0,0.3)'}
+                    strokeWidth={isSelected ? 2 : isMarqueePreview ? 1.5 : isVip ? 1.5 : 0.5}
+                    className={`seat-hover-grow ${isReserved && !isDragTarget ? 'seat-reserved-pulse' : ''} ${isCollisionFlash ? 'seat-collision-flash' : ''}`}
+                    style={{
+                      cursor: isDragTarget ? 'grabbing' : isSelectTool ? 'pointer' : 'default',
+                      filter: isDragTarget
+                        ? 'drop-shadow(0 2px 6px rgba(0,0,0,0.5))'
+                        : isSelected ? 'drop-shadow(0 0 3px rgba(255,255,255,0.6))'
+                        : isHovered ? 'drop-shadow(0 0 2px rgba(255,255,255,0.3))' : undefined,
+                      transition: isCollisionFlash ? 'fill 150ms' : undefined,
+                    }}
+                    onClick={(e) => handleSeatClick(e, seat)}
+                    onMouseDown={(e) => handleSeatMouseDown(e, seat)}
+                    onMouseMove={handleMouseMove}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (onSeatContextMenu) {
+                        const sec = sections.find(s => s.id === seat.sectionId);
+                        if (sec) onSeatContextMenu(e, seat, sec);
+                      }
+                    }}
+                  />
+                  {(!manyDragging || !isDragTarget) && (
+                    <g transform={isDragTarget ? `translate(${dragState?.dx ?? 0}, ${dragState?.dy ?? 0})` : undefined}>
+                      <SeatIcon seat={seat} r={r} />
+                    </g>
+                  )}
+                </g>
+              );
+            })}
           </g>
         );
       })}

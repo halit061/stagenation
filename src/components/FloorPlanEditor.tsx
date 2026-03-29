@@ -260,6 +260,8 @@ export function FloorPlanEditor() {
           rows_count: formData.rows,
           seats_per_row: formData.seats_per_row,
           row_curve: formData.row_curve,
+          orientation: formData.orientation,
+          rotation: formData.rotation,
         });
         await generateSeats({
           section_id: editingSection.id,
@@ -270,11 +272,17 @@ export function FloorPlanEditor() {
           row_spacing: formData.row_spacing,
           seat_spacing: formData.seat_spacing,
           curve: formData.row_curve,
+          orientation: formData.orientation,
         });
         showToast('Sectie bijgewerkt!', 'success');
       } else {
-        const sectionWidth = Math.max(150, formData.seats_per_row * formData.seat_spacing + 40);
-        const sectionHeight = Math.max(80, formData.rows * formData.row_spacing + 30);
+        const isVert = formData.orientation === 'left' || formData.orientation === 'right';
+        const sectionWidth = isVert
+          ? Math.max(80, formData.rows * formData.row_spacing + 30)
+          : Math.max(150, formData.seats_per_row * formData.seat_spacing + 40);
+        const sectionHeight = isVert
+          ? Math.max(150, formData.seats_per_row * formData.seat_spacing + 40)
+          : Math.max(80, formData.rows * formData.row_spacing + 30);
         const newSection = await createSection({
           layout_id: currentLayout.id,
           name: formData.name,
@@ -287,7 +295,8 @@ export function FloorPlanEditor() {
           position_y: CANVAS_H / 2 - sectionHeight / 2,
           width: sectionWidth,
           height: sectionHeight,
-          rotation: 0,
+          rotation: formData.rotation,
+          orientation: formData.orientation,
           rows_count: formData.rows,
           seats_per_row: formData.seats_per_row,
           row_curve: formData.row_curve,
@@ -303,6 +312,7 @@ export function FloorPlanEditor() {
           row_spacing: formData.row_spacing,
           seat_spacing: formData.seat_spacing,
           curve: formData.row_curve,
+          orientation: formData.orientation,
         });
         showToast('Sectie aangemaakt!', 'success');
       }
@@ -351,6 +361,7 @@ export function FloorPlanEditor() {
         width: section.width,
         height: section.height,
         rotation: section.rotation,
+        orientation: section.orientation || 'top',
         rows_count: section.rows_count,
         seats_per_row: section.seats_per_row,
         row_curve: section.row_curve,
@@ -1248,6 +1259,8 @@ export function FloorPlanEditor() {
           rows: editingSection.rows_count,
           seats_per_row: editingSection.seats_per_row,
           row_curve: editingSection.row_curve,
+          orientation: editingSection.orientation || 'top',
+          rotation: editingSection.rotation || 0,
         } : { section_type: sectionModalType }}
         editMode={!!editingSection}
         loading={sectionSaving}

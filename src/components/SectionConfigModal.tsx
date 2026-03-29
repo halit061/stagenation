@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { X, Rows3, Grid3x3 } from 'lucide-react';
-import type { NumberingDirection } from '../types/seats';
+import type { NumberingDirection, SeatOrientation } from '../types/seats';
 import {
   sanitizeText,
   validateSectionName,
@@ -28,6 +28,8 @@ export interface SectionFormData {
   row_spacing: number;
   seat_spacing: number;
   row_curve: number;
+  orientation: SeatOrientation;
+  rotation: number;
 }
 
 interface SectionConfigModalProps {
@@ -53,8 +55,17 @@ function defaultForm(type: 'tribune' | 'plein'): SectionFormData {
     row_spacing: 35,
     seat_spacing: 25,
     row_curve: 0,
+    orientation: 'top',
+    rotation: 0,
   };
 }
+
+const ORIENTATION_OPTIONS: { value: SeatOrientation; label: string; desc: string; presetDeg: number }[] = [
+  { value: 'top', label: 'Boven', desc: 'Podium is boven', presetDeg: 0 },
+  { value: 'bottom', label: 'Beneden', desc: 'Podium is onder', presetDeg: 180 },
+  { value: 'left', label: 'Links', desc: 'Podium is links', presetDeg: 270 },
+  { value: 'right', label: 'Rechts', desc: 'Podium is rechts', presetDeg: 90 },
+];
 
 export function SectionConfigModal({
   isOpen,
@@ -79,6 +90,11 @@ export function SectionConfigModal({
       delete next[key];
       return next;
     });
+  }
+
+  function setOrientation(o: SeatOrientation) {
+    const preset = ORIENTATION_OPTIONS.find(opt => opt.value === o);
+    setForm(prev => ({ ...prev, orientation: o, rotation: preset?.presetDeg ?? 0 }));
   }
 
   function validate(): boolean {
@@ -266,6 +282,37 @@ export function SectionConfigModal({
                   className="w-full accent-blue-500" />
               </Field>
             )}
+
+            <div>
+              <label className={labelCls}>Stoelen Orientatie</label>
+              <div className="grid grid-cols-4 gap-2">
+                {ORIENTATION_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setOrientation(opt.value)}
+                    className={`relative p-2 rounded-lg border-2 transition-all text-center ${
+                      form.orientation === opt.value
+                        ? 'border-blue-500 bg-blue-500/10'
+                        : 'border-slate-600 hover:border-slate-500'
+                    }`}
+                  >
+                    <OrientationIcon direction={opt.value} color={form.color} active={form.orientation === opt.value} />
+                    <p className="text-xs text-white font-medium mt-1.5">{opt.label}</p>
+                    <p className="text-[10px] text-slate-400">{opt.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <Field label={`Vrije Rotatie: ${form.rotation}°`}>
+              <input type="range" min="0" max="359" step="1" value={form.rotation}
+                onChange={(e) => update('rotation', parseInt(e.target.value))}
+                className="w-full accent-blue-500" />
+              <div className="flex justify-between text-[10px] text-slate-500 mt-0.5">
+                <span>0°</span><span>90°</span><span>180°</span><span>270°</span><span>359°</span>
+              </div>
+            </Field>
           </div>
 
           <div>
@@ -294,25 +341,120 @@ export function SectionConfigModal({
   );
 }
 
+function OrientationIcon({ direction, color, active }: { direction: SeatOrientation; color: string; active: boolean }) {
+  const arrowColor = active ? '#3b82f6' : '#94a3b8';
+  const seatColor = active ? color : '#64748b';
+  const rows = 3;
+  const cols = 5;
+
+  const isVertical = direction === 'left' || direction === 'right';
+
+  return (
+    <svg viewBox="0 0 48 40" className="w-full h-8">
+      {!isVertical ? (
+        <>
+          {Array.from({ length: rows }).map((_, r) =>
+            Array.from({ length: cols }).map((_, c) => {
+              const rowY = direction === 'top'
+                ? 12 + r * 8
+                : 28 - r * 8;
+              return (
+                <circle
+                  key={`${r}-${c}`}
+                  cx={10 + c * 7}
+                  cy={rowY}
+                  r={2.2}
+                  fill={seatColor}
+                  opacity={0.8}
+                />
+              );
+            })
+          )}
+          <polygon
+            points={direction === 'top' ? '24,2 20,8 28,8' : '24,38 20,32 28,32'}
+            fill={arrowColor}
+          />
+          <text
+            x="24"
+            y={direction === 'top' ? 8 : 32}
+            textAnchor="middle"
+            fontSize="4"
+            fill={arrowColor}
+            fontWeight="bold"
+          >
+            {direction === 'top' ? '' : ''}
+          </text>
+        </>
+      ) : (
+        <>
+          {Array.from({ length: rows }).map((_, r) =>
+            Array.from({ length: cols }).map((_, c) => {
+              const rowX = direction === 'left'
+                ? 32 - r * 8
+                : 16 + r * 8;
+              return (
+                <circle
+                  key={`${r}-${c}`}
+                  cx={rowX}
+                  cy={8 + c * 6}
+                  r={2.2}
+                  fill={seatColor}
+                  opacity={0.8}
+                />
+              );
+            })
+          )}
+          <polygon
+            points={direction === 'left' ? '6,20 12,16 12,24' : '42,20 36,16 36,24'}
+            fill={arrowColor}
+          />
+        </>
+      )}
+    </svg>
+  );
+}
+
 function SeatPreview({ form }: { form: SectionFormData }) {
   const seats = useMemo(() => {
     const result: { x: number; y: number; row: string; num: number }[] = [];
     let rowLabel = form.start_row_label;
     const rows = Math.min(form.rows, 50);
     const perRow = Math.min(form.seats_per_row, 100);
+    const isVertical = form.orientation === 'left' || form.orientation === 'right';
 
     for (let r = 0; r < rows; r++) {
       for (let s = 0; s < perRow; s++) {
-        const centerOffset = s - (perRow - 1) / 2;
-        const xBase = centerOffset * form.seat_spacing;
-        const yPos = r * form.row_spacing;
-        const curveOffset = form.row_curve * r * r * 0.5;
-        const yCurve = curveOffset * Math.abs(centerOffset) / ((perRow - 1) / 2 || 1);
+        let xPos: number;
+        let yPos: number;
+
+        if (!isVertical) {
+          const centerOffset = s - (perRow - 1) / 2;
+          xPos = centerOffset * form.seat_spacing;
+          const baseCurve = form.row_curve * r * r * 0.5;
+          const yCurve = baseCurve * Math.abs(centerOffset) / ((perRow - 1) / 2 || 1);
+
+          if (form.orientation === 'top') {
+            yPos = r * form.row_spacing + yCurve;
+          } else {
+            yPos = (rows - 1 - r) * form.row_spacing + yCurve;
+          }
+        } else {
+          const centerOffset = s - (perRow - 1) / 2;
+          yPos = centerOffset * form.seat_spacing;
+          const baseCurve = form.row_curve * r * r * 0.5;
+          const xCurve = baseCurve * Math.abs(centerOffset) / ((perRow - 1) / 2 || 1);
+
+          if (form.orientation === 'right') {
+            xPos = r * form.row_spacing + xCurve;
+          } else {
+            xPos = (rows - 1 - r) * form.row_spacing + xCurve;
+          }
+        }
 
         let seatNum = s + 1;
         if (form.numbering_direction === 'right-to-left') seatNum = perRow - s;
 
-        result.push({ x: xBase, y: yPos + yCurve, row: rowLabel, num: seatNum });
+        result.push({ x: xPos, y: yPos, row: rowLabel, num: seatNum });
       }
       if (/^\d+$/.test(rowLabel)) {
         rowLabel = String(Number(rowLabel) + 1);
@@ -322,38 +464,74 @@ function SeatPreview({ form }: { form: SectionFormData }) {
       }
     }
     return result;
-  }, [form.rows, form.seats_per_row, form.row_spacing, form.seat_spacing, form.row_curve, form.numbering_direction, form.start_row_label]);
+  }, [form.rows, form.seats_per_row, form.row_spacing, form.seat_spacing, form.row_curve, form.numbering_direction, form.start_row_label, form.orientation]);
 
   if (seats.length === 0) return <div className="bg-slate-900 rounded-lg h-80 flex items-center justify-center text-slate-500">Geen stoelen</div>;
 
   const xs = seats.map((s) => s.x);
   const ys = seats.map((s) => s.y);
-  const minX = Math.min(...xs) - 20;
-  const maxX = Math.max(...xs) + 20;
-  const minY = Math.min(...ys) - 20;
-  const maxY = Math.max(...ys) + 20;
+  const minX = Math.min(...xs) - 30;
+  const maxX = Math.max(...xs) + 30;
+  const minY = Math.min(...ys) - 30;
+  const maxY = Math.max(...ys) + 30;
   const vw = maxX - minX;
   const vh = maxY - minY;
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+
+  const isVertical = form.orientation === 'left' || form.orientation === 'right';
+
+  const podiumLabel = (() => {
+    switch (form.orientation) {
+      case 'top': return { x: cx, y: minY + 8, anchor: 'middle' as const };
+      case 'bottom': return { x: cx, y: maxY - 4, anchor: 'middle' as const };
+      case 'left': return { x: minX + 8, y: cy, anchor: 'start' as const };
+      case 'right': return { x: maxX - 8, y: cy, anchor: 'end' as const };
+    }
+  })();
 
   return (
     <div className="bg-slate-900 rounded-lg border border-slate-700 overflow-hidden" style={{ height: 'calc(100% - 24px)', minHeight: '300px' }}>
       <svg viewBox={`${minX} ${minY} ${vw} ${vh}`} className="w-full h-full" preserveAspectRatio="xMidYMid meet">
-        {seats.map((s, i) => (
-          <circle key={i} cx={s.x} cy={s.y} r={Math.min(form.seat_spacing, form.row_spacing) * 0.3}
-            fill={form.color} opacity={0.85} />
-        ))}
-        {(() => {
-          const rowLabels = new Map<string, number>();
-          seats.forEach((s) => {
-            if (!rowLabels.has(s.row)) rowLabels.set(s.row, s.y);
-          });
-          return Array.from(rowLabels).map(([label, y]) => (
-            <text key={label} x={minX + 5} y={y} fill="#94a3b8" fontSize={Math.max(8, form.row_spacing * 0.35)}
-              dominantBaseline="middle" className="pointer-events-none">
-              {label}
-            </text>
-          ));
-        })()}
+        <g style={{ transform: `rotate(${form.rotation}deg)`, transformOrigin: `${cx}px ${cy}px` }}>
+          {seats.map((s, i) => (
+            <circle key={i} cx={s.x} cy={s.y} r={Math.min(form.seat_spacing, form.row_spacing) * 0.3}
+              fill={form.color} opacity={0.85} />
+          ))}
+          {(() => {
+            const rowLabels = new Map<string, { x: number; y: number }>();
+            seats.forEach((s) => {
+              if (!rowLabels.has(s.row)) {
+                rowLabels.set(s.row, { x: s.x, y: s.y });
+              }
+            });
+
+            return Array.from(rowLabels).map(([label, pos]) => {
+              const labelX = !isVertical ? minX + 15 : pos.x;
+              const labelY = !isVertical ? pos.y : minY + 15;
+              return (
+                <text key={label} x={labelX} y={labelY} fill="#94a3b8"
+                  fontSize={Math.max(8, Math.min(form.row_spacing, form.seat_spacing) * 0.35)}
+                  dominantBaseline="middle" textAnchor={!isVertical ? 'end' : 'middle'}
+                  className="pointer-events-none">
+                  {label}
+                </text>
+              );
+            });
+          })()}
+        </g>
+        <text
+          x={podiumLabel.x}
+          y={podiumLabel.y}
+          textAnchor={podiumLabel.anchor}
+          dominantBaseline="middle"
+          fill="#f59e0b"
+          fontSize="10"
+          fontWeight="bold"
+          className="pointer-events-none"
+        >
+          PODIUM
+        </text>
       </svg>
     </div>
   );

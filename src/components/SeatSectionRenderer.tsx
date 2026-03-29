@@ -32,8 +32,12 @@ function SeatSectionRendererInner({
   const sw = section.width;
   const sh = section.height;
 
+  const rotation = section.rotation || 0;
+  const centerX = sx + sw / 2;
+  const centerY = sy + sh / 2;
+
   return (
-    <g>
+    <g style={rotation ? { transform: `rotate(${rotation}deg)`, transformOrigin: `${centerX}px ${centerY}px` } : undefined}>
       <g
         onMouseDown={onMouseDown}
         onClick={onClick}
@@ -113,6 +117,7 @@ export const SeatSectionRenderer = React.memo(SeatSectionRendererInner, (prev, n
   if (prev.section.height !== next.section.height) return false;
   if (prev.section.color !== next.section.color) return false;
   if (prev.section.name !== next.section.name) return false;
+  if (prev.section.rotation !== next.section.rotation) return false;
   if (prev.seatCount !== next.seatCount) return false;
   if (prev.isSelected !== next.isSelected) return false;
   if (prev.currentTool !== next.currentTool) return false;

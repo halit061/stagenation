@@ -7,6 +7,7 @@ import { SeatPickerBottomSheet } from '../components/SeatPickerBottomSheet';
 import { SeatPickerLegend } from '../components/SeatPickerLegend';
 import { SeatPickerFilters } from '../components/SeatPickerFilters';
 import { SeatPickerMiniMap } from '../components/SeatPickerMiniMap';
+import { BestAvailablePanel } from '../components/BestAvailablePanel';
 
 interface Props {
   eventId: string;
@@ -113,11 +114,23 @@ export function SeatPicker({ eventId, onNavigate }: Props) {
 
       <div className="flex-shrink-0 px-4 py-2.5 border-b border-slate-800/50 bg-slate-950">
         <div className="max-w-[1800px] mx-auto flex items-center justify-between gap-4">
-          <SeatPickerFilters
-            categories={state.priceCategories}
-            activeFilters={state.activePriceFilters}
-            onToggle={state.togglePriceFilter}
-          />
+          <div className="flex items-center gap-4 flex-wrap">
+            <SeatPickerFilters
+              categories={state.priceCategories}
+              activeFilters={state.activePriceFilters}
+              onToggle={state.togglePriceFilter}
+            />
+            <BestAvailablePanel
+              sections={state.sections}
+              priceCategories={state.priceCategories}
+              maxSeats={state.maxSeats}
+              currentCount={state.selectedIds.size}
+              onFind={state.findBest}
+              onRetry={state.retryBest}
+              lastResult={state.bestAvailableResult}
+              retryCount={state.bestAvailableRetries}
+            />
+          </div>
           <div className="hidden md:block">
             <SeatPickerLegend compact />
           </div>
@@ -130,6 +143,7 @@ export function SeatPicker({ eventId, onNavigate }: Props) {
             sections={state.sections}
             seats={state.visibleSeats}
             selectedIds={state.selectedIds}
+            highlightedIds={state.highlightedSeatIds}
             onSeatClick={state.toggleSeat}
             canvasWidth={state.canvasWidth}
             canvasHeight={state.canvasHeight}

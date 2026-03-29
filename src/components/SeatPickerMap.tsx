@@ -1,6 +1,7 @@
 import { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import type { SeatSection } from '../types/seats';
 import type { PickerSeat } from '../hooks/useSeatPickerState';
+import type React from 'react';
 
 const HEADER_H = 24;
 const SEAT_R = 5;
@@ -12,6 +13,7 @@ interface Props {
   sections: SeatSection[];
   seats: PickerSeat[];
   selectedIds: Set<string>;
+  highlightedIds?: Set<string>;
   onSeatClick: (seatId: string) => void;
   canvasWidth?: number;
   canvasHeight?: number;
@@ -22,6 +24,7 @@ export function SeatPickerMap({
   sections,
   seats,
   selectedIds,
+  highlightedIds,
   onSeatClick,
   onViewportChange,
 }: Props) {
@@ -224,6 +227,29 @@ export function SeatPickerMap({
     setTooltipPos(null);
   }, []);
 
+  const sectionMap = useMemo(() => {
+    const map = new Map<string, SeatSection>();
+    for (const s of sections) map.set(s.id, s);
+    return map;
+  }, [sections]);
+
+  function getSectionTransform(sectionId: string): React.CSSProperties | undefined {
+    const sec = sectionMap.get(sectionId);
+    if (!sec || !sec.rotation) return undefined;
+    const cx = sec.position_x + sec.width / 2;
+    const cy = sec.position_y + sec.height / 2;
+    return { transform: `rotate(${sec.rotation}deg)`, transformOrigin: `${cx}px ${cy}px` };
+  }
+
+  const seatsBySection = useMemo(() => {
+    const map = new Map<string, PickerSeat[]>();
+    for (const seat of seats) {
+      if (!map.has(seat.sectionId)) map.set(seat.sectionId, []);
+      map.get(seat.sectionId)!.push(seat);
+    }
+    return map;
+  }, [seats]);
+
   const sectionForSeat = useCallback((seatId: string) => {
     const seat = seats.find(s => s.id === seatId);
     if (!seat) return null;
@@ -255,7 +281,7 @@ export function SeatPickerMap({
       >
         <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
           {sections.map(section => (
-            <g key={section.id}>
+            <g key={section.id} style={getSectionTransform(section.id)}>
               <rect
                 x={section.position_x}
                 y={section.position_y}
@@ -292,70 +318,82 @@ export function SeatPickerMap({
               >
                 {section.name}
               </text>
+              {(seatsBySection.get(section.id) || []).map(seat => {
+                const isSelected = selectedIds.has(seat.id);
+                const isHighlighted = highlightedIds?.has(seat.id);
+                const isHovered = hoveredSeat?.id === seat.id;
+                const isBlocked = seat.status === 'blocked';
+                const isSold = seat.status === 'sold';
+                const isReserved = seat.status === 'reserved' && !isSelected;
+                const isAvailable = seat.status === 'available';
+
+                if (isBlocked) return null;
+
+                let fillColor = '#22c55e';
+                let fillOpacity = 0.85;
+                let strokeColor = 'rgba(0,0,0,0.2)';
+                let strokeW = 0.5;
+
+                if (isSelected) {
+                  fillColor = '#3b82f6';
+                  fillOpacity = 1;
+                  strokeColor = '#ffffff';
+                  strokeW = 2;
+                } else if (isSold || isReserved) {
+                  fillColor = '#4b5563';
+                  fillOpacity = 0.5;
+                  strokeColor = 'transparent';
+                } else if (seat.seat_type === 'vip' && isAvailable) {
+                  fillColor = '#eab308';
+                  fillOpacity = 0.9;
+                  strokeColor = '#fbbf24';
+                  strokeW = 1;
+                }
+
+                const r = isHovered ? seatRadius * 1.3 : seatRadius;
+                const clickable = isAvailable || isSelected;
+
+                return (
+                  <g key={seat.id}>
+                    {isHighlighted && (
+                      <circle
+                        cx={seat.cx}
+                        cy={seat.cy}
+                        r={seatRadius * 2.5}
+                        fill="none"
+                        stroke="#3b82f6"
+                        strokeWidth={1.5}
+                        className="seat-best-pulse"
+                      />
+                    )}
+                    <circle
+                      cx={seat.cx}
+                      cy={seat.cy}
+                      r={r}
+                      fill={fillColor}
+                      fillOpacity={fillOpacity}
+                      stroke={strokeColor}
+                      strokeWidth={strokeW}
+                      className={`seat-picker-hover ${isSelected ? 'seat-picker-selected' : ''}`}
+                      style={{
+                        cursor: clickable ? 'pointer' : 'default',
+                        filter: isSelected
+                          ? 'drop-shadow(0 0 4px rgba(59,130,246,0.6))'
+                          : isHovered && clickable
+                          ? 'drop-shadow(0 0 3px rgba(255,255,255,0.3))'
+                          : undefined,
+                        pointerEvents: 'all',
+                      }}
+                      onPointerDown={(e) => handleSeatPointerDown(e, seat)}
+                      onPointerUp={(e) => handleSeatPointerUp(e, seat)}
+                      onPointerEnter={(e) => clickable ? handleSeatHover(seat, e) : undefined}
+                      onPointerLeave={handleSeatLeave}
+                    />
+                  </g>
+                );
+              })}
             </g>
           ))}
-
-          {seats.map(seat => {
-            const isSelected = selectedIds.has(seat.id);
-            const isHovered = hoveredSeat?.id === seat.id;
-            const isBlocked = seat.status === 'blocked';
-            const isSold = seat.status === 'sold';
-            const isReserved = seat.status === 'reserved' && !isSelected;
-            const isAvailable = seat.status === 'available';
-
-            if (isBlocked) return null;
-
-            let fillColor = '#22c55e';
-            let fillOpacity = 0.85;
-            let strokeColor = 'rgba(0,0,0,0.2)';
-            let strokeW = 0.5;
-
-            if (isSelected) {
-              fillColor = '#3b82f6';
-              fillOpacity = 1;
-              strokeColor = '#ffffff';
-              strokeW = 2;
-            } else if (isSold || isReserved) {
-              fillColor = '#4b5563';
-              fillOpacity = 0.5;
-              strokeColor = 'transparent';
-            } else if (seat.seat_type === 'vip' && isAvailable) {
-              fillColor = '#eab308';
-              fillOpacity = 0.9;
-              strokeColor = '#fbbf24';
-              strokeW = 1;
-            }
-
-            const r = isHovered ? seatRadius * 1.3 : seatRadius;
-            const clickable = isAvailable || isSelected;
-
-            return (
-              <circle
-                key={seat.id}
-                cx={seat.cx}
-                cy={seat.cy}
-                r={r}
-                fill={fillColor}
-                fillOpacity={fillOpacity}
-                stroke={strokeColor}
-                strokeWidth={strokeW}
-                className={`seat-picker-hover ${isSelected ? 'seat-picker-selected' : ''}`}
-                style={{
-                  cursor: clickable ? 'pointer' : 'default',
-                  filter: isSelected
-                    ? 'drop-shadow(0 0 4px rgba(59,130,246,0.6))'
-                    : isHovered && clickable
-                    ? 'drop-shadow(0 0 3px rgba(255,255,255,0.3))'
-                    : undefined,
-                  pointerEvents: 'all',
-                }}
-                onPointerDown={(e) => handleSeatPointerDown(e, seat)}
-                onPointerUp={(e) => handleSeatPointerUp(e, seat)}
-                onPointerEnter={(e) => clickable ? handleSeatHover(seat, e) : undefined}
-                onPointerLeave={handleSeatLeave}
-              />
-            );
-          })}
         </g>
       </svg>
 

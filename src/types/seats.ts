@@ -8,6 +8,8 @@ export interface VenueLayout {
   updated_at: string;
 }
 
+export type SeatOrientation = 'top' | 'bottom' | 'left' | 'right';
+
 export interface SeatSection {
   id: string;
   layout_id: string;
@@ -22,6 +24,7 @@ export interface SeatSection {
   width: number;
   height: number;
   rotation: number;
+  orientation: SeatOrientation;
   rows_count: number;
   seats_per_row: number;
   row_curve: number;
@@ -92,6 +95,7 @@ export interface GenerateSeatsConfig {
   row_spacing: number;
   seat_spacing: number;
   curve: number;
+  orientation?: SeatOrientation;
 }
 
 export interface SeatSelectionState {
@@ -103,9 +107,18 @@ export interface SeatSelectionState {
   expires_at: string | null;
 }
 
+export type BestAvailableStrategy =
+  | 'best'
+  | 'front'
+  | 'center'
+  | 'cheapest'
+  | 'expensive';
+
 export interface BestAvailablePreferences {
   section_id?: string;
   price_category?: string;
   seat_type?: SeatType;
   keep_together?: boolean;
+  strategy?: BestAvailableStrategy;
+  exclude_seat_ids?: string[];
 }

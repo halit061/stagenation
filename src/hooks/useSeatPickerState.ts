@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { Seat, SeatSection, VenueLayout } from '../types/seats';
+import type { Seat, SeatSection, VenueLayout, BestAvailableStrategy } from '../types/seats';
 import {
   fetchLayoutByEvent,
   fetchSections,
@@ -9,6 +9,7 @@ import {
   releaseHoldsPublic,
   subscribeToSeatUpdates,
 } from '../services/seatPickerService';
+import { findBestAvailable } from '../lib/bestAvailable';
 
 export interface PickerSeat extends Seat {
   cx: number;
@@ -87,6 +88,17 @@ export function useSeatPickerState(eventId: string) {
   const [holdLoading, setHoldLoading] = useState(false);
   const [holdError, setHoldError] = useState<string | null>(null);
   const [activePriceFilters, setActivePriceFilters] = useState<Set<string>>(new Set());
+  const [bestAvailableResult, setBestAvailableResult] = useState<'none' | 'found' | 'empty'>('none');
+  const [bestAvailableRetries, setBestAvailableRetries] = useState(0);
+  const [highlightedSeatIds, setHighlightedSeatIds] = useState<Set<string>>(new Set());
+  const lastBestAvailableOpts = useRef<{
+    count: number;
+    strategy: BestAvailableStrategy;
+    sectionId?: string;
+    priceCategory?: string;
+    keepTogether: boolean;
+    excludedIds: Set<string>;
+  } | null>(null);
 
   const unsubRef = useRef<(() => void) | null>(null);
 
@@ -258,6 +270,65 @@ export function useSeatPickerState(eventId: string) {
     }, 0);
   }, [getSelectedSeats, sections]);
 
+  const findBest = useCallback((opts: {
+    count: number;
+    strategy: BestAvailableStrategy;
+    sectionId?: string;
+    priceCategory?: string;
+    keepTogether: boolean;
+  }) => {
+    const results = findBestAvailable(allSeats, sections, {
+      ...opts,
+      excludeSeatIds: new Set(),
+    });
+
+    if (results.length === 0) {
+      setBestAvailableResult('empty');
+      return;
+    }
+
+    const newIds = new Set(results.map(s => s.id));
+    setSelectedIds(newIds);
+    setHighlightedSeatIds(newIds);
+    setBestAvailableResult('found');
+    setBestAvailableRetries(0);
+    lastBestAvailableOpts.current = { ...opts, excludedIds: new Set(newIds) };
+
+    setTimeout(() => setHighlightedSeatIds(new Set()), 2000);
+  }, [allSeats, sections]);
+
+  const retryBest = useCallback(() => {
+    if (!lastBestAvailableOpts.current) return;
+    if (bestAvailableRetries >= 5) return;
+
+    const prev = lastBestAvailableOpts.current;
+    const results = findBestAvailable(allSeats, sections, {
+      count: prev.count,
+      strategy: prev.strategy,
+      sectionId: prev.sectionId,
+      priceCategory: prev.priceCategory,
+      keepTogether: prev.keepTogether,
+      excludeSeatIds: prev.excludedIds,
+    });
+
+    if (results.length === 0) {
+      setBestAvailableResult('empty');
+      return;
+    }
+
+    const newIds = new Set(results.map(s => s.id));
+    setSelectedIds(newIds);
+    setHighlightedSeatIds(newIds);
+    setBestAvailableResult('found');
+    setBestAvailableRetries(r => r + 1);
+
+    const merged = new Set(prev.excludedIds);
+    for (const id of newIds) merged.add(id);
+    lastBestAvailableOpts.current = { ...prev, excludedIds: merged };
+
+    setTimeout(() => setHighlightedSeatIds(new Set()), 2000);
+  }, [allSeats, sections, bestAvailableRetries]);
+
   const canvasWidth = layout?.layout_data?.canvasWidth as number || 1600;
   const canvasHeight = layout?.layout_data?.canvasHeight as number || 1000;
 
@@ -287,5 +358,10 @@ export function useSeatPickerState(eventId: string) {
     getSelectedSeats,
     getTotalPrice,
     seatMap,
+    findBest,
+    retryBest,
+    bestAvailableResult,
+    bestAvailableRetries,
+    highlightedSeatIds,
   };
 }

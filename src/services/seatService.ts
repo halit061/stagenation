@@ -289,6 +289,7 @@ export async function generateSeats(config: GenerateSeatsConfig): Promise<Seat[]
     row_spacing,
     seat_spacing,
     curve,
+    orientation = 'top',
   } = config;
 
   const { error: delErr } = await supabase
@@ -296,6 +297,8 @@ export async function generateSeats(config: GenerateSeatsConfig): Promise<Seat[]
     .delete()
     .eq('section_id', section_id);
   if (delErr) throw delErr;
+
+  const isVertical = orientation === 'left' || orientation === 'right';
 
   const newSeats: Array<{
     section_id: string;
@@ -310,13 +313,27 @@ export async function generateSeats(config: GenerateSeatsConfig): Promise<Seat[]
   let rowLabel = start_row_label;
 
   for (let r = 0; r < rows; r++) {
-    const yPos = r * row_spacing;
-    const curveOffset = curve * r * r * 0.5;
-
     for (let s = 0; s < seats_per_row; s++) {
-      const centerOffset = s - (seats_per_row - 1) / 2;
-      const xBase = centerOffset * seat_spacing;
-      const yCurve = curveOffset * Math.abs(centerOffset) / ((seats_per_row - 1) / 2 || 1);
+      let xPos: number;
+      let yPos: number;
+
+      if (!isVertical) {
+        const centerOffset = s - (seats_per_row - 1) / 2;
+        xPos = centerOffset * seat_spacing;
+        const baseCurve = curve * r * r * 0.5;
+        const yCurve = baseCurve * Math.abs(centerOffset) / ((seats_per_row - 1) / 2 || 1);
+        yPos = orientation === 'top'
+          ? r * row_spacing + yCurve
+          : (rows - 1 - r) * row_spacing + yCurve;
+      } else {
+        const centerOffset = s - (seats_per_row - 1) / 2;
+        yPos = centerOffset * seat_spacing;
+        const baseCurve = curve * r * r * 0.5;
+        const xCurve = baseCurve * Math.abs(centerOffset) / ((seats_per_row - 1) / 2 || 1);
+        xPos = orientation === 'right'
+          ? r * row_spacing + xCurve
+          : (rows - 1 - r) * row_spacing + xCurve;
+      }
 
       let seatNum: number;
       if (numbering_direction === 'right-to-left') {
@@ -332,8 +349,8 @@ export async function generateSeats(config: GenerateSeatsConfig): Promise<Seat[]
         section_id,
         row_label: rowLabel,
         seat_number: seatNum,
-        x_position: xBase,
-        y_position: yPos + yCurve,
+        x_position: xPos,
+        y_position: yPos,
         status: 'available',
         seat_type: 'regular',
       });
