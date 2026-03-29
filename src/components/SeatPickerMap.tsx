@@ -14,6 +14,7 @@ interface Props {
   seats: PickerSeat[];
   selectedIds: Set<string>;
   highlightedIds?: Set<string>;
+  flashingIds?: Set<string>;
   onSeatClick: (seatId: string) => void;
   canvasWidth?: number;
   canvasHeight?: number;
@@ -25,6 +26,7 @@ export function SeatPickerMap({
   seats,
   selectedIds,
   highlightedIds,
+  flashingIds,
   onSeatClick,
   onViewportChange,
 }: Props) {
@@ -321,6 +323,7 @@ export function SeatPickerMap({
               {(seatsBySection.get(section.id) || []).map(seat => {
                 const isSelected = selectedIds.has(seat.id);
                 const isHighlighted = highlightedIds?.has(seat.id);
+                const isFlashing = flashingIds?.has(seat.id);
                 const isHovered = hoveredSeat?.id === seat.id;
                 const isBlocked = seat.status === 'blocked';
                 const isSold = seat.status === 'sold';
@@ -374,7 +377,7 @@ export function SeatPickerMap({
                       fillOpacity={fillOpacity}
                       stroke={strokeColor}
                       strokeWidth={strokeW}
-                      className={`seat-picker-hover ${isSelected ? 'seat-picker-selected' : ''}`}
+                      className={`seat-picker-hover ${isSelected ? 'seat-picker-selected' : ''} ${isFlashing ? 'seat-status-flash' : ''}`}
                       style={{
                         cursor: clickable ? 'pointer' : 'default',
                         filter: isSelected

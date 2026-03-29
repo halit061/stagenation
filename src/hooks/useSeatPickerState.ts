@@ -5,9 +5,17 @@ import {
   fetchSections,
   fetchSeats,
   fetchEventInfo,
-  holdSeatsPublic,
-  releaseHoldsPublic,
+  holdSeatsAtomic,
+  extendHolds,
+  releaseSessionHolds,
+  refreshAllSeats,
   subscribeToSeatUpdates,
+  saveHoldToStorage,
+  loadHoldFromStorage,
+  clearHoldStorage,
+  checkRateLimit,
+  recordRateAttempt,
+  getSessionId,
 } from '../services/seatPickerService';
 import { findBestAvailable } from '../lib/bestAvailable';
 
@@ -23,6 +31,13 @@ export interface PriceCategory {
   color: string;
   price: number;
   sectionIds: string[];
+}
+
+export interface SeatNotification {
+  id: string;
+  type: 'taken' | 'unavailable';
+  message: string;
+  timestamp: number;
 }
 
 interface EventInfo {
@@ -87,10 +102,17 @@ export function useSeatPickerState(eventId: string) {
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [holdLoading, setHoldLoading] = useState(false);
   const [holdError, setHoldError] = useState<string | null>(null);
+  const [holdExtended, setHoldExtended] = useState(false);
+  const [holdActive, setHoldActive] = useState(false);
+  const [holdExpired, setHoldExpired] = useState(false);
   const [activePriceFilters, setActivePriceFilters] = useState<Set<string>>(new Set());
+  const [notifications, setNotifications] = useState<SeatNotification[]>([]);
+  const [flashingSeatIds, setFlashingSeatIds] = useState<Set<string>>(new Set());
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'reconnecting' | 'disconnected'>('connected');
   const [bestAvailableResult, setBestAvailableResult] = useState<'none' | 'found' | 'empty'>('none');
   const [bestAvailableRetries, setBestAvailableRetries] = useState(0);
   const [highlightedSeatIds, setHighlightedSeatIds] = useState<Set<string>>(new Set());
+
   const lastBestAvailableOpts = useRef<{
     count: number;
     strategy: BestAvailableStrategy;
@@ -99,8 +121,10 @@ export function useSeatPickerState(eventId: string) {
     keepTogether: boolean;
     excludedIds: Set<string>;
   } | null>(null);
-
   const unsubRef = useRef<(() => void) | null>(null);
+  const sectionsRef = useRef<SeatSection[]>([]);
+
+  sectionsRef.current = sections;
 
   const priceCategories: PriceCategory[] = sections.reduce<PriceCategory[]>((acc, sec) => {
     const key = sec.price_category || sec.name;
@@ -129,6 +153,33 @@ export function useSeatPickerState(eventId: string) {
 
   const seatMap = new Map<string, PickerSeat>();
   for (const s of allSeats) seatMap.set(s.id, s);
+
+  const addNotification = useCallback((type: SeatNotification['type'], message: string) => {
+    const id = crypto.randomUUID();
+    setNotifications(prev => [...prev, { id, type, message, timestamp: Date.now() }]);
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    }, 5000);
+  }, []);
+
+  const dismissNotification = useCallback((id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  }, []);
+
+  const triggerFlash = useCallback((seatId: string) => {
+    setFlashingSeatIds(prev => {
+      const next = new Set(prev);
+      next.add(seatId);
+      return next;
+    });
+    setTimeout(() => {
+      setFlashingSeatIds(prev => {
+        const next = new Set(prev);
+        next.delete(seatId);
+        return next;
+      });
+    }, 500);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -165,19 +216,66 @@ export function useSeatPickerState(eventId: string) {
         setAllSeats(computed);
 
         const sectionIds = secs.map(s => s.id);
-        unsubRef.current = subscribeToSeatUpdates(sectionIds, (seatId, newStatus) => {
-          setAllSeats(prev =>
-            prev.map(s => s.id === seatId ? { ...s, status: newStatus as Seat['status'] } : s)
-          );
-          if (newStatus !== 'available') {
-            setSelectedIds(prev => {
-              if (!prev.has(seatId)) return prev;
-              const next = new Set(prev);
-              next.delete(seatId);
-              return next;
-            });
+        unsubRef.current = subscribeToSeatUpdates(
+          layoutData.id,
+          sectionIds,
+          (updatedSeat) => {
+            const seatId = updatedSeat.id;
+            const newStatus = updatedSeat.status as Seat['status'] | undefined;
+            if (!newStatus) return;
+
+            triggerFlash(seatId);
+
+            setAllSeats(prev =>
+              prev.map(s => s.id === seatId ? { ...s, status: newStatus } : s)
+            );
+
+            if (newStatus !== 'available') {
+              setSelectedIds(prev => {
+                if (!prev.has(seatId)) return prev;
+                const next = new Set(prev);
+                next.delete(seatId);
+
+                const seat = computed.find(s => s.id === seatId);
+                if (seat) {
+                  const msg = newStatus === 'blocked'
+                    ? `Stoel Rij ${seat.row_label} - Stoel ${seat.seat_number} is niet meer beschikbaar`
+                    : `Stoel Rij ${seat.row_label} - Stoel ${seat.seat_number} is zojuist door iemand anders gereserveerd`;
+                  addNotification(newStatus === 'blocked' ? 'unavailable' : 'taken', msg);
+                }
+
+                return next;
+              });
+            }
+          },
+          (status) => {
+            setConnectionStatus(status);
+            if (status === 'connected') {
+              refreshAllSeats(sectionIds).then(freshSeats => {
+                const recomputed: PickerSeat[] = [];
+                for (const sec of sectionsRef.current) {
+                  const secSeats = freshSeats.filter(s => s.section_id === sec.id);
+                  recomputed.push(...computePickerSeats(sec, secSeats));
+                }
+                setAllSeats(recomputed);
+              }).catch(() => {});
+            }
+          },
+        );
+
+        const storedHold = loadHoldFromStorage();
+        if (storedHold && storedHold.event_id === eventId && storedHold.session_id === getSessionId()) {
+          const remaining = new Date(storedHold.expires_at).getTime() - Date.now();
+          if (remaining > 0) {
+            setHoldIds(storedHold.hold_ids);
+            setExpiresAt(storedHold.expires_at);
+            setHoldActive(true);
+            setHoldExtended(storedHold.extended);
+          } else {
+            clearHoldStorage();
+            setHoldExpired(true);
           }
-        });
+        }
 
         setLoading(false);
       } catch (err: any) {
@@ -195,6 +293,7 @@ export function useSeatPickerState(eventId: string) {
   }, [eventId]);
 
   const toggleSeat = useCallback((seatId: string) => {
+    if (holdActive) return;
     setHoldError(null);
     const seat = seatMap.get(seatId);
     if (!seat) return;
@@ -211,42 +310,113 @@ export function useSeatPickerState(eventId: string) {
       }
       return next;
     });
-  }, [seatMap, selectedIds]);
+  }, [seatMap, selectedIds, holdActive]);
 
   const clearSelection = useCallback(() => {
+    if (holdActive) return;
     setSelectedIds(new Set());
     setHoldError(null);
-  }, []);
+  }, [holdActive]);
 
   const confirmHold = useCallback(async () => {
     if (selectedIds.size === 0) return;
+
+    const rateCheck = checkRateLimit();
+    if (!rateCheck.allowed) {
+      const waitMins = Math.ceil(rateCheck.retryAfterMs / 60_000);
+      setHoldError(`Je hebt te veel pogingen gedaan. Wacht ${waitMins} minuten en probeer het opnieuw.`);
+      return;
+    }
+
     setHoldLoading(true);
     setHoldError(null);
+    recordRateAttempt();
+
     try {
-      const result = await holdSeatsPublic([...selectedIds], eventId);
-      setHoldIds(result.hold_ids);
-      setExpiresAt(result.expires_at);
-    } catch (err: any) {
-      setHoldError(err.message || 'Kon stoelen niet reserveren');
-      if (err.message?.includes('no longer available')) {
+      const result = await holdSeatsAtomic([...selectedIds], eventId);
+
+      if (result.success && result.hold_ids && result.expires_at) {
+        setHoldIds(result.hold_ids);
+        setExpiresAt(result.expires_at);
+        setHoldActive(true);
+        setHoldExtended(false);
+        setHoldExpired(false);
+        saveHoldToStorage({
+          hold_ids: result.hold_ids,
+          expires_at: result.expires_at,
+          event_id: eventId,
+          session_id: getSessionId(),
+          extended: false,
+        });
+      } else if (result.error === 'seats_unavailable' && result.unavailable_seats) {
+        const unavailIds = new Set(result.unavailable_seats);
+        const unavailLabels: string[] = [];
         setSelectedIds(prev => {
           const next = new Set(prev);
+          for (const uid of unavailIds) {
+            next.delete(uid);
+            const seat = seatMap.get(uid);
+            if (seat) {
+              unavailLabels.push(`Rij ${seat.row_label} - Stoel ${seat.seat_number}`);
+            }
+          }
           return next;
         });
+        setAllSeats(prev =>
+          prev.map(s => unavailIds.has(s.id) ? { ...s, status: 'reserved' as Seat['status'] } : s)
+        );
+        setHoldError(
+          `De volgende stoelen zijn helaas niet meer beschikbaar: ${unavailLabels.join(', ')}. Pas je selectie aan.`
+        );
+      } else {
+        setHoldError(result.error || 'Er ging iets mis bij het reserveren');
       }
+    } catch (err: any) {
+      setHoldError(err.message || 'Er ging iets mis bij het reserveren. Probeer het opnieuw.');
     }
     setHoldLoading(false);
-  }, [selectedIds, eventId]);
+  }, [selectedIds, eventId, seatMap]);
 
   const releaseHold = useCallback(async () => {
-    if (holdIds.length === 0) return;
     try {
-      await releaseHoldsPublic(holdIds);
+      await releaseSessionHolds(eventId);
     } catch {}
     setHoldIds([]);
     setExpiresAt(null);
+    setHoldActive(false);
+    setHoldExtended(false);
     setSelectedIds(new Set());
-  }, [holdIds]);
+    clearHoldStorage();
+  }, [eventId]);
+
+  const handleHoldExpired = useCallback(() => {
+    setHoldExpired(true);
+    setHoldActive(false);
+    clearHoldStorage();
+    releaseSessionHolds(eventId).catch(() => {});
+  }, [eventId]);
+
+  const dismissExpiredModal = useCallback(() => {
+    setHoldExpired(false);
+    setHoldIds([]);
+    setExpiresAt(null);
+    setSelectedIds(new Set());
+  }, []);
+
+  const extendHold = useCallback(async () => {
+    if (holdExtended) return;
+    try {
+      const result = await extendHolds(eventId);
+      if (result.success && result.expires_at) {
+        setExpiresAt(result.expires_at);
+        setHoldExtended(true);
+        const stored = loadHoldFromStorage();
+        if (stored) {
+          saveHoldToStorage({ ...stored, expires_at: result.expires_at, extended: true });
+        }
+      }
+    } catch {}
+  }, [eventId, holdExtended]);
 
   const togglePriceFilter = useCallback((categoryId: string) => {
     setActivePriceFilters(prev => {
@@ -277,6 +447,7 @@ export function useSeatPickerState(eventId: string) {
     priceCategory?: string;
     keepTogether: boolean;
   }) => {
+    if (holdActive) return;
     const results = findBestAvailable(allSeats, sections, {
       ...opts,
       excludeSeatIds: new Set(),
@@ -295,11 +466,12 @@ export function useSeatPickerState(eventId: string) {
     lastBestAvailableOpts.current = { ...opts, excludedIds: new Set(newIds) };
 
     setTimeout(() => setHighlightedSeatIds(new Set()), 2000);
-  }, [allSeats, sections]);
+  }, [allSeats, sections, holdActive]);
 
   const retryBest = useCallback(() => {
     if (!lastBestAvailableOpts.current) return;
     if (bestAvailableRetries >= 5) return;
+    if (holdActive) return;
 
     const prev = lastBestAvailableOpts.current;
     const results = findBestAvailable(allSeats, sections, {
@@ -327,7 +499,7 @@ export function useSeatPickerState(eventId: string) {
     lastBestAvailableOpts.current = { ...prev, excludedIds: merged };
 
     setTimeout(() => setHighlightedSeatIds(new Set()), 2000);
-  }, [allSeats, sections, bestAvailableRetries]);
+  }, [allSeats, sections, bestAvailableRetries, holdActive]);
 
   const canvasWidth = layout?.layout_data?.canvasWidth as number || 1600;
   const canvasHeight = layout?.layout_data?.canvasHeight as number || 1000;
@@ -345,15 +517,24 @@ export function useSeatPickerState(eventId: string) {
     expiresAt,
     holdLoading,
     holdError,
+    holdActive,
+    holdExpired,
+    holdExtended,
     priceCategories,
     activePriceFilters,
     canvasWidth,
     canvasHeight,
     maxSeats: MAX_SEATS,
+    notifications,
+    flashingSeatIds,
+    connectionStatus,
     toggleSeat,
     clearSelection,
     confirmHold,
     releaseHold,
+    handleHoldExpired,
+    dismissExpiredModal,
+    extendHold,
     togglePriceFilter,
     getSelectedSeats,
     getTotalPrice,
@@ -363,5 +544,6 @@ export function useSeatPickerState(eventId: string) {
     bestAvailableResult,
     bestAvailableRetries,
     highlightedSeatIds,
+    dismissNotification,
   };
 }

@@ -743,6 +743,46 @@ select {
   animation: seat-best-ring 1s ease-out infinite;
 }
 
+@keyframes seat-status-flash {
+  0% { fill-opacity: 0.3; }
+  100% { fill-opacity: 0.9; }
+}
+
+.seat-status-flash {
+  animation: seat-status-flash 300ms ease-out;
+}
+
+@keyframes hold-timer-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+
+.hold-timer-pulse {
+  animation: hold-timer-pulse 1.5s ease-in-out infinite;
+}
+
+.hold-timer-digits-pulse {
+  animation: countdown-pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes hold-expired-pop {
+  0% { transform: scale(0.9); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.hold-expired-enter {
+  animation: hold-expired-pop 250ms ease-out;
+}
+
+@keyframes seat-notification-slide {
+  0% { transform: translate(-50%, -20px); opacity: 0; }
+  100% { transform: translate(-50%, 0); opacity: 1; }
+}
+
+.seat-notification-enter {
+  animation: seat-notification-slide 300ms ease-out;
+}
+
 @keyframes countdown-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
