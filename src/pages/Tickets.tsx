@@ -196,20 +196,24 @@ export function Tickets({ onNavigate: _onNavigate }: TicketsProps) {
             });
           }
 
-          const { data: ttSections } = await supabase
-            .from('ticket_type_sections')
-            .select('ticket_type_id, seat_sections(name)')
-            .in('ticket_type_id', data.map((t: any) => t.id));
-          if (ttSections) {
-            const map: Record<string, string[]> = {};
-            for (const row of ttSections as any[]) {
-              const ttId = row.ticket_type_id;
-              const sName = row.seat_sections?.name;
-              if (!sName) continue;
-              if (!map[ttId]) map[ttId] = [];
-              if (!map[ttId].includes(sName)) map[ttId].push(sName);
+          try {
+            const { data: ttSections } = await supabase
+              .from('ticket_type_sections')
+              .select('ticket_type_id, seat_sections(name)')
+              .in('ticket_type_id', data.map((t: any) => t.id));
+            if (ttSections) {
+              const map: Record<string, string[]> = {};
+              for (const row of ttSections as any[]) {
+                const ttId = row.ticket_type_id;
+                const sName = row.seat_sections?.name;
+                if (!sName) continue;
+                if (!map[ttId]) map[ttId] = [];
+                if (!map[ttId].includes(sName)) map[ttId].push(sName);
+              }
+              setSectionNamesPerTicketType(map);
             }
-            setSectionNamesPerTicketType(map);
+          } catch {
+            // Section linkage is optional display info
           }
         }
       }

@@ -885,17 +885,20 @@ export async function unlinkTicketTypeFromSection(
 }
 
 export async function getAllTicketTypeSectionsForEvent(eventId: string): Promise<TicketTypeSection[]> {
+  const { data: ttRows, error: ttErr } = await supabase
+    .from('ticket_types')
+    .select('id')
+    .eq('event_id', eventId);
+  if (ttErr) throw ttErr;
+  const ttIds = (ttRows ?? []).map(r => r.id);
+  if (ttIds.length === 0) return [];
+
   const { data, error } = await supabase
     .from('ticket_type_sections')
-    .select('*, ticket_types!inner(event_id)')
-    .eq('ticket_types.event_id', eventId);
+    .select('id, ticket_type_id, section_id, created_at')
+    .in('ticket_type_id', ttIds);
   if (error) throw error;
-  return (data ?? []).map(r => ({
-    id: r.id,
-    ticket_type_id: r.ticket_type_id,
-    section_id: r.section_id,
-    created_at: r.created_at,
-  }));
+  return (data ?? []) as TicketTypeSection[];
 }
 
 // ---------------------------------------------------------------------------

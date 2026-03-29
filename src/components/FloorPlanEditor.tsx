@@ -280,11 +280,13 @@ export function FloorPlanEditor() {
 
   async function loadTicketData(eventId: string) {
     try {
-      const [types, links] = await Promise.all([
-        getTicketTypesForEvent(eventId),
-        getAllTicketTypeSectionsForEvent(eventId),
-      ]);
+      const types = await getTicketTypesForEvent(eventId);
       setEventTicketTypes(types);
+    } catch {
+      setEventTicketTypes([]);
+    }
+    try {
+      const links = await getAllTicketTypeSectionsForEvent(eventId);
       const linkMap: Record<string, string[]> = {};
       for (const link of links) {
         if (!linkMap[link.section_id]) linkMap[link.section_id] = [];
@@ -292,7 +294,7 @@ export function FloorPlanEditor() {
       }
       setSectionTicketLinks(linkMap);
     } catch {
-      showToast('Fout bij laden ticket types', 'error');
+      setSectionTicketLinks({});
     }
   }
 
