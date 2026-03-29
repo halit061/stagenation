@@ -1,5 +1,5 @@
-import { Shield, ShieldCheck, Calendar, Grid2x2 as Grid, MapPin, Ticket, LogOut, ShoppingCart, Users, AlertCircle, RefreshCw, X, Mail, Plus, CheckCircle, Loader2, ChevronDown, DoorOpen, Euro, TrendingUp, BarChart3, Ban, Armchair } from 'lucide-react';
-import { useState, useEffect, useCallback } from 'react';
+import { Shield, ShieldCheck, Calendar, Grid2x2 as Grid, MapPin, Ticket, LogOut, ShoppingCart, Users, AlertCircle, RefreshCw, X, Mail, Plus, CheckCircle, Loader2, ChevronDown, DoorOpen, Euro, TrendingUp, BarChart3, Ban, Armchair, Bell, Volume2, VolumeX } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import type { Database } from '../lib/supabaseClient';
 import { FloorPlanEditor } from '../components/FloorPlanEditor';
@@ -8,6 +8,8 @@ import { ScannerUsersManager } from '../components/ScannerUsersManager';
 import { EntrancesTicketTypesManager } from '../components/EntrancesTicketTypesManager';
 import { SharedLogin } from '../components/SharedLogin';
 import { useAuth } from '../contexts/AuthContext';
+import { AdminNotifications, OrderToast } from '../components/AdminNotifications';
+import type { OrderNotification } from '../hooks/useAdminSeatRealtime';
 import { EDGE_FUNCTION_BASE_URL } from '../config/brand';
 import { callEdgeFunction } from '../lib/callEdge';
 import { adminFetch } from '../lib/adminApi';
@@ -108,6 +110,94 @@ export function Admin({ onNavigate }: AdminProps = {}) {
   const [cancelOrderLoading, setCancelOrderLoading] = useState(false);
 
   const [venueLayouts, setVenueLayouts] = useState<VenueLayout[]>([]);
+
+  const [seatNotifications, setSeatNotifications] = useState<OrderNotification[]>([]);
+  const [seatUnreadCount, setSeatUnreadCount] = useState(0);
+  const [seatSoundEnabled, setSeatSoundEnabled] = useState(() => {
+    try { return localStorage.getItem('admin_notif_sound') !== 'off'; } catch { return true; }
+  });
+  const [seatLatestOrder, setSeatLatestOrder] = useState<OrderNotification | null>(null);
+  const seatOrderChannelRef = useRef<any>(null);
+
+  const toggleSeatSound = useCallback(() => {
+    setSeatSoundEnabled(prev => {
+      const next = !prev;
+      localStorage.setItem('admin_notif_sound', next ? 'on' : 'off');
+      return next;
+    });
+  }, []);
+
+  const markAllSeatRead = useCallback(() => {
+    const STORAGE_KEY = 'admin_seat_notifications_read';
+    try {
+      const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      const ids = new Set(existing);
+      for (const n of seatNotifications) ids.add(n.id);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([...ids]));
+    } catch {}
+    setSeatNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setSeatUnreadCount(0);
+  }, [seatNotifications]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('orders')
+          .select('id, order_number, payer_name, total_amount, metadata, created_at')
+          .eq('product_type', 'seat')
+          .order('created_at', { ascending: false })
+          .limit(10);
+        if (!data || !mounted) return;
+        const STORAGE_KEY = 'admin_seat_notifications_read';
+        let readIds = new Set<string>();
+        try { readIds = new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')); } catch {}
+        const notifs: OrderNotification[] = data.map(o => ({
+          id: o.id,
+          order_id: o.id,
+          customer_name: o.payer_name || 'Onbekend',
+          seat_count: o.metadata?.seat_count ?? 0,
+          total_amount: o.total_amount / 100,
+          created_at: o.created_at,
+          read: readIds.has(o.id),
+        }));
+        setSeatNotifications(notifs);
+        setSeatUnreadCount(notifs.filter(n => !n.read).length);
+      } catch {}
+    })();
+
+    const channel = supabase
+      .channel('admin-seat-orders-global')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'orders' },
+        (payload) => {
+          const order = payload.new as any;
+          if (order.product_type !== 'seat') return;
+          const notif: OrderNotification = {
+            id: order.id,
+            order_id: order.id,
+            customer_name: order.payer_name || 'Onbekend',
+            seat_count: order.metadata?.seat_count ?? 0,
+            total_amount: order.total_amount / 100,
+            created_at: order.created_at,
+            read: false,
+          };
+          setSeatNotifications(prev => [notif, ...prev].slice(0, 10));
+          setSeatUnreadCount(prev => prev + 1);
+          setSeatLatestOrder(notif);
+          setTimeout(() => setSeatLatestOrder(null), 8000);
+        },
+      )
+      .subscribe();
+    seatOrderChannelRef.current = channel;
+
+    return () => {
+      mounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   async function handleCancelOrder(order: any) {
     setCancelOrderLoading(true);
@@ -518,13 +608,21 @@ export function Admin({ onNavigate }: AdminProps = {}) {
       <aside className="hidden md:flex w-64 bg-slate-800 border-r border-slate-700 flex-col">
         <div className="p-6 border-b border-slate-700">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-red-500/20 rounded-full flex items-center justify-center">
+            <div className="w-10 h-10 bg-red-500/20 rounded-full flex items-center justify-center flex-shrink-0">
               <Shield className="w-5 h-5 text-red-400" />
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <h1 className="font-bold text-white">Admin</h1>
               <p className="text-xs text-slate-400 truncate max-w-[140px]">{user?.email}</p>
             </div>
+            <AdminNotifications
+              notifications={seatNotifications}
+              unreadCount={seatUnreadCount}
+              soundEnabled={seatSoundEnabled}
+              onToggleSound={toggleSeatSound}
+              onMarkAllRead={markAllSeatRead}
+              onViewOrders={() => handleTabChange('orders')}
+            />
           </div>
         </div>
 
@@ -668,6 +766,15 @@ export function Admin({ onNavigate }: AdminProps = {}) {
               <Shield className="w-5 h-5 text-red-400" />
               <span className="font-bold text-white">Admin</span>
             </div>
+            <div className="flex items-center gap-2">
+              <AdminNotifications
+                notifications={seatNotifications}
+                unreadCount={seatUnreadCount}
+                soundEnabled={seatSoundEnabled}
+                onToggleSound={toggleSeatSound}
+                onMarkAllRead={markAllSeatRead}
+                onViewOrders={() => handleTabChange('orders')}
+              />
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white text-sm font-medium transition-colors"
@@ -675,6 +782,7 @@ export function Admin({ onNavigate }: AdminProps = {}) {
               <span className="capitalize">{activeTab === 'guest_tickets' ? 'Guest Tickets' : activeTab === 'table_guests' ? 'Tafel Gasten' : activeTab === 'entrances' ? 'Ingangen & Typen' : activeTab === 'refund_protection' ? 'Refund Protection' : activeTab}</span>
               <ChevronDown className={`w-4 h-4 transition-transform ${sidebarOpen ? 'rotate-180' : ''}`} />
             </button>
+            </div>
           </div>
           {sidebarOpen && (
             <div className="bg-slate-800 border-t border-slate-700 px-2 py-2 space-y-1">
@@ -1998,6 +2106,10 @@ export function Admin({ onNavigate }: AdminProps = {}) {
           )}
         </div>
       </div>
+
+      {seatLatestOrder && (
+        <OrderToast order={seatLatestOrder} onDismiss={() => setSeatLatestOrder(null)} />
+      )}
 
       {showResendModal && selectedTicket && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">

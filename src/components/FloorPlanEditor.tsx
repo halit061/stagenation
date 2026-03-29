@@ -13,6 +13,11 @@ import { SeatActionBar } from './SeatActionBar';
 import { SeatContextMenu } from './SeatContextMenu';
 import { SeatLegend } from './SeatLegend';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
+import { AdminViewerCount } from './AdminViewerCount';
+import { AdminEventStatus } from './AdminEventStatus';
+import { AdminSalesWidget } from './AdminSalesWidget';
+import { OrderToast } from './AdminNotifications';
+import { useAdminSeatRealtime } from '../hooks/useAdminSeatRealtime';
 import type { SectionFormData } from './SectionConfigModal';
 import type { VenueLayout, SeatSection, Seat } from '../types/seats';
 import { getSectionsByLayout, createSection, updateSection, deleteSection, generateSeats, getSeatsBySection, updateSeat as updateSeatDb, deleteSeatsById, updateSectionCapacity } from '../services/seatService';
@@ -113,6 +118,46 @@ export function FloorPlanEditor() {
   } | null>(null);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [eventInfo, setEventInfo] = useState<{ name: string; start_date: string } | null>(null);
+
+  const sectionIds = useMemo(() => seatSections.map(s => s.id), [seatSections]);
+
+  const handleRealtimeSeatUpdate = useCallback((seat: Partial<Seat> & { id: string }) => {
+    setSectionSeats(prev => {
+      const next = { ...prev };
+      for (const [secId, seats] of Object.entries(next)) {
+        const idx = seats.findIndex(s => s.id === seat.id);
+        if (idx >= 0) {
+          next[secId] = seats.map(s => s.id === seat.id ? { ...s, ...seat } as Seat : s);
+          break;
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  const {
+    viewerCount,
+    salesStats,
+    latestOrder,
+  } = useAdminSeatRealtime(
+    currentLayout?.id ?? null,
+    currentLayout?.event_id ?? null,
+    sectionIds,
+    handleRealtimeSeatUpdate,
+  );
+
+  useEffect(() => {
+    if (!currentLayout?.event_id) { setEventInfo(null); return; }
+    (async () => {
+      const { data } = await supabase
+        .from('events')
+        .select('name, start_date')
+        .eq('id', currentLayout.event_id!)
+        .maybeSingle();
+      setEventInfo(data ?? null);
+    })();
+  }, [currentLayout?.event_id]);
 
   const { pushAction, undo, redo, canUndo, canRedo } = useSeatHistory(
     setSectionSeats, setSeatSections, setSelectedSeatIds, showToast
@@ -907,9 +952,19 @@ export function FloorPlanEditor() {
       </div>
 
       <div className="bg-slate-800 border-b border-slate-700 p-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold text-white">Floorplan Editor</h2>
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-4 min-w-0">
+            <h2 className="text-xl font-bold text-white flex-shrink-0">Floorplan Editor</h2>
+            {currentLayout?.event_id && (
+              <>
+                <div className="h-5 w-px bg-slate-600 flex-shrink-0" />
+                <AdminEventStatus event={eventInfo} stats={salesStats} />
+                <div className="h-5 w-px bg-slate-600 flex-shrink-0" />
+                <AdminViewerCount count={viewerCount} />
+              </>
+            )}
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
             <button
               onClick={undo}
               disabled={!canUndo}
@@ -1218,6 +1273,10 @@ export function FloorPlanEditor() {
               sections={seatSections}
               selectedSectionId={selectedItem?.type === 'section' ? selectedItem.data.id : null}
             />
+
+            {currentLayout?.event_id && (
+              <AdminSalesWidget stats={salesStats} />
+            )}
           </div>
         </div>
       </div>
@@ -1299,6 +1358,10 @@ export function FloorPlanEditor() {
         isOpen={showShortcutsModal}
         onClose={() => setShowShortcutsModal(false)}
       />
+
+      {latestOrder && (
+        <OrderToast order={latestOrder} onDismiss={() => {}} />
+      )}
 
       {showDeleteConfirm && selectedSeatIds.size > 0 && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60">

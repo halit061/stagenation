@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Seat, SeatSection, VenueLayout, BestAvailableStrategy } from '../types/seats';
+import { supabase } from '../lib/supabaseClient';
 import {
   fetchLayoutByEvent,
   fetchSections,
@@ -291,6 +292,23 @@ export function useSeatPickerState(eventId: string) {
       unsubRef.current?.();
     };
   }, [eventId]);
+
+  useEffect(() => {
+    if (!layout?.id || !eventId) return;
+    const presenceChannel = supabase
+      .channel(`admin-seats-${layout.id}`)
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await presenceChannel.track({
+            user: getSessionId(),
+            online_at: new Date().toISOString(),
+          });
+        }
+      });
+    return () => {
+      supabase.removeChannel(presenceChannel);
+    };
+  }, [layout?.id, eventId]);
 
   const toggleSeat = useCallback((seatId: string) => {
     if (holdActive) return;
