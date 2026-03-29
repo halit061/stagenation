@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import { Clock, AlertTriangle } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
+import { st } from '../lib/seatTranslations';
 
 interface Props {
   expiresAt: string;
@@ -8,7 +10,8 @@ interface Props {
   onExtend: () => void;
 }
 
-export function HoldTimerBar({ expiresAt, extended, onExpired, onExtend }: Props) {
+export const HoldTimerBar = memo(function HoldTimerBar({ expiresAt, extended, onExpired, onExtend }: Props) {
+  const { language } = useLanguage();
   const [remaining, setRemaining] = useState(() =>
     Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000))
   );
@@ -59,18 +62,21 @@ export function HoldTimerBar({ expiresAt, extended, onExpired, onExtend }: Props
   return (
     <div
       className={`fixed top-0 left-0 right-0 z-[60] h-12 flex items-center justify-center px-4 ${bgClass} ${phase === 'urgent' ? 'hold-timer-pulse' : ''}`}
+      role="timer"
+      aria-live="polite"
+      aria-label={st(language, 'timer.label', { time: timeStr })}
     >
       <div className={`flex items-center gap-3 ${textClass}`}>
         {phase === 'urgent' ? (
-          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
         ) : (
-          <Clock className="w-4 h-4 flex-shrink-0" />
+          <Clock className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
         )}
 
         <span className={`text-sm ${phase === 'urgent' ? 'font-bold' : phase === 'warning' ? 'font-semibold' : 'font-medium'}`}>
           {phase === 'urgent'
-            ? `Schiet op! Reservering verloopt over ${timeStr}`
-            : `Je stoelen zijn gereserveerd voor ${timeStr}`
+            ? st(language, 'timer.hurry', { time: timeStr })
+            : st(language, 'timer.reserved', { time: timeStr })
           }
         </span>
 
@@ -83,18 +89,18 @@ export function HoldTimerBar({ expiresAt, extended, onExpired, onExtend }: Props
         <div className="absolute right-4 flex items-center">
           {showExtendConfirm ? (
             <div className="flex items-center gap-2 text-sm">
-              <span className={textClass}>Verlengen met 5 min?</span>
+              <span className={textClass}>{st(language, 'timer.extendQuestion')}</span>
               <button
                 onClick={handleExtendConfirm}
                 className="px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded text-xs font-medium transition-colors"
               >
-                Ja
+                {st(language, 'timer.yes')}
               </button>
               <button
                 onClick={() => setShowExtendConfirm(false)}
                 className="px-2 py-0.5 bg-white/10 hover:bg-white/20 rounded text-xs transition-colors"
               >
-                Nee
+                {st(language, 'timer.no')}
               </button>
             </div>
           ) : (
@@ -102,11 +108,11 @@ export function HoldTimerBar({ expiresAt, extended, onExpired, onExtend }: Props
               onClick={() => setShowExtendConfirm(true)}
               className={`text-xs underline underline-offset-2 opacity-80 hover:opacity-100 transition-opacity ${textClass}`}
             >
-              Meer tijd?
+              {st(language, 'timer.moreTime')}
             </button>
           )}
         </div>
       )}
     </div>
   );
-}
+});

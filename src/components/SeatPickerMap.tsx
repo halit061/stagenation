@@ -1,6 +1,8 @@
-import { useRef, useState, useCallback, useEffect, useMemo } from 'react';
+import { useRef, useState, useCallback, useEffect, useMemo, memo } from 'react';
 import type { SeatSection } from '../types/seats';
 import type { PickerSeat } from '../hooks/useSeatPickerState';
+import { useLanguage } from '../contexts/LanguageContext';
+import { st } from '../lib/seatTranslations';
 import type React from 'react';
 
 const HEADER_H = 24;
@@ -21,7 +23,7 @@ interface Props {
   onViewportChange?: (vp: { x: number; y: number; w: number; h: number }) => void;
 }
 
-export function SeatPickerMap({
+export const SeatPickerMap = memo(function SeatPickerMap({
   sections,
   seats,
   selectedIds,
@@ -30,6 +32,7 @@ export function SeatPickerMap({
   onSeatClick,
   onViewportChange,
 }: Props) {
+  const { language } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [zoom, setZoom] = useState(1);
@@ -277,6 +280,8 @@ export function SeatPickerMap({
         ref={svgRef}
         width="100%"
         height="100%"
+        role="img"
+        aria-label={st(language, 'picker.title')}
         style={{
           cursor: isPanning.current ? 'grabbing' : 'grab',
         }}
@@ -422,7 +427,8 @@ export function SeatPickerMap({
             setPan(prev => ({ x: cx - s * (cx - prev.x), y: cy - s * (cy - prev.y) }));
             setZoom(newZoom);
           }}
-          className="w-9 h-9 flex items-center justify-center bg-slate-800/90 backdrop-blur border border-slate-600/50 rounded-lg text-white hover:bg-slate-700 transition-colors text-lg font-bold"
+          className="w-9 h-9 flex items-center justify-center bg-slate-800/90 backdrop-blur border border-slate-600/50 rounded-lg text-white hover:bg-slate-700 transition-colors text-lg font-bold focus-ring"
+          aria-label="Zoom in"
         >
           +
         </button>
@@ -438,14 +444,15 @@ export function SeatPickerMap({
             setPan(prev => ({ x: cx - s * (cx - prev.x), y: cy - s * (cy - prev.y) }));
             setZoom(newZoom);
           }}
-          className="w-9 h-9 flex items-center justify-center bg-slate-800/90 backdrop-blur border border-slate-600/50 rounded-lg text-white hover:bg-slate-700 transition-colors text-lg font-bold"
+          className="w-9 h-9 flex items-center justify-center bg-slate-800/90 backdrop-blur border border-slate-600/50 rounded-lg text-white hover:bg-slate-700 transition-colors text-lg font-bold focus-ring"
+          aria-label="Zoom out"
         >
           -
         </button>
       </div>
     </div>
   );
-}
+});
 
 function SeatTooltip({
   seat,
@@ -458,6 +465,7 @@ function SeatTooltip({
   section: { name: string; price_amount: number } | null;
   isSelected: boolean;
 }) {
+  const { language } = useLanguage();
   const price = seat.price_override ?? (section ? Number(section.price_amount) : 0);
 
   return (
@@ -468,10 +476,11 @@ function SeatTooltip({
         top: pos.y,
         transform: 'translate(-50%, -100%)',
       }}
+      role="tooltip"
     >
       <div className="bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg px-3 py-2 shadow-xl text-sm">
         <div className="font-semibold text-white">
-          Rij {seat.row_label} - Stoel {seat.seat_number}
+          {st(language, 'picker.row')} {seat.row_label} - {st(language, 'picker.seatLabel')} {seat.seat_number}
         </div>
         {section && (
           <div className="text-slate-400 text-xs">{section.name}</div>
@@ -480,7 +489,7 @@ function SeatTooltip({
           EUR {price.toFixed(2)}
         </div>
         {isSelected && (
-          <div className="text-blue-400 text-xs mt-0.5">Geselecteerd</div>
+          <div className="text-blue-400 text-xs mt-0.5">{st(language, 'picker.selected')}</div>
         )}
         <div
           className="absolute left-1/2 -bottom-1.5 w-3 h-3 bg-slate-900/95 border-r border-b border-slate-700 rotate-45"

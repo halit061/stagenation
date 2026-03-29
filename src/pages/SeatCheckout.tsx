@@ -17,6 +17,8 @@ import { CheckoutOrderSummary } from '../components/CheckoutOrderSummary';
 import { HoldTimerBar } from '../components/HoldTimerBar';
 import { HoldExpiredModal } from '../components/HoldExpiredModal';
 import { NavigationGuard } from '../components/NavigationGuard';
+import { useLanguage } from '../contexts/LanguageContext';
+import { st } from '../lib/seatTranslations';
 import type { CheckoutFormData, CheckoutFormErrors } from '../components/CheckoutForm';
 import type { PickerSeat, PriceCategory } from '../hooks/useSeatPickerState';
 import type { SeatSection, Seat } from '../types/seats';
@@ -66,52 +68,53 @@ function computePickerSeat(section: SeatSection, seat: Seat, allSeats: Seat[]): 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NAME_RE = /^[a-zA-ZÀ-ÿ\s'-]+$/;
 
-function validateField(field: keyof CheckoutFormData, data: CheckoutFormData): string | undefined {
+function validateField(field: keyof CheckoutFormData, data: CheckoutFormData, lang: string | null): string | undefined {
   switch (field) {
     case 'firstName':
-      if (!data.firstName.trim()) return 'Vul je voornaam in';
-      if (data.firstName.trim().length < 2) return 'Vul je voornaam in';
-      if (!NAME_RE.test(data.firstName.trim())) return 'Vul een geldige voornaam in';
+      if (!data.firstName.trim()) return st(lang as any, 'validation.firstNameRequired');
+      if (data.firstName.trim().length < 2) return st(lang as any, 'validation.firstNameRequired');
+      if (!NAME_RE.test(data.firstName.trim())) return st(lang as any, 'validation.firstNameInvalid');
       return undefined;
     case 'lastName':
-      if (!data.lastName.trim()) return 'Vul je achternaam in';
-      if (data.lastName.trim().length < 2) return 'Vul je achternaam in';
+      if (!data.lastName.trim()) return st(lang as any, 'validation.lastNameRequired');
+      if (data.lastName.trim().length < 2) return st(lang as any, 'validation.lastNameRequired');
       return undefined;
     case 'email':
-      if (!data.email.trim()) return 'Vul een geldig e-mailadres in';
-      if (!EMAIL_RE.test(data.email.trim())) return 'Vul een geldig e-mailadres in';
+      if (!data.email.trim()) return st(lang as any, 'validation.emailRequired');
+      if (!EMAIL_RE.test(data.email.trim())) return st(lang as any, 'validation.emailInvalid');
       return undefined;
     case 'emailConfirm':
-      if (!data.emailConfirm.trim()) return 'Bevestig je e-mailadres';
+      if (!data.emailConfirm.trim()) return st(lang as any, 'validation.emailConfirmRequired');
       if (data.emailConfirm.trim().toLowerCase() !== data.email.trim().toLowerCase())
-        return 'E-mailadressen komen niet overeen';
+        return st(lang as any, 'validation.emailMismatch');
       return undefined;
     case 'phone':
       if (data.phone.trim() && data.phone.replace(/\D/g, '').length < 9)
-        return 'Vul een geldig telefoonnummer in';
+        return st(lang as any, 'validation.phoneInvalid');
       return undefined;
     case 'paymentMethod':
-      if (!data.paymentMethod) return 'Kies een betaalmethode';
+      if (!data.paymentMethod) return st(lang as any, 'validation.paymentRequired');
       return undefined;
     case 'termsAccepted':
-      if (!data.termsAccepted) return 'Je moet akkoord gaan met de voorwaarden';
+      if (!data.termsAccepted) return st(lang as any, 'validation.termsRequired');
       return undefined;
     default:
       return undefined;
   }
 }
 
-function validateAll(data: CheckoutFormData): CheckoutFormErrors {
+function validateAll(data: CheckoutFormData, lang: string | null): CheckoutFormErrors {
   const errors: CheckoutFormErrors = {};
   const fields: (keyof CheckoutFormData)[] = ['firstName', 'lastName', 'email', 'emailConfirm', 'phone', 'paymentMethod', 'termsAccepted'];
   for (const f of fields) {
-    const err = validateField(f, data);
+    const err = validateField(f, data, lang);
     if (err) (errors as any)[f] = err;
   }
   return errors;
 }
 
 export function SeatCheckout({ eventId, onNavigate }: Props) {
+  const { language } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [eventInfo, setEventInfo] = useState<any>(null);
   const [sections, setSections] = useState<SeatSection[]>([]);
@@ -269,12 +272,12 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
       setErrors(prev => {
         const updated = { ...prev };
         const newData = { ...formData, [field]: value } as CheckoutFormData;
-        const err = validateField(field, newData);
+        const err = validateField(field, newData, language);
         if (err) (updated as any)[field] = err;
         else delete (updated as any)[field];
 
         if (field === 'email' && touched.has('emailConfirm')) {
-          const emailErr = validateField('emailConfirm', newData);
+          const emailErr = validateField('emailConfirm', newData, language);
           if (emailErr) updated.emailConfirm = emailErr;
           else delete updated.emailConfirm;
         }
@@ -282,23 +285,23 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
         return updated;
       });
     }
-  }, [formData, touched]);
+  }, [formData, touched, language]);
 
   const handleValidateField = useCallback((field: keyof CheckoutFormData) => {
     setTouched(prev => new Set(prev).add(field));
-    const err = validateField(field, formData);
+    const err = validateField(field, formData, language);
     setErrors(prev => {
       const updated = { ...prev };
       if (err) (updated as any)[field] = err;
       else delete (updated as any)[field];
       return updated;
     });
-  }, [formData]);
+  }, [formData, language]);
 
   const canSubmit = useMemo(() => {
-    const allErrors = validateAll(formData);
+    const allErrors = validateAll(formData, language);
     return Object.keys(allErrors).length === 0;
-  }, [formData]);
+  }, [formData, language]);
 
   const handleHoldExpired = useCallback(() => {
     setHoldExpired(true);
@@ -326,7 +329,7 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
   const handleSubmit = useCallback(async () => {
     if (submittingRef.current) return;
 
-    const allErrors = validateAll(formData);
+    const allErrors = validateAll(formData, language);
     if (Object.keys(allErrors).length > 0) {
       setErrors(allErrors);
       setTouched(new Set(['firstName', 'lastName', 'email', 'emailConfirm', 'phone', 'paymentMethod', 'termsAccepted']));
@@ -388,15 +391,15 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
       } else if (result.error === 'holds_expired') {
         setHoldExpired(true);
       } else {
-        setSubmitError(result.error || 'Er ging iets mis bij het verwerken van je bestelling. Probeer het opnieuw.');
+        setSubmitError(result.error || st(language, 'confirm.submitError'));
       }
-    } catch (err: any) {
-      setSubmitError('Er ging iets mis bij het verwerken van je bestelling. Je stoelen zijn nog steeds gereserveerd. Probeer het opnieuw.');
+    } catch {
+      setSubmitError(st(language, 'confirm.submitErrorRetry'));
     }
 
     submittingRef.current = false;
     setSubmitting(false);
-  }, [formData, eventId, heldSeats, seatPrices, subtotal, totalPrice, onNavigate]);
+  }, [formData, eventId, heldSeats, seatPrices, subtotal, totalPrice, onNavigate, language]);
 
   const handleBack = useCallback(() => {
     setShowNavGuard(true);
@@ -419,13 +422,46 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="text-center">
-          <div className="relative w-16 h-16 mx-auto mb-4">
-            <div className="absolute inset-0 border-4 border-blue-500/20 rounded-full" />
-            <div className="absolute inset-0 border-4 border-transparent border-t-blue-500 rounded-full animate-spin" />
+      <div className="min-h-screen bg-slate-950 flex flex-col" role="status" aria-label={st(language, 'checkout.loading')}>
+        <div className="h-12 bg-slate-900/80 border-b border-slate-800" />
+        <div className="h-14 bg-slate-900/80 border-b border-slate-800 flex items-center px-4 gap-3">
+          <div className="w-8 h-8 skeleton rounded-lg" />
+          <div className="space-y-1.5">
+            <div className="h-4 w-28 skeleton rounded" />
+            <div className="h-3 w-40 skeleton rounded" />
           </div>
-          <p className="text-slate-400 text-sm">Checkout laden...</p>
+        </div>
+        <div className="max-w-5xl w-full mx-auto px-4 py-6 flex gap-8">
+          <div className="flex-1 space-y-6">
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-5">
+              <div className="h-5 w-32 skeleton rounded" />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="h-12 skeleton rounded-lg" />
+                <div className="h-12 skeleton rounded-lg" />
+              </div>
+              <div className="h-12 skeleton rounded-lg" />
+              <div className="h-12 skeleton rounded-lg" />
+            </div>
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+              <div className="h-5 w-36 skeleton rounded" />
+              <div className="grid grid-cols-2 gap-3">
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className="h-14 skeleton rounded-xl" />
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="hidden lg:block w-[40%]">
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+              <div className="h-5 w-40 skeleton rounded" />
+              <div className="space-y-2">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="h-4 skeleton rounded" />
+                ))}
+              </div>
+              <div className="h-12 skeleton rounded-xl" />
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -446,12 +482,13 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
         <div className="max-w-5xl mx-auto flex items-center gap-3">
           <button
             onClick={handleBack}
-            className="p-2 -ml-2 text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-slate-800"
+            className="p-2 -ml-2 text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-slate-800 focus-ring"
+            aria-label={st(language, 'picker.backHome')}
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-5 h-5" aria-hidden="true" />
           </button>
           <div>
-            <h1 className="text-white font-bold text-base">Checkout</h1>
+            <h1 className="text-white font-bold text-base">{st(language, 'checkout.title')}</h1>
             <p className="text-slate-400 text-xs">{eventInfo?.name}</p>
           </div>
         </div>
@@ -487,7 +524,7 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
             />
 
             {submitError && (
-              <div className="mt-4 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm">
+              <div className="mt-4 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm" role="alert">
                 {submitError}
               </div>
             )}
@@ -517,7 +554,7 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
           type="button"
           onClick={handleSubmit}
           disabled={!canSubmit || submitting}
-          className={`w-full py-3.5 rounded-xl font-semibold text-base transition-all flex items-center justify-center gap-2 ${
+          className={`w-full py-3.5 rounded-xl font-semibold text-base transition-all flex items-center justify-center gap-2 focus-ring ${
             canSubmit && !submitting
               ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20'
               : 'bg-slate-700 text-slate-500 cursor-not-allowed'
@@ -525,11 +562,11 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
         >
           {submitting ? (
             <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Bestelling wordt verwerkt...
+              <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
+              {st(language, 'checkout.processing')}
             </>
           ) : (
-            `Bestelling Plaatsen — EUR ${totalPrice.toFixed(2)}`
+            `${st(language, 'checkout.placeOrder')} — EUR ${totalPrice.toFixed(2)}`
           )}
         </button>
       </div>

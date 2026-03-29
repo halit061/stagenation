@@ -1,12 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { Clock, AlertTriangle } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
+import { st } from '../lib/seatTranslations';
 
 interface Props {
   expiresAt: string;
   onExpired: () => void;
 }
 
-export function SeatPickerCountdown({ expiresAt, onExpired }: Props) {
+export const SeatPickerCountdown = memo(function SeatPickerCountdown({ expiresAt, onExpired }: Props) {
+  const { language } = useLanguage();
   const [remaining, setRemaining] = useState(() => {
     return Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000));
   });
@@ -26,24 +29,30 @@ export function SeatPickerCountdown({ expiresAt, onExpired }: Props) {
 
   const mins = Math.floor(remaining / 60);
   const secs = remaining % 60;
+  const timeStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   const isUrgent = remaining <= 120;
   const isCritical = remaining <= 60;
 
   return (
-    <div className={`flex items-center gap-2 ${isCritical ? 'text-red-400' : isUrgent ? 'text-amber-400' : 'text-amber-300'}`}>
+    <div
+      className={`flex items-center gap-2 ${isCritical ? 'text-red-400' : isUrgent ? 'text-amber-400' : 'text-amber-300'}`}
+      role="timer"
+      aria-live="polite"
+      aria-label={st(language, 'timer.label', { time: timeStr })}
+    >
       {isCritical ? (
-        <AlertTriangle className="w-4 h-4 animate-pulse" />
+        <AlertTriangle className="w-4 h-4 animate-pulse" aria-hidden="true" />
       ) : (
-        <Clock className="w-4 h-4" />
+        <Clock className="w-4 h-4" aria-hidden="true" />
       )}
       <div className="flex-1">
         <p className="text-xs font-medium">
-          {isCritical ? 'Bijna verlopen!' : 'Reservering verloopt over'}
+          {isCritical ? st(language, 'timer.critical') : st(language, 'timer.expiresIn')}
         </p>
       </div>
       <div className={`font-mono font-bold text-sm tabular-nums ${isCritical ? 'countdown-critical' : isUrgent ? 'countdown-urgent' : ''}`}>
-        {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
+        {timeStr}
       </div>
     </div>
   );
-}
+});

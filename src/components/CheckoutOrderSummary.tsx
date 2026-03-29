@@ -2,6 +2,8 @@ import { useMemo } from 'react';
 import { Calendar, MapPin, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import type { PickerSeat, PriceCategory } from '../hooks/useSeatPickerState';
 import type { SeatSection } from '../types/seats';
+import { useLanguage } from '../contexts/LanguageContext';
+import { st } from '../lib/seatTranslations';
 
 interface Props {
   eventName: string;
@@ -36,6 +38,8 @@ export function CheckoutOrderSummary({
   collapsed,
   onToggleCollapse,
 }: Props) {
+  const { language } = useLanguage();
+
   const seatsBySection = useMemo(() => {
     const grouped: Record<string, { section: SeatSection; seats: PickerSeat[] }> = {};
     for (const seat of selectedSeats) {
@@ -69,10 +73,12 @@ export function CheckoutOrderSummary({
 
   const subtotal = priceBreakdown.reduce((s, b) => s + b.subtotal, 0);
 
+  const dateLocale = language === 'de' ? 'de-DE' : language === 'fr' ? 'fr-FR' : language === 'tr' ? 'tr-TR' : 'nl-NL';
+
   const formattedDate = useMemo(() => {
     if (!eventDate) return '';
     const d = new Date(eventDate);
-    return d.toLocaleDateString('nl-NL', {
+    return d.toLocaleDateString(dateLocale, {
       weekday: 'short',
       day: 'numeric',
       month: 'long',
@@ -80,7 +86,7 @@ export function CheckoutOrderSummary({
       hour: '2-digit',
       minute: '2-digit',
     });
-  }, [eventDate]);
+  }, [eventDate, dateLocale]);
 
   if (collapsed !== undefined && onToggleCollapse) {
     return (
@@ -88,15 +94,16 @@ export function CheckoutOrderSummary({
         <button
           type="button"
           onClick={onToggleCollapse}
-          className="w-full flex items-center justify-between px-4 py-3.5"
+          className="w-full flex items-center justify-between px-4 py-3.5 focus-ring rounded-xl"
+          aria-expanded={!collapsed}
         >
           <span className="text-white font-medium text-sm">
-            {selectedSeats.length} stoel{selectedSeats.length !== 1 ? 'en' : ''} — EUR {totalPrice.toFixed(2)}
+            {selectedSeats.length} {selectedSeats.length !== 1 ? st(language, 'picker.seats') : st(language, 'picker.seat')} — EUR {totalPrice.toFixed(2)}
           </span>
           {collapsed ? (
-            <ChevronDown className="w-4 h-4 text-slate-400" />
+            <ChevronDown className="w-4 h-4 text-slate-400" aria-hidden="true" />
           ) : (
-            <ChevronUp className="w-4 h-4 text-slate-400" />
+            <ChevronUp className="w-4 h-4 text-slate-400" aria-hidden="true" />
           )}
         </button>
         {!collapsed && renderContent()}
@@ -117,13 +124,13 @@ export function CheckoutOrderSummary({
           <h3 className="text-white font-bold text-lg leading-tight">{eventName}</h3>
           {formattedDate && (
             <p className="flex items-center gap-1.5 text-slate-400 text-sm mt-1.5">
-              <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+              <Calendar className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
               {formattedDate}
             </p>
           )}
           {eventLocation && (
             <p className="flex items-center gap-1.5 text-slate-400 text-sm mt-1">
-              <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+              <MapPin className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
               {eventLocation}
             </p>
           )}
@@ -136,6 +143,7 @@ export function CheckoutOrderSummary({
                 <div
                   className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                   style={{ backgroundColor: section.color }}
+                  aria-hidden="true"
                 />
                 <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                   {section.name}
@@ -150,7 +158,7 @@ export function CheckoutOrderSummary({
                       <div key={seat.id} className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-1.5">
                           <span className="text-slate-300">
-                            Rij {seat.row_label} - Stoel {seat.seat_number}
+                            {st(language, 'picker.row')} {seat.row_label} - {st(language, 'picker.seatLabel')} {seat.seat_number}
                           </span>
                           {seat.seat_type === 'vip' && (
                             <span className="text-[10px] font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded">
@@ -158,7 +166,7 @@ export function CheckoutOrderSummary({
                             </span>
                           )}
                           {seat.seat_type === 'restricted_view' && (
-                            <span className="text-slate-500 text-xs">(beperkt zicht)</span>
+                            <span className="text-slate-500 text-xs">({st(language, 'checkout.restrictedView')})</span>
                           )}
                         </div>
                         <span className="text-white font-medium tabular-nums">
@@ -180,21 +188,21 @@ export function CheckoutOrderSummary({
             </div>
           ))}
           <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-400">Subtotaal</span>
+            <span className="text-slate-400">{st(language, 'checkout.subtotal')}</span>
             <span className="text-slate-300 tabular-nums">EUR {subtotal.toFixed(2)}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-400">Servicekosten</span>
+            <span className="text-slate-400">{st(language, 'checkout.serviceFee')}</span>
             <span className="text-slate-300 tabular-nums">EUR {serviceFee.toFixed(2)}</span>
           </div>
         </div>
 
         <div className="px-5 py-4">
           <div className="flex items-center justify-between">
-            <span className="text-white font-bold text-lg">TOTAAL</span>
+            <span className="text-white font-bold text-lg">{st(language, 'checkout.totalLabel')}</span>
             <span className="text-white font-bold text-xl tabular-nums">EUR {totalPrice.toFixed(2)}</span>
           </div>
-          <p className="text-slate-500 text-xs mt-0.5">Inclusief BTW</p>
+          <p className="text-slate-500 text-xs mt-0.5">{st(language, 'checkout.inclVat')}</p>
         </div>
 
         <div className="px-5 py-4 space-y-3 hidden lg:block">
@@ -202,7 +210,7 @@ export function CheckoutOrderSummary({
             type="button"
             onClick={onSubmit}
             disabled={!canSubmit || submitting}
-            className={`w-full py-3.5 rounded-xl font-semibold text-base transition-all flex items-center justify-center gap-2 ${
+            className={`w-full py-3.5 rounded-xl font-semibold text-base transition-all flex items-center justify-center gap-2 focus-ring ${
               canSubmit && !submitting
                 ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20'
                 : 'bg-slate-700 text-slate-500 cursor-not-allowed'
@@ -210,19 +218,19 @@ export function CheckoutOrderSummary({
           >
             {submitting ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Bestelling wordt verwerkt...
+                <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
+                {st(language, 'checkout.processing')}
               </>
             ) : (
-              `Bestelling Plaatsen — EUR ${totalPrice.toFixed(2)}`
+              `${st(language, 'checkout.placeOrder')} — EUR ${totalPrice.toFixed(2)}`
             )}
           </button>
           <button
             type="button"
             onClick={onChangeSeats}
-            className="w-full text-center text-sm text-slate-400 hover:text-blue-400 transition-colors"
+            className="w-full text-center text-sm text-slate-400 hover:text-blue-400 transition-colors focus-ring rounded-lg"
           >
-            Andere stoelen kiezen?
+            {st(language, 'checkout.changeSeats')}
           </button>
         </div>
       </div>

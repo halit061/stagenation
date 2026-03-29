@@ -1,4 +1,6 @@
+import { memo } from 'react';
 import { Calendar } from 'lucide-react';
+import { st } from '../lib/seatTranslations';
 import type { SalesStats } from '../hooks/useAdminSeatRealtime';
 
 interface EventInfo {
@@ -11,11 +13,11 @@ interface Props {
   stats: SalesStats;
 }
 
-export function AdminEventStatus({ event, stats }: Props) {
+export const AdminEventStatus = memo(function AdminEventStatus({ event, stats }: Props) {
   if (!event) {
     return (
       <p className="text-xs text-slate-500">
-        Geen event gekoppeld — dit is een template layout
+        {st(null, 'admin.noEvent')}
       </p>
     );
   }
@@ -33,24 +35,24 @@ export function AdminEventStatus({ event, stats }: Props) {
     : 100;
 
   if (stats.seatsSold === 0 && stats.orderCount === 0) {
-    badge = { label: 'Verkoop niet gestart', color: 'bg-slate-600 text-slate-300' };
+    badge = { label: st(null, 'admin.salesNotStarted'), color: 'bg-slate-600 text-slate-300' };
   } else if (stats.seatsSold >= stats.seatsTotal && stats.seatsTotal > 0) {
-    badge = { label: 'Uitverkocht', color: 'bg-red-500/20 text-red-400' };
+    badge = { label: st(null, 'admin.soldOut'), color: 'bg-red-500/20 text-red-400' };
   } else if (availablePct <= 10) {
-    badge = { label: 'Bijna uitverkocht', color: 'bg-amber-500/20 text-amber-400' };
+    badge = { label: st(null, 'admin.almostSoldOut'), color: 'bg-amber-500/20 text-amber-400' };
   } else {
-    badge = { label: 'Verkoop actief', color: 'bg-emerald-500/20 text-emerald-400' };
+    badge = { label: st(null, 'admin.salesActive'), color: 'bg-emerald-500/20 text-emerald-400' };
   }
 
   return (
     <div className="flex items-center gap-2 text-xs">
-      <Calendar className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+      <Calendar className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" aria-hidden="true" />
       <span className="text-slate-300 truncate max-w-[200px]">{event.name}</span>
-      <span className="text-slate-500">—</span>
+      <span className="text-slate-500" aria-hidden="true">—</span>
       <span className="text-slate-400">{formattedDate}</span>
       <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${badge.color}`}>
         {badge.label}
       </span>
     </div>
   );
-}
+});

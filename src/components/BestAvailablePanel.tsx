@@ -1,7 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, memo } from 'react';
 import { Sparkles, ChevronDown, Users, RefreshCw } from 'lucide-react';
 import type { BestAvailableStrategy, SeatSection } from '../types/seats';
 import type { PriceCategory } from '../hooks/useSeatPickerState';
+import { useLanguage } from '../contexts/LanguageContext';
+import { st } from '../lib/seatTranslations';
 
 interface Props {
   sections: SeatSection[];
@@ -20,17 +22,25 @@ interface Props {
   retryCount: number;
 }
 
-const STRATEGIES: { id: BestAvailableStrategy; label: string; desc: string }[] = [
-  { id: 'best', label: 'Beste', desc: 'Dicht bij podium + centraal' },
-  { id: 'front', label: 'Vooraan', desc: 'Zo dicht mogelijk bij podium' },
-  { id: 'center', label: 'Centraal', desc: 'Midden in de zaal' },
-  { id: 'cheapest', label: 'Voordeligst', desc: 'Laagste prijs' },
-  { id: 'expensive', label: 'Premium', desc: 'Beste categorie' },
-];
+const STRATEGY_IDS: BestAvailableStrategy[] = ['best', 'front', 'center', 'cheapest', 'expensive'];
+const STRATEGY_LABEL_KEYS: Record<BestAvailableStrategy, string> = {
+  best: 'best.stratBest',
+  front: 'best.stratFront',
+  center: 'best.stratCenter',
+  cheapest: 'best.stratCheapest',
+  expensive: 'best.stratPremium',
+};
+const STRATEGY_DESC_KEYS: Record<BestAvailableStrategy, string> = {
+  best: 'best.stratBestDesc',
+  front: 'best.stratFrontDesc',
+  center: 'best.stratCenterDesc',
+  cheapest: 'best.stratCheapestDesc',
+  expensive: 'best.stratPremiumDesc',
+};
 
 const QUICK_COUNTS = [1, 2, 4, 6];
 
-export function BestAvailablePanel({
+export const BestAvailablePanel = memo(function BestAvailablePanel({
   sections,
   priceCategories,
   maxSeats,
@@ -40,6 +50,7 @@ export function BestAvailablePanel({
   lastResult,
   retryCount,
 }: Props) {
+  const { language } = useLanguage();
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState(2);
   const [strategy, setStrategy] = useState<BestAvailableStrategy>('best');
@@ -58,6 +69,15 @@ export function BestAvailablePanel({
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, [open]);
 
   const handleQuickSelect = (n: number) => {
@@ -88,20 +108,23 @@ export function BestAvailablePanel({
       <div className="flex items-center gap-2 flex-wrap">
         <button
           onClick={() => setOpen(!open)}
+          aria-expanded={open}
+          aria-haspopup="true"
           className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white text-sm font-medium rounded-xl transition-all shadow-lg shadow-blue-600/20"
         >
-          <Sparkles className="w-4 h-4" />
-          Beste Beschikbaar
+          <Sparkles className="w-4 h-4" aria-hidden="true" />
+          {st(language, 'best.title')}
           <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
         </button>
 
         {remaining > 0 && (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5" role="group" aria-label={st(language, 'best.seatCount')}>
             {QUICK_COUNTS.filter(n => n <= remaining).map(n => (
               <button
                 key={n}
                 onClick={() => handleQuickSelect(n)}
                 className="w-8 h-8 flex items-center justify-center text-xs font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 hover:text-white border border-slate-700 rounded-lg transition-all"
+                aria-label={`${n} ${n !== 1 ? st(language, 'picker.seats') : st(language, 'picker.seat')}`}
               >
                 {n}
               </button>
@@ -122,33 +145,39 @@ export function BestAvailablePanel({
             onClick={onRetry}
             className="flex items-center gap-1.5 px-3 py-2 text-slate-400 hover:text-white text-xs rounded-lg hover:bg-slate-800 transition-all"
           >
-            <RefreshCw className="w-3 h-3" />
-            Andere stoelen
+            <RefreshCw className="w-3 h-3" aria-hidden="true" />
+            {st(language, 'best.otherSeats')}
           </button>
         )}
       </div>
 
       {open && (
-        <div className="absolute top-full left-0 mt-2 w-80 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden seat-tooltip-enter">
+        <div
+          className="absolute top-full left-0 mt-2 w-80 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden seat-tooltip-enter"
+          role="dialog"
+          aria-label={st(language, 'best.title')}
+        >
           <div className="p-4 space-y-4">
             <div>
               <label className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2 block">
-                Aantal stoelen
+                {st(language, 'best.seatCount')}
               </label>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setCount(Math.max(1, count - 1))}
                   className="w-8 h-8 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-white rounded-lg border border-slate-700 transition-colors text-lg font-bold"
+                  aria-label="Decrease count"
                 >
                   -
                 </button>
                 <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 rounded-lg border border-slate-700 min-w-[60px] justify-center">
-                  <Users className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="text-white font-bold">{count}</span>
+                  <Users className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
+                  <span className="text-white font-bold" aria-live="polite">{count}</span>
                 </div>
                 <button
                   onClick={() => setCount(Math.min(remaining || maxSeats, count + 1))}
                   className="w-8 h-8 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-white rounded-lg border border-slate-700 transition-colors text-lg font-bold"
+                  aria-label="Increase count"
                 >
                   +
                 </button>
@@ -157,21 +186,23 @@ export function BestAvailablePanel({
 
             <div>
               <label className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2 block">
-                Voorkeur
+                {st(language, 'best.preference')}
               </label>
-              <div className="grid grid-cols-2 gap-1.5">
-                {STRATEGIES.map(s => (
+              <div className="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label={st(language, 'best.preference')}>
+                {STRATEGY_IDS.map(id => (
                   <button
-                    key={s.id}
-                    onClick={() => setStrategy(s.id)}
+                    key={id}
+                    onClick={() => setStrategy(id)}
+                    role="radio"
+                    aria-checked={strategy === id}
                     className={`text-left px-3 py-2 rounded-lg text-xs transition-all border ${
-                      strategy === s.id
+                      strategy === id
                         ? 'bg-blue-600/20 border-blue-500/50 text-white'
                         : 'bg-slate-800/50 border-slate-700/50 text-slate-400 hover:text-white hover:bg-slate-800'
                     }`}
                   >
-                    <div className="font-medium">{s.label}</div>
-                    <div className="text-[10px] opacity-60 mt-0.5">{s.desc}</div>
+                    <div className="font-medium">{st(language, STRATEGY_LABEL_KEYS[id])}</div>
+                    <div className="text-[10px] opacity-60 mt-0.5">{st(language, STRATEGY_DESC_KEYS[id])}</div>
                   </button>
                 ))}
               </div>
@@ -180,14 +211,14 @@ export function BestAvailablePanel({
             {priceCategories.length > 1 && (
               <div>
                 <label className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2 block">
-                  Prijscategorie
+                  {st(language, 'best.priceCategory')}
                 </label>
                 <select
                   value={priceCategory}
                   onChange={(e) => setPriceCategory(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
                 >
-                  <option value="">Alle categorieen</option>
+                  <option value="">{st(language, 'best.allCategories')}</option>
                   {priceCategories.map(cat => (
                     <option key={cat.id} value={cat.id}>
                       {cat.name} - EUR {cat.price.toFixed(2)}
@@ -200,14 +231,14 @@ export function BestAvailablePanel({
             {sections.length > 1 && (
               <div>
                 <label className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2 block">
-                  Sectie
+                  {st(language, 'best.section')}
                 </label>
                 <select
                   value={sectionId}
                   onChange={(e) => setSectionId(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
                 >
-                  <option value="">Alle secties</option>
+                  <option value="">{st(language, 'best.allSections')}</option>
                   {sections.map(sec => (
                     <option key={sec.id} value={sec.id}>{sec.name}</option>
                   ))}
@@ -220,12 +251,16 @@ export function BestAvailablePanel({
                 <div
                   className={`w-9 h-5 rounded-full transition-colors relative ${keepTogether ? 'bg-blue-600' : 'bg-slate-700'}`}
                   onClick={() => setKeepTogether(!keepTogether)}
+                  role="switch"
+                  aria-checked={keepTogether}
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setKeepTogether(!keepTogether); } }}
                 >
                   <div
                     className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${keepTogether ? 'translate-x-4' : 'translate-x-0.5'}`}
                   />
                 </div>
-                <span className="text-sm text-slate-300">Naast elkaar zitten</span>
+                <span className="text-sm text-slate-300">{st(language, 'best.sitTogether')}</span>
               </label>
             )}
 
@@ -233,18 +268,18 @@ export function BestAvailablePanel({
               onClick={() => { handleFind(); setOpen(false); }}
               className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-all text-sm flex items-center justify-center gap-2"
             >
-              <Sparkles className="w-4 h-4" />
-              Vind {count} stoel{count !== 1 ? 'en' : ''}
+              <Sparkles className="w-4 h-4" aria-hidden="true" />
+              {count !== 1 ? st(language, 'best.findPlural', { count }) : st(language, 'best.find', { count })}
             </button>
           </div>
         </div>
       )}
 
       {lastResult === 'empty' && (
-        <div className="mt-2 text-amber-400 text-xs bg-amber-500/10 rounded-lg px-3 py-2">
-          Geen {count} beschikbare stoelen gevonden met deze criteria. Probeer andere voorkeuren.
+        <div className="mt-2 text-amber-400 text-xs bg-amber-500/10 rounded-lg px-3 py-2" role="alert">
+          {st(language, 'best.noResults', { count })}
         </div>
       )}
     </div>
   );
-}
+});

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import type { SeatSection } from '../types/seats';
 
 interface Props {
@@ -11,7 +11,7 @@ interface Props {
 const MINI_W = 140;
 const MINI_H = 90;
 
-export function SeatPickerMiniMap({ sections, viewport }: Props) {
+export const SeatPickerMiniMap = memo(function SeatPickerMiniMap({ sections, viewport }: Props) {
   const bounds = useMemo(() => {
     if (sections.length === 0) return null;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -33,9 +33,9 @@ export function SeatPickerMiniMap({ sections, viewport }: Props) {
   const scale = Math.min(scaleX, scaleY);
 
   return (
-    <div className="absolute top-3 left-3 z-10 pointer-events-none">
+    <div className="absolute top-3 left-3 z-10 pointer-events-none" aria-hidden="true">
       <div className="bg-slate-900/80 backdrop-blur border border-slate-700/50 rounded-lg p-1.5 shadow-lg">
-        <svg width={MINI_W} height={MINI_H}>
+        <svg width={MINI_W} height={MINI_H} role="img" aria-label="Minimap overview">
           {sections.map(sec => (
             <rect
               key={sec.id}
@@ -66,4 +66,4 @@ export function SeatPickerMiniMap({ sections, viewport }: Props) {
       </div>
     </div>
   );
-}
+});

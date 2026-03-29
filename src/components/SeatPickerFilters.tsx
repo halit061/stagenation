@@ -1,4 +1,7 @@
+import { memo } from 'react';
 import type { PriceCategory } from '../hooks/useSeatPickerState';
+import { useLanguage } from '../contexts/LanguageContext';
+import { st } from '../lib/seatTranslations';
 
 interface Props {
   categories: PriceCategory[];
@@ -6,13 +9,15 @@ interface Props {
   onToggle: (categoryId: string) => void;
 }
 
-export function SeatPickerFilters({ categories, activeFilters, onToggle }: Props) {
+export const SeatPickerFilters = memo(function SeatPickerFilters({ categories, activeFilters, onToggle }: Props) {
+  const { language } = useLanguage();
+
   if (categories.length <= 1) return null;
 
   return (
-    <div className="flex items-center gap-2 flex-wrap">
+    <div className="flex items-center gap-2 flex-wrap" role="group" aria-label={st(language, 'filter.label')}>
       <span className="text-xs text-slate-500 font-medium uppercase tracking-wider mr-1">
-        Prijs
+        {st(language, 'filter.label')}
       </span>
       {categories.map(cat => {
         const isActive = activeFilters.size === 0 || activeFilters.has(cat.id);
@@ -20,6 +25,7 @@ export function SeatPickerFilters({ categories, activeFilters, onToggle }: Props
           <button
             key={cat.id}
             onClick={() => onToggle(cat.id)}
+            aria-pressed={isActive}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
               isActive
                 ? 'bg-slate-800 border-slate-600 text-white'
@@ -40,4 +46,4 @@ export function SeatPickerFilters({ categories, activeFilters, onToggle }: Props
       })}
     </div>
   );
-}
+});
