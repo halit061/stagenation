@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Save, Trash2, ZoomIn, ZoomOut, Maximize2, Move, Grid3x3, Square, Circle, Copy, Rows3, Armchair, CreditCard as Edit, BoxSelect } from 'lucide-react';
+import { Save, Trash2, ZoomIn, ZoomOut, Maximize2, Move, Grid3x3, Square, Circle, Copy, Rows3, Armchair, CreditCard as Edit, BoxSelect, Undo2, Redo2, HelpCircle } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useToast } from './Toast';
 import { LayoutToolbar } from './LayoutToolbar';
@@ -11,9 +11,13 @@ import { SeatPropertiesPanel } from './SeatPropertiesPanel';
 import { SelectionCounter } from './SelectionCounter';
 import { SeatActionBar } from './SeatActionBar';
 import { SeatContextMenu } from './SeatContextMenu';
+import { SeatLegend } from './SeatLegend';
+import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
 import type { SectionFormData } from './SectionConfigModal';
 import type { VenueLayout, SeatSection, Seat } from '../types/seats';
-import { getSectionsByLayout, createSection, updateSection, deleteSection, generateSeats, getSeatsBySection, updateSeat as updateSeatDb } from '../services/seatService';
+import { getSectionsByLayout, createSection, updateSection, deleteSection, generateSeats, getSeatsBySection, updateSeat as updateSeatDb, deleteSeatsById, updateSectionCapacity } from '../services/seatService';
+import { useSeatHistory } from '../hooks/useSeatHistory';
+import { useSeatDrag } from '../hooks/useSeatDrag';
 
 interface FloorplanTable {
   id: string;
@@ -107,10 +111,60 @@ export function FloorPlanEditor() {
   const [seatContextMenu, setSeatContextMenu] = useState<{
     seat: Seat; section: SeatSection; position: { x: number; y: number };
   } | null>(null);
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const { pushAction, undo, redo, canUndo, canRedo } = useSeatHistory(
+    setSectionSeats, setSeatSections, setSelectedSeatIds, showToast
+  );
+
+  const { dragState, startDrag, moveDrag, endDrag } = useSeatDrag(
+    seatSections, sectionSeats, selectedSeatIds, setSectionSeats, pushAction, showGrid
+  );
 
   useEffect(() => {
     loadAll();
   }, []);
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey) {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Z') {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleSaveShortcut();
+        return;
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedSeatIds.size > 0) {
+        e.preventDefault();
+        setShowDeleteConfirm(true);
+        return;
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo, selectedSeatIds]);
+
+  async function handleSaveShortcut() {
+    const saveBtn = document.querySelector('[data-layout-save]') as HTMLButtonElement | null;
+    if (saveBtn) saveBtn.click();
+  }
 
   async function loadAll() {
     await Promise.all([loadTables(), loadObjects(), loadPackages()]);
@@ -845,10 +899,35 @@ export function FloorPlanEditor() {
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold text-white">Floorplan Editor</h2>
           <div className="flex items-center gap-2">
+            <button
+              onClick={undo}
+              disabled={!canUndo}
+              className="p-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+              title="Ongedaan maken (Ctrl+Z)"
+            >
+              <Undo2 className="w-5 h-5" />
+            </button>
+            <button
+              onClick={redo}
+              disabled={!canRedo}
+              className="p-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+              title="Opnieuw (Ctrl+Shift+Z)"
+            >
+              <Redo2 className="w-5 h-5" />
+            </button>
+            <div className="h-6 w-px bg-slate-600" />
             <span className="text-slate-400 text-sm font-mono tabular-nums min-w-[52px] text-center">{Math.round(zoom * 100)}%</span>
             <button onClick={() => setZoom(z => Math.min(z + 0.25, 3))} className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors" title="Zoom In"><ZoomIn className="w-5 h-5" /></button>
             <button onClick={() => setZoom(z => Math.max(z - 0.25, 0.5))} className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors" title="Zoom Out"><ZoomOut className="w-5 h-5" /></button>
             <button onClick={() => setZoom(1)} className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors" title="Reset"><Maximize2 className="w-5 h-5" /></button>
+            <div className="h-6 w-px bg-slate-600" />
+            <button
+              onClick={() => setShowShortcutsModal(true)}
+              className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+              title="Sneltoetsen"
+            >
+              <HelpCircle className="w-5 h-5" />
+            </button>
           </div>
         </div>
       </div>
@@ -1000,6 +1079,10 @@ export function FloorPlanEditor() {
                   isSelectTool={currentTool === 'select'}
                   marqueeActive={marqueeActive}
                   onSeatContextMenu={handleSeatContextMenu}
+                  dragState={dragState}
+                  onDragStart={startDrag}
+                  onDragMove={moveDrag}
+                  onDragEnd={endDrag}
                 />
 
                 {tables.map((table) => {
@@ -1119,25 +1202,11 @@ export function FloorPlanEditor() {
               </div>
             )}
 
-            <div className="bg-slate-800 rounded-lg p-3">
-              <p className="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Legenda</p>
-              <div className="space-y-1.5">
-                {[
-                  { color: '#22c55e', label: 'Seated tafel / Beschikbaar' },
-                  { color: '#3b82f6', label: 'Standing tafel' },
-                  { color: '#ef4444', label: 'Verkocht' },
-                  { color: '#f59e0b', label: 'Gereserveerd / Bar' },
-                  { color: '#6b7280', label: 'Geblokkeerd' },
-                  { color: '#1e40af', label: 'Stage / Dancefloor' },
-                  { color: '#92400e', label: 'Tribune (object)' },
-                ].map(({ color, label }) => (
-                  <div key={label} className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded flex-shrink-0" style={{ backgroundColor: color }} />
-                    <span className="text-xs text-slate-300">{label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <SeatLegend
+              sectionSeats={sectionSeats}
+              sections={seatSections}
+              selectedSectionId={selectedItem?.type === 'section' ? selectedItem.data.id : null}
+            />
           </div>
         </div>
       </div>
@@ -1193,6 +1262,7 @@ export function FloorPlanEditor() {
         setSeatSections={setSeatSections}
         setSelectedSeatIds={setSelectedSeatIds}
         showToast={showToast}
+        pushAction={pushAction}
       />
 
       {seatContextMenu && (
@@ -1208,7 +1278,75 @@ export function FloorPlanEditor() {
           setSeatSections={setSeatSections}
           setSelectedSeatIds={setSelectedSeatIds}
           showToast={showToast}
+          pushAction={pushAction}
         />
+      )}
+
+      <KeyboardShortcutsModal
+        isOpen={showShortcutsModal}
+        onClose={() => setShowShortcutsModal(false)}
+      />
+
+      {showDeleteConfirm && selectedSeatIds.size > 0 && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60">
+          <div className="bg-slate-800 border border-slate-600 rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-bold text-white mb-2">Stoelen Verwijderen</h3>
+            <p className="text-sm text-slate-300 mb-3">
+              Weet je zeker dat je {selectedSeatIds.size} {selectedSeatIds.size === 1 ? 'stoel' : 'stoelen'} wilt verwijderen?
+            </p>
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={async () => {
+                  setShowDeleteConfirm(false);
+                  const ids = [...selectedSeatIds];
+                  const prevSeats: Record<string, Seat> = {};
+                  for (const seats of Object.values(sectionSeats)) {
+                    for (const s of seats) {
+                      if (selectedSeatIds.has(s.id)) prevSeats[s.id] = s;
+                    }
+                  }
+                  pushAction({
+                    type: 'seats_deleted',
+                    affected_ids: ids,
+                    previous_values: prevSeats,
+                    new_values: {},
+                    timestamp: new Date(),
+                  });
+                  try {
+                    await deleteSeatsById(ids);
+                    const affectedSections = new Set(Object.values(prevSeats).map(s => s.section_id));
+                    setSectionSeats(prev => {
+                      const next = { ...prev };
+                      const idSet = new Set(ids);
+                      for (const secId of affectedSections) {
+                        next[secId] = (next[secId] || []).filter(s => !idSet.has(s.id));
+                      }
+                      return next;
+                    });
+                    for (const secId of affectedSections) {
+                      const remaining = (sectionSeats[secId] || []).filter(s => !ids.includes(s.id));
+                      setSeatSections(prev => prev.map(s => s.id === secId ? { ...s, capacity: remaining.length } : s));
+                      await updateSectionCapacity(secId, remaining.length);
+                    }
+                    setSelectedSeatIds(new Set());
+                    showToast(`${ids.length} stoelen verwijderd`, 'success');
+                  } catch (err: any) {
+                    showToast(err.message || 'Fout bij verwijderen', 'error');
+                  }
+                }}
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-medium rounded-lg transition-colors"
+              >
+                Ja, Verwijderen
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition-colors"
+              >
+                Annuleren
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

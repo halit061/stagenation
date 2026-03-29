@@ -10,6 +10,7 @@ import {
   deleteSeatsById,
   updateSectionCapacity,
 } from '../services/seatService';
+import type { HistoryAction } from '../hooks/useSeatHistory';
 
 interface Props {
   seat: Seat;
@@ -23,6 +24,7 @@ interface Props {
   setSeatSections: React.Dispatch<React.SetStateAction<SeatSection[]>>;
   setSelectedSeatIds: React.Dispatch<React.SetStateAction<Set<string>>>;
   showToast: (msg: string, type: 'success' | 'error' | 'info') => void;
+  pushAction?: (action: HistoryAction) => void;
 }
 
 export function SeatContextMenu({
@@ -37,6 +39,7 @@ export function SeatContextMenu({
   setSeatSections,
   setSelectedSeatIds,
   showToast,
+  pushAction,
 }: Props) {
   const [showPriceInput, setShowPriceInput] = useState(false);
   const [priceValue, setPriceValue] = useState(seat.price_override?.toString() ?? '');
@@ -85,6 +88,13 @@ export function SeatContextMenu({
     onClose();
     try {
       await updateSeat([seat.id], { status: newStatus });
+      pushAction?.({
+        type: 'status_change',
+        affected_ids: [seat.id],
+        previous_values: { [seat.id]: seat.status },
+        new_values: { [seat.id]: newStatus },
+        timestamp: new Date(),
+      });
       showToast(isBlocked ? 'Stoel gedeblokkeerd' : 'Stoel geblokkeerd', 'success');
     } catch (err: any) {
       applyUpdate(prev);
@@ -99,6 +109,13 @@ export function SeatContextMenu({
     onClose();
     try {
       await updateSeat([seat.id], { seat_type: newType });
+      pushAction?.({
+        type: 'type_change',
+        affected_ids: [seat.id],
+        previous_values: { [seat.id]: seat.seat_type },
+        new_values: { [seat.id]: newType },
+        timestamp: new Date(),
+      });
       showToast(isVip ? 'VIP verwijderd' : 'Gemarkeerd als VIP', 'success');
     } catch (err: any) {
       applyUpdate(prev);
@@ -112,6 +129,13 @@ export function SeatContextMenu({
     onClose();
     try {
       await updateSeat([seat.id], { seat_type: type });
+      pushAction?.({
+        type: 'type_change',
+        affected_ids: [seat.id],
+        previous_values: { [seat.id]: seat.seat_type },
+        new_values: { [seat.id]: type },
+        timestamp: new Date(),
+      });
       showToast(`Type gewijzigd`, 'success');
     } catch (err: any) {
       applyUpdate(prev);
@@ -126,6 +150,13 @@ export function SeatContextMenu({
     onClose();
     try {
       await updateSeatPrice([seat.id], val);
+      pushAction?.({
+        type: 'price_change',
+        affected_ids: [seat.id],
+        previous_values: { [seat.id]: seat.price_override },
+        new_values: { [seat.id]: val },
+        timestamp: new Date(),
+      });
       showToast('Prijs aangepast', 'success');
     } catch (err: any) {
       applyUpdate(prev);
@@ -137,6 +168,13 @@ export function SeatContextMenu({
     onClose();
     try {
       await deleteSeatsById([seat.id]);
+      pushAction?.({
+        type: 'seats_deleted',
+        affected_ids: [seat.id],
+        previous_values: { [seat.id]: seat },
+        new_values: {},
+        timestamp: new Date(),
+      });
       setSectionSeats(prev => {
         const next = { ...prev };
         next[seat.section_id] = (next[seat.section_id] || []).filter(s => s.id !== seat.id);

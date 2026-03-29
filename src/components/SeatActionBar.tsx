@@ -14,6 +14,7 @@ import {
   updateSeatNumbers,
   getSeatsBySection,
 } from '../services/seatService';
+import type { HistoryAction } from '../hooks/useSeatHistory';
 
 function updateSectionCapacity_local(
   sectionId: string, newCapacity: number,
@@ -33,6 +34,7 @@ interface Props {
   setSeatSections: React.Dispatch<React.SetStateAction<SeatSection[]>>;
   setSelectedSeatIds: React.Dispatch<React.SetStateAction<Set<string>>>;
   showToast: (msg: string, type: 'success' | 'error' | 'info') => void;
+  pushAction?: (action: HistoryAction) => void;
 }
 
 type PopoverType = 'status' | 'type' | 'price' | 'addRow' | 'addSeat' | null;
@@ -46,6 +48,7 @@ export function SeatActionBar({
   setSeatSections,
   setSelectedSeatIds,
   showToast,
+  pushAction,
 }: Props) {
   const [openPopover, setOpenPopover] = useState<PopoverType>(null);
   const [loading, setLoading] = useState(false);
@@ -148,15 +151,28 @@ export function SeatActionBar({
 
   async function handleStatusChange(status: SeatStatus) {
     setLoading(true);
-    const prev = captureSnapshot();
+    const prevSnapshot = captureSnapshot();
+    const prevValues: Record<string, SeatStatus> = {};
+    const newValues: Record<string, SeatStatus> = {};
+    for (const s of selectedSeats) {
+      prevValues[s.id] = s.status;
+      newValues[s.id] = status;
+    }
     applyOptimistic({ status });
     closePopover();
     try {
       await updateSeatStatus(ids, status);
+      pushAction?.({
+        type: 'status_change',
+        affected_ids: ids,
+        previous_values: prevValues,
+        new_values: newValues,
+        timestamp: new Date(),
+      });
       const label = status === 'available' ? 'beschikbaar' : status === 'blocked' ? 'geblokkeerd' : status;
       showToast(`Status gewijzigd naar ${label} voor ${count} stoelen`, 'success');
     } catch (err: any) {
-      restoreSnapshot(prev);
+      restoreSnapshot(prevSnapshot);
       showToast(err.message || 'Fout bij status wijzigen', 'error');
     }
     setLoading(false);
@@ -164,18 +180,31 @@ export function SeatActionBar({
 
   async function handleTypeChange(seatType: SeatType) {
     setLoading(true);
-    const prev = captureSnapshot();
+    const prevSnapshot = captureSnapshot();
+    const prevValues: Record<string, SeatType> = {};
+    const newValues: Record<string, SeatType> = {};
+    for (const s of selectedSeats) {
+      prevValues[s.id] = s.seat_type;
+      newValues[s.id] = seatType;
+    }
     applyOptimistic({ seat_type: seatType });
     closePopover();
     try {
       await updateSeat(ids, { seat_type: seatType });
+      pushAction?.({
+        type: 'type_change',
+        affected_ids: ids,
+        previous_values: prevValues,
+        new_values: newValues,
+        timestamp: new Date(),
+      });
       const labels: Record<string, string> = {
         regular: 'Regulier', vip: 'VIP', wheelchair: 'Rolstoel',
         restricted_view: 'Beperkt zicht', companion: 'Companion',
       };
       showToast(`Type gewijzigd naar ${labels[seatType] || seatType} voor ${count} stoelen`, 'success');
     } catch (err: any) {
-      restoreSnapshot(prev);
+      restoreSnapshot(prevSnapshot);
       showToast(err.message || 'Fout bij type wijzigen', 'error');
     }
     setLoading(false);
@@ -183,15 +212,28 @@ export function SeatActionBar({
 
   async function handlePriceApply() {
     setLoading(true);
-    const prev = captureSnapshot();
+    const prevSnapshot = captureSnapshot();
     const priceOverride = priceMode === 'section' ? null : parseFloat(priceValue) || 0;
+    const prevValues: Record<string, number | null> = {};
+    const newValues: Record<string, number | null> = {};
+    for (const s of selectedSeats) {
+      prevValues[s.id] = s.price_override;
+      newValues[s.id] = priceOverride;
+    }
     applyOptimistic({ price_override: priceOverride });
     closePopover();
     try {
       await updateSeatPrice(ids, priceOverride);
+      pushAction?.({
+        type: 'price_change',
+        affected_ids: ids,
+        previous_values: prevValues,
+        new_values: newValues,
+        timestamp: new Date(),
+      });
       showToast(`Prijs aangepast voor ${count} stoelen`, 'success');
     } catch (err: any) {
-      restoreSnapshot(prev);
+      restoreSnapshot(prevSnapshot);
       showToast(err.message || 'Fout bij prijs wijzigen', 'error');
     }
     setLoading(false);
@@ -201,8 +243,17 @@ export function SeatActionBar({
     if (!singleSection && uniqueSectionIds.size === 0) return;
     setLoading(true);
     setShowDeleteModal(false);
+    const prevSeats: Record<string, Seat> = {};
+    for (const s of selectedSeats) prevSeats[s.id] = s;
     try {
       await deleteSeatsById(ids);
+      pushAction?.({
+        type: 'seats_deleted',
+        affected_ids: ids,
+        previous_values: prevSeats,
+        new_values: {},
+        timestamp: new Date(),
+      });
       const affectedSections = [...uniqueSectionIds];
       for (const secId of affectedSections) {
         setSectionSeats(prev => {

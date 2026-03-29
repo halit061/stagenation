@@ -454,6 +454,24 @@ export async function updateSectionCapacity(sectionId: string, capacity: number)
   if (error) throw error;
 }
 
+export async function updateSeatPositions(
+  updates: Array<{ id: string; x_position: number; y_position: number }>
+): Promise<void> {
+  await requireAuth();
+  const BATCH = 50;
+  for (let i = 0; i < updates.length; i += BATCH) {
+    const batch = updates.slice(i, i + BATCH);
+    await Promise.all(
+      batch.map(u =>
+        supabase
+          .from('seats')
+          .update({ x_position: u.x_position, y_position: u.y_position })
+          .eq('id', u.id)
+      )
+    );
+  }
+}
+
 export async function deleteSeatsBySection(sectionId: string): Promise<void> {
   await requireAuth();
   const { error } = await supabase
