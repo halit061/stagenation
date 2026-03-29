@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Copy, Trash2, RefreshCw, Pencil } from 'lucide-react';
+import { Copy, Trash2, RefreshCw, Pencil, Maximize } from 'lucide-react';
 import type { SeatSection, Seat, SeatStatus } from '../types/seats';
 
 const labelCls = 'block text-slate-400 text-xs font-medium mb-1';
@@ -18,9 +18,10 @@ interface Props {
   onRegenerate: (section: SeatSection) => void;
   onDuplicate: (section: SeatSection) => void;
   onDelete: (section: SeatSection) => void;
+  onAutoFit?: (section: SeatSection) => void;
 }
 
-export function SectionPropertiesPanel({ section, seats, onEdit, onRegenerate, onDuplicate, onDelete }: Props) {
+export function SectionPropertiesPanel({ section, seats, onEdit, onRegenerate, onDuplicate, onDelete, onAutoFit }: Props) {
   const stats = useMemo(() => {
     const total = seats.length;
     const available = seats.filter((s) => s.status === 'available').length;
@@ -156,7 +157,16 @@ export function SectionPropertiesPanel({ section, seats, onEdit, onRegenerate, o
           </div>
         )}
 
-        <div className="border-t border-slate-700 pt-3 mt-3">
+        <div className="border-t border-slate-700 pt-3 mt-3 space-y-2">
+          {onAutoFit && seats.length > 0 && (
+            <button
+              onClick={() => onAutoFit(section)}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded transition-colors text-sm"
+            >
+              <Maximize className="w-3.5 h-3.5" />
+              Auto-fit Blok
+            </button>
+          )}
           <button
             onClick={() => onRegenerate(section)}
             className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white font-medium rounded transition-colors text-sm"

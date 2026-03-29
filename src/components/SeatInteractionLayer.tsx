@@ -80,7 +80,7 @@ function computeSeatPositions(section: SeatSection, seats: Seat[]): ComputedSeat
   const bodyTop = sy + HEADER_H + PAD;
   const bodyH = sh - HEADER_H - PAD * 2;
   const bodyW = sw - PAD * 2;
-  const centerX = sx + sw / 2;
+  const bodyLeft = sx + PAD;
 
   const minX = Math.min(...seats.map((s) => s.x_position));
   const maxX = Math.max(...seats.map((s) => s.x_position));
@@ -88,21 +88,19 @@ function computeSeatPositions(section: SeatSection, seats: Seat[]): ComputedSeat
   const maxY = Math.max(...seats.map((s) => s.y_position));
   const rangeX = maxX - minX || 1;
   const rangeY = maxY - minY || 1;
-  const useScaling = rangeX > bodyW || rangeY > bodyH;
+
   const scaleX = bodyW / rangeX;
   const scaleY = bodyH / rangeY;
+  const scale = Math.min(scaleX, scaleY);
+
+  const fittedW = rangeX * scale;
+  const fittedH = rangeY * scale;
+  const offsetX = bodyLeft + (bodyW - fittedW) / 2;
+  const offsetY = bodyTop + (bodyH - fittedH) / 2;
 
   return seats.map((seat) => {
-    let cx: number;
-    let cy: number;
-    if (useScaling) {
-      cx = sx + PAD + (seat.x_position - minX) * scaleX;
-      cy = bodyTop + (seat.y_position - minY) * scaleY;
-    } else {
-      cx = centerX + seat.x_position;
-      cy = bodyTop + seat.y_position - minY;
-      if (cy > sy + sh - PAD) cy = sy + sh - PAD;
-    }
+    const cx = offsetX + (seat.x_position - minX) * scale;
+    const cy = offsetY + (seat.y_position - minY) * scale;
     return { ...seat, cx, cy, sectionId: section.id };
   });
 }

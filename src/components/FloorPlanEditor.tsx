@@ -20,7 +20,7 @@ import { OrderToast } from './AdminNotifications';
 import { useAdminSeatRealtime } from '../hooks/useAdminSeatRealtime';
 import type { SectionFormData } from './SectionConfigModal';
 import type { VenueLayout, SeatSection, Seat } from '../types/seats';
-import { getSectionsByLayout, createSection, updateSection, deleteSection, generateSeats, getSeatsBySection, updateSeat as updateSeatDb, deleteSeatsById, updateSectionCapacity } from '../services/seatService';
+import { getSectionsByLayout, createSection, updateSection, deleteSection, generateSeats, getSeatsBySection, updateSeat as updateSeatDb, deleteSeatsById, updateSectionCapacity, updateSeatPositions } from '../services/seatService';
 import { useSeatHistory } from '../hooks/useSeatHistory';
 import { useSeatDrag } from '../hooks/useSeatDrag';
 
@@ -94,8 +94,9 @@ export function FloorPlanEditor() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isResizing, setIsResizing] = useState(false);
-  const [resizeHandle, setResizeHandle] = useState<'se' | 'sw' | 'ne' | 'nw' | null>(null);
+  const [resizeHandle, setResizeHandle] = useState<'se' | 'sw' | 'ne' | 'nw' | 'n' | 's' | 'e' | 'w' | null>(null);
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0, ox: 0, oy: 0 });
+  const resizeOrigSection = useRef<{ width: number; height: number } | null>(null);
   const [zoom, setZoom] = useState(1);
   const [currentTool, setCurrentTool] = useState<EditorTool>('select');
   const [showGrid, setShowGrid] = useState(true);
@@ -322,12 +323,16 @@ export function FloorPlanEditor() {
         showToast('Sectie bijgewerkt!', 'success');
       } else {
         const isVert = formData.orientation === 'left' || formData.orientation === 'right';
+        const HEADER_PAD = 24;
+        const BODY_PAD = 10;
+        const seatSpread = Math.max(0, formData.seats_per_row - 1) * formData.seat_spacing;
+        const rowSpread = Math.max(0, formData.rows - 1) * formData.row_spacing;
         const sectionWidth = isVert
-          ? Math.max(80, formData.rows * formData.row_spacing + 30)
-          : Math.max(150, formData.seats_per_row * formData.seat_spacing + 40);
+          ? Math.max(100, rowSpread + BODY_PAD * 2 + 20)
+          : Math.max(100, seatSpread + BODY_PAD * 2 + 20);
         const sectionHeight = isVert
-          ? Math.max(150, formData.seats_per_row * formData.seat_spacing + 40)
-          : Math.max(80, formData.rows * formData.row_spacing + 30);
+          ? Math.max(80, seatSpread + HEADER_PAD + BODY_PAD * 2 + 20)
+          : Math.max(80, rowSpread + HEADER_PAD + BODY_PAD * 2 + 20);
         const newSection = await createSection({
           layout_id: currentLayout.id,
           name: formData.name,
@@ -370,6 +375,31 @@ export function FloorPlanEditor() {
       showToast(err.message || 'Fout bij opslaan sectie', 'error');
     }
     setSectionSaving(false);
+  }
+
+  async function autoFitSectionToSeats(section: SeatSection, seats?: Seat[]) {
+    const seatList = seats || sectionSeats[section.id] || [];
+    if (seatList.length === 0) return;
+    const HEADER_PAD = 24;
+    const BODY_PAD = 10;
+    const EXTRA = 20;
+    const xs = seatList.map(s => s.x_position);
+    const ys = seatList.map(s => s.y_position);
+    const rangeX = Math.max(...xs) - Math.min(...xs);
+    const rangeY = Math.max(...ys) - Math.min(...ys);
+    const newW = Math.max(100, rangeX + BODY_PAD * 2 + EXTRA);
+    const newH = Math.max(80, rangeY + HEADER_PAD + BODY_PAD * 2 + EXTRA);
+    const updated = { ...section, width: newW, height: newH };
+    setSeatSections(prev => prev.map(s => s.id === section.id ? updated : s));
+    if (selectedItem?.type === 'section' && selectedItem.data.id === section.id) {
+      setSelectedItem({ type: 'section', data: updated });
+    }
+    try {
+      await updateSection(section.id, { width: newW, height: newH });
+      showToast('Sectie formaat aangepast', 'success');
+    } catch {
+      showToast('Fout bij auto-fit', 'error');
+    }
   }
 
   async function handleDeleteSection(section: SeatSection) {
@@ -799,7 +829,7 @@ export function FloorPlanEditor() {
     }
   };
 
-  const handleResizeStart = (e: React.MouseEvent, handle: 'se' | 'sw' | 'ne' | 'nw') => {
+  const handleResizeStart = (e: React.MouseEvent, handle: 'se' | 'sw' | 'ne' | 'nw' | 'n' | 's' | 'e' | 'w') => {
     e.stopPropagation();
     if (!selectedItem) return;
     const p = getSvgPoint(e);
@@ -808,6 +838,7 @@ export function FloorPlanEditor() {
     if (selectedItem.type === 'section') {
       const sec = selectedItem.data as SeatSection;
       setResizeStart({ x: p.x, y: p.y, width: sec.width, height: sec.height, ox: sec.position_x, oy: sec.position_y });
+      resizeOrigSection.current = { width: sec.width, height: sec.height };
     } else {
       setResizeStart({
         x: p.x, y: p.y,
@@ -828,12 +859,17 @@ export function FloorPlanEditor() {
       if (isResizing && resizeHandle) {
         const dx = p.x - resizeStart.x;
         const dy = p.y - resizeStart.y;
+        const MIN_W = 100, MIN_H = 80;
         let nw = resizeStart.width, nh = resizeStart.height;
         let nx = resizeStart.ox, ny = resizeStart.oy;
-        if (resizeHandle === 'se') { nw = Math.max(80, resizeStart.width + dx); nh = Math.max(60, resizeStart.height + dy); }
-        else if (resizeHandle === 'sw') { nw = Math.max(80, resizeStart.width - dx); nh = Math.max(60, resizeStart.height + dy); nx = resizeStart.ox + (resizeStart.width - nw); }
-        else if (resizeHandle === 'ne') { nw = Math.max(80, resizeStart.width + dx); nh = Math.max(60, resizeStart.height - dy); ny = resizeStart.oy + (resizeStart.height - nh); }
-        else if (resizeHandle === 'nw') { nw = Math.max(80, resizeStart.width - dx); nh = Math.max(60, resizeStart.height - dy); nx = resizeStart.ox + (resizeStart.width - nw); ny = resizeStart.oy + (resizeStart.height - nh); }
+        const moveE = resizeHandle.includes('e');
+        const moveW = resizeHandle === 'w' || resizeHandle === 'nw' || resizeHandle === 'sw';
+        const moveS = resizeHandle.includes('s');
+        const moveN = resizeHandle === 'n' || resizeHandle === 'ne' || resizeHandle === 'nw';
+        if (moveE) nw = Math.max(MIN_W, resizeStart.width + dx);
+        if (moveW) { nw = Math.max(MIN_W, resizeStart.width - dx); nx = resizeStart.ox + (resizeStart.width - nw); }
+        if (moveS) nh = Math.max(MIN_H, resizeStart.height + dy);
+        if (moveN) { nh = Math.max(MIN_H, resizeStart.height - dy); ny = resizeStart.oy + (resizeStart.height - nh); }
         nx = Math.max(0, Math.min(CANVAS_W - nw, nx));
         ny = Math.max(0, Math.min(CANVAS_H - nh, ny));
         const updated = { ...sec, position_x: nx, position_y: ny, width: nw, height: nh };
@@ -889,6 +925,31 @@ export function FloorPlanEditor() {
             width: sec.width,
             height: sec.height,
           });
+          if (isResizing && resizeOrigSection.current) {
+            const orig = resizeOrigSection.current;
+            const scaleX = sec.width / orig.width;
+            const scaleY = sec.height / orig.height;
+            if (Math.abs(scaleX - 1) > 0.001 || Math.abs(scaleY - 1) > 0.001) {
+              const seats = sectionSeats[sec.id] || [];
+              if (seats.length > 0) {
+                const posUpdates = seats.map(s => ({
+                  id: s.id,
+                  x_position: s.x_position * scaleX,
+                  y_position: s.y_position * scaleY,
+                }));
+                await updateSeatPositions(posUpdates);
+                setSectionSeats(prev => ({
+                  ...prev,
+                  [sec.id]: seats.map(s => ({
+                    ...s,
+                    x_position: s.x_position * scaleX,
+                    y_position: s.y_position * scaleY,
+                  })),
+                }));
+              }
+            }
+            resizeOrigSection.current = null;
+          }
         } catch {
           showToast('Fout bij opslaan positie', 'error');
         }
@@ -924,16 +985,29 @@ export function FloorPlanEditor() {
     const isSection = 'position_x' in item;
     const ix = isSection ? (item as SeatSection).position_x : (item as FloorplanTable).x;
     const iy = isSection ? (item as SeatSection).position_y : (item as FloorplanTable).y;
+    const iw = item.width;
+    const ih = item.height;
+    const cursorMap: Record<string, string> = {
+      nw: 'nw-resize', n: 'n-resize', ne: 'ne-resize',
+      w: 'w-resize', e: 'e-resize',
+      sw: 'sw-resize', s: 's-resize', se: 'se-resize',
+    };
+    const handles: { handle: 'se' | 'sw' | 'ne' | 'nw' | 'n' | 's' | 'e' | 'w'; cx: number; cy: number }[] = [
+      { handle: 'nw', cx: ix, cy: iy },
+      { handle: 'n', cx: ix + iw / 2, cy: iy },
+      { handle: 'ne', cx: ix + iw, cy: iy },
+      { handle: 'w', cx: ix, cy: iy + ih / 2 },
+      { handle: 'e', cx: ix + iw, cy: iy + ih / 2 },
+      { handle: 'sw', cx: ix, cy: iy + ih },
+      { handle: 's', cx: ix + iw / 2, cy: iy + ih },
+      { handle: 'se', cx: ix + iw, cy: iy + ih },
+    ];
     return (
       <>
-        {(['se', 'sw', 'ne', 'nw'] as const).map(h => {
-          const cx = h.includes('e') ? ix + item.width : ix;
-          const cy = h.includes('s') ? iy + item.height : iy;
-          return (
-            <circle key={h} cx={cx} cy={cy} r="7" fill="#ef4444" stroke="white" strokeWidth="2"
-              style={{ cursor: `${h}-resize` }} onMouseDown={(e) => handleResizeStart(e, h)} />
-          );
-        })}
+        {handles.map(h => (
+          <circle key={h.handle} cx={h.cx} cy={h.cy} r="4" fill="#ef4444" stroke="white" strokeWidth="1.5"
+            style={{ cursor: cursorMap[h.handle] }} onMouseDown={(e) => handleResizeStart(e, h.handle)} />
+        ))}
       </>
     );
   };
@@ -1210,6 +1284,7 @@ export function FloorPlanEditor() {
                   onRegenerate={handleRegenerateSeats}
                   onDuplicate={handleDuplicateSection}
                   onDelete={handleDeleteSection}
+                  onAutoFit={autoFitSectionToSeats}
                 />
               ) : (
               <div className="bg-slate-800 rounded-lg p-4">
