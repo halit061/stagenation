@@ -29,6 +29,27 @@ export interface TicketTypeSection {
   created_at: string;
 }
 
+export interface TicketType {
+  id: string;
+  event_id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  quantity_total: number;
+  quantity_sold: number;
+  sale_start: string | null;
+  sale_end: string | null;
+  is_active: boolean;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  service_fee_mode: string;
+  service_fee_fixed: number;
+  service_fee_percent: number;
+  theme: Record<string, unknown> | null;
+  phase_group: string | null;
+  phase_order: number;
+}
+
 export interface SeatPickerConfig {
   event_id: string;
   layout_id: string;

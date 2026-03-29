@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
-import { X, Rows3, Grid3x3 } from 'lucide-react';
-import type { NumberingDirection, SeatOrientation } from '../types/seats';
+import { X, Rows3, Grid3x3, Plus, Ticket, Loader2 } from 'lucide-react';
+import type { NumberingDirection, SeatOrientation, TicketType } from '../types/seats';
+import { linkTicketTypeToSections, createTicketType } from '../services/seatService';
 import {
   sanitizeText,
   validateSectionName,
@@ -39,6 +40,11 @@ interface SectionConfigModalProps {
   initialData?: Partial<SectionFormData>;
   editMode?: boolean;
   loading?: boolean;
+  eventId?: string | null;
+  ticketTypes?: TicketType[];
+  linkedTicketTypeIds?: string[];
+  onTicketTypesChange?: (ttIds: string[]) => void;
+  onTicketTypesRefresh?: () => void;
 }
 
 function defaultForm(type: 'tribune' | 'plein'): SectionFormData {
@@ -74,12 +80,24 @@ export function SectionConfigModal({
   initialData,
   editMode = false,
   loading = false,
+  eventId,
+  ticketTypes = [],
+  linkedTicketTypeIds = [],
+  onTicketTypesChange,
+  onTicketTypesRefresh,
 }: SectionConfigModalProps) {
   const [form, setForm] = useState<SectionFormData>(() => ({
     ...defaultForm(initialData?.section_type ?? 'tribune'),
     ...initialData,
   }));
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [selectedTtIds, setSelectedTtIds] = useState<Set<string>>(new Set(linkedTicketTypeIds));
+  const [showNewTt, setShowNewTt] = useState(false);
+  const [newTtName, setNewTtName] = useState('');
+  const [newTtPrice, setNewTtPrice] = useState('');
+  const [creatingTt, setCreatingTt] = useState(false);
+
+  const isEventMode = !!eventId;
 
   if (!isOpen) return null;
 
@@ -115,8 +133,41 @@ export function SectionConfigModal({
     return Object.keys(e).length === 0;
   }
 
+  function toggleTicketType(ttId: string) {
+    setSelectedTtIds(prev => {
+      const next = new Set(prev);
+      if (next.has(ttId)) next.delete(ttId);
+      else next.add(ttId);
+      return next;
+    });
+  }
+
+  async function handleCreateTicketType() {
+    if (!eventId || !newTtName.trim()) return;
+    setCreatingTt(true);
+    try {
+      const priceCents = Math.round(parseFloat(newTtPrice || '0') * 100);
+      const created = await createTicketType({
+        event_id: eventId,
+        name: sanitizeText(newTtName),
+        price: priceCents,
+      });
+      setSelectedTtIds(prev => new Set([...prev, created.id]));
+      setNewTtName('');
+      setNewTtPrice('');
+      setShowNewTt(false);
+      onTicketTypesRefresh?.();
+    } catch {
+      // silent
+    }
+    setCreatingTt(false);
+  }
+
   function handleSubmit() {
     if (!validate()) return;
+    if (isEventMode && onTicketTypesChange) {
+      onTicketTypesChange([...selectedTtIds]);
+    }
     onSubmit({
       ...form,
       name: sanitizeText(form.name),
@@ -223,6 +274,95 @@ export function SectionConfigModal({
                 />
               </Field>
             </div>
+
+            {isEventMode && editMode && (
+              <div className="border-t border-slate-700 pt-4">
+                <label className={labelCls}>
+                  <span className="flex items-center gap-1.5">
+                    <Ticket className="w-3.5 h-3.5" />
+                    Gekoppelde Ticket Types
+                  </span>
+                </label>
+                {ticketTypes.length > 0 ? (
+                  <div className="space-y-2">
+                    {ticketTypes.map(tt => (
+                      <label
+                        key={tt.id}
+                        className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                          selectedTtIds.has(tt.id)
+                            ? 'border-blue-500/50 bg-blue-500/10'
+                            : 'border-slate-600 hover:border-slate-500'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedTtIds.has(tt.id)}
+                          onChange={() => toggleTicketType(tt.id)}
+                          className="w-4 h-4 text-blue-500 rounded border-slate-500 bg-slate-700 focus:ring-blue-500/30"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm text-white font-medium">{tt.name}</span>
+                          <span className="text-xs text-slate-400 ml-2">
+                            {'\u20AC'}{(tt.price / 100).toFixed(2)}
+                          </span>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-slate-500 text-xs">Geen ticket types voor dit evenement.</p>
+                )}
+
+                {!showNewTt ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowNewTt(true)}
+                    className="mt-2 flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Nieuw ticket type aanmaken
+                  </button>
+                ) : (
+                  <div className="mt-2 p-3 bg-slate-900 rounded-lg border border-slate-600 space-y-2">
+                    <input
+                      type="text"
+                      value={newTtName}
+                      onChange={(e) => setNewTtName(e.target.value)}
+                      placeholder="Ticket type naam"
+                      maxLength={100}
+                      className={inputCls}
+                    />
+                    <input
+                      type="number"
+                      value={newTtPrice}
+                      onChange={(e) => setNewTtPrice(e.target.value)}
+                      placeholder="Prijs in EUR (bijv. 25.00)"
+                      min="0"
+                      step="0.01"
+                      className={inputCls}
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCreateTicketType}
+                        disabled={creatingTt || !newTtName.trim()}
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-xs font-medium rounded-lg transition-colors"
+                      >
+                        {creatingTt ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                        Aanmaken
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setShowNewTt(false); setNewTtName(''); setNewTtPrice(''); }}
+                        className="px-3 py-1.5 text-slate-400 hover:text-white text-xs border border-slate-600 rounded-lg transition-colors"
+                      >
+                        Annuleren
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <Field label="Aantal Rijen" error={errors.rows}>

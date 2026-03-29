@@ -19,8 +19,8 @@ import { AdminSalesWidget } from './AdminSalesWidget';
 import { OrderToast } from './AdminNotifications';
 import { useAdminSeatRealtime } from '../hooks/useAdminSeatRealtime';
 import type { SectionFormData } from './SectionConfigModal';
-import type { VenueLayout, SeatSection, Seat } from '../types/seats';
-import { getSectionsByLayout, createSection, updateSection, deleteSection, generateSeats, getSeatsBySection, updateSeat as updateSeatDb, deleteSeatsById, updateSectionCapacity, updateSeatPositions } from '../services/seatService';
+import type { VenueLayout, SeatSection, Seat, TicketType } from '../types/seats';
+import { getSectionsByLayout, createSection, updateSection, deleteSection, generateSeats, getSeatsBySection, updateSeat as updateSeatDb, deleteSeatsById, updateSectionCapacity, updateSeatPositions, getTicketTypesForEvent, getAllTicketTypeSectionsForEvent, linkTicketTypeToSections } from '../services/seatService';
 import { useSeatHistory } from '../hooks/useSeatHistory';
 import { useSeatDrag } from '../hooks/useSeatDrag';
 
@@ -120,6 +120,11 @@ export function FloorPlanEditor() {
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [eventInfo, setEventInfo] = useState<{ name: string; start_date: string } | null>(null);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [selectedEventName, setSelectedEventName] = useState<string | null>(null);
+  const [eventTicketTypes, setEventTicketTypes] = useState<TicketType[]>([]);
+  const [sectionTicketLinks, setSectionTicketLinks] = useState<Record<string, string[]>>({});
+  const pendingTicketLinks = useRef<string[] | null>(null);
 
   const sectionIds = useMemo(() => seatSections.map(s => s.id), [seatSections]);
 
@@ -263,6 +268,34 @@ export function FloorPlanEditor() {
     setSelectedSeatIds(new Set());
   }
 
+  const handleEventChange = useCallback((eventId: string | null, eventName: string | null) => {
+    setSelectedEventId(eventId);
+    setSelectedEventName(eventName);
+    setEventTicketTypes([]);
+    setSectionTicketLinks({});
+    if (eventId) {
+      loadTicketData(eventId);
+    }
+  }, []);
+
+  async function loadTicketData(eventId: string) {
+    try {
+      const [types, links] = await Promise.all([
+        getTicketTypesForEvent(eventId),
+        getAllTicketTypeSectionsForEvent(eventId),
+      ]);
+      setEventTicketTypes(types);
+      const linkMap: Record<string, string[]> = {};
+      for (const link of links) {
+        if (!linkMap[link.section_id]) linkMap[link.section_id] = [];
+        linkMap[link.section_id].push(link.ticket_type_id);
+      }
+      setSectionTicketLinks(linkMap);
+    } catch {
+      showToast('Fout bij laden ticket types', 'error');
+    }
+  }
+
   function getLayoutData(): Record<string, unknown> {
     return {
       sections: seatSections.map((s) => ({
@@ -365,6 +398,28 @@ export function FloorPlanEditor() {
           orientation: formData.orientation,
         });
         showToast('Sectie aangemaakt!', 'success');
+      }
+      if (selectedEventId && editingSection && pendingTicketLinks.current) {
+        const sectionId = editingSection.id;
+        const oldLinks = sectionTicketLinks[sectionId] || [];
+        const newLinks = pendingTicketLinks.current;
+        const oldSet = new Set(oldLinks);
+        const newSet = new Set(newLinks);
+        for (const ttId of eventTicketTypes.map(t => t.id)) {
+          const wasLinked = oldSet.has(ttId);
+          const isLinked = newSet.has(ttId);
+          if (wasLinked === isLinked) continue;
+          const existingSections = Object.entries(sectionTicketLinks)
+            .filter(([, ids]) => ids.includes(ttId))
+            .map(([secId]) => secId);
+          if (isLinked) {
+            await linkTicketTypeToSections(ttId, [...existingSections, sectionId]);
+          } else {
+            await linkTicketTypeToSections(ttId, existingSections.filter(s => s !== sectionId));
+          }
+        }
+        setSectionTicketLinks(prev => ({ ...prev, [sectionId]: newLinks }));
+        pendingTicketLinks.current = null;
       }
       const sections = await getSectionsByLayout(currentLayout.id);
       setSeatSections(sections);
@@ -1022,6 +1077,8 @@ export function FloorPlanEditor() {
           getLayoutData={getLayoutData}
           layoutName={layoutName}
           onLayoutNameChange={setLayoutName}
+          selectedEventId={selectedEventId}
+          onEventChange={handleEventChange}
         />
       </div>
 
@@ -1285,6 +1342,11 @@ export function FloorPlanEditor() {
                   onDuplicate={handleDuplicateSection}
                   onDelete={handleDeleteSection}
                   onAutoFit={autoFitSectionToSeats}
+                  linkedTicketTypes={
+                    selectedEventId
+                      ? eventTicketTypes.filter(tt => (sectionTicketLinks[(selectedItem.data as SeatSection).id] || []).includes(tt.id))
+                      : []
+                  }
                 />
               ) : (
               <div className="bg-slate-800 rounded-lg p-4">
@@ -1398,6 +1460,13 @@ export function FloorPlanEditor() {
         } : { section_type: sectionModalType }}
         editMode={!!editingSection}
         loading={sectionSaving}
+        eventId={selectedEventId}
+        ticketTypes={eventTicketTypes}
+        linkedTicketTypeIds={editingSection ? (sectionTicketLinks[editingSection.id] || []) : []}
+        onTicketTypesChange={(ttIds) => {
+          pendingTicketLinks.current = ttIds;
+        }}
+        onTicketTypesRefresh={selectedEventId ? () => loadTicketData(selectedEventId) : undefined}
       />
 
       <SeatActionBar

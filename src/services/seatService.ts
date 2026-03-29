@@ -10,6 +10,7 @@ import type {
   GenerateSeatsConfig,
   BestAvailablePreferences,
   TicketTypeSection,
+  TicketType,
 } from '../types/seats';
 
 async function requireAuth() {
@@ -94,16 +95,64 @@ export async function getEventLayouts(brandId?: string): Promise<VenueLayout[]> 
 export async function copyTemplateForEvent(
   templateId: string,
   eventId: string,
-  newName: string,
+  newName?: string,
 ): Promise<string> {
   await requireAuth();
   const { data, error } = await supabase.rpc('copy_template_for_event', {
     p_template_id: templateId,
     p_event_id: eventId,
-    p_new_name: newName,
+    p_new_name: newName ?? null,
   });
   if (error) throw error;
   return data as string;
+}
+
+export async function getEventsList(): Promise<Array<{ id: string; name: string; start_date: string; slug: string }>> {
+  const { data, error } = await supabase
+    .from('events')
+    .select('id, name, start_date, slug')
+    .order('start_date', { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function getTicketTypesForEvent(eventId: string): Promise<TicketType[]> {
+  const { data, error } = await supabase
+    .from('ticket_types')
+    .select('*')
+    .eq('event_id', eventId)
+    .eq('is_active', true)
+    .order('name');
+  if (error) throw error;
+  return (data ?? []) as TicketType[];
+}
+
+export async function createTicketType(tt: {
+  event_id: string;
+  name: string;
+  price: number;
+  description?: string;
+  quantity_total?: number;
+  sale_start?: string;
+  sale_end?: string;
+}): Promise<TicketType> {
+  await requireAuth();
+  const { data, error } = await supabase
+    .from('ticket_types')
+    .insert({
+      event_id: tt.event_id,
+      name: tt.name,
+      price: tt.price,
+      description: tt.description ?? null,
+      quantity_total: tt.quantity_total ?? 0,
+      sale_start: tt.sale_start ?? null,
+      sale_end: tt.sale_end ?? null,
+      is_active: true,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as TicketType;
 }
 
 export async function getLayoutByEvent(eventId: string): Promise<VenueLayout | null> {

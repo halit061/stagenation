@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { Copy, Trash2, RefreshCw, Pencil, Maximize } from 'lucide-react';
-import type { SeatSection, Seat, SeatStatus } from '../types/seats';
+import { Copy, Trash2, RefreshCw, Pencil, Maximize, Ticket } from 'lucide-react';
+import type { SeatSection, Seat, SeatStatus, TicketType } from '../types/seats';
 
 const labelCls = 'block text-slate-400 text-xs font-medium mb-1';
 
@@ -19,9 +19,10 @@ interface Props {
   onDuplicate: (section: SeatSection) => void;
   onDelete: (section: SeatSection) => void;
   onAutoFit?: (section: SeatSection) => void;
+  linkedTicketTypes?: TicketType[];
 }
 
-export function SectionPropertiesPanel({ section, seats, onEdit, onRegenerate, onDuplicate, onDelete, onAutoFit }: Props) {
+export function SectionPropertiesPanel({ section, seats, onEdit, onRegenerate, onDuplicate, onDelete, onAutoFit, linkedTicketTypes = [] }: Props) {
   const stats = useMemo(() => {
     const total = seats.length;
     const available = seats.filter((s) => s.status === 'available').length;
@@ -93,6 +94,24 @@ export function SectionPropertiesPanel({ section, seats, onEdit, onRegenerate, o
           <label className={labelCls}>Prijs</label>
           <p className="text-white text-sm">EUR {section.price_amount.toFixed(2)}</p>
         </div>
+        {linkedTicketTypes.length > 0 && (
+          <div>
+            <label className={labelCls}>
+              <span className="flex items-center gap-1">
+                <Ticket className="w-3 h-3" />
+                Gekoppelde Ticket Types
+              </span>
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {linkedTicketTypes.map(tt => (
+                <span key={tt.id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/15 border border-blue-500/30 rounded text-xs text-blue-300">
+                  {tt.name}
+                  <span className="text-blue-400/60">{'\u20AC'}{(tt.price / 100).toFixed(2)}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
         <div>
           <label className={labelCls}>Kleur</label>
           <div className="flex items-center gap-2">

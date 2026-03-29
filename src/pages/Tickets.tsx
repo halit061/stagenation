@@ -96,6 +96,7 @@ export function Tickets({ onNavigate: _onNavigate }: TicketsProps) {
   const [showCheckoutForm, setShowCheckoutForm] = useState(false);
   const [paymentBanner, setPaymentBanner] = useState<{ type: string; visible: boolean }>({ type: '', visible: false });
   const [eventId, setEventId] = useState<string | null>(null);
+  const [sectionNamesPerTicketType, setSectionNamesPerTicketType] = useState<Record<string, string[]>>({});
 
   // Reservation timer state
   const [reservationOrderId, setReservationOrderId] = useState<string | null>(null);
@@ -193,6 +194,22 @@ export function Tickets({ onNavigate: _onNavigate }: TicketsProps) {
               fee_value: Number(rpConfig.fee_value),
               description: (rpConfig as any)[langKey] || rpConfig.description_nl || '',
             });
+          }
+
+          const { data: ttSections } = await supabase
+            .from('ticket_type_sections')
+            .select('ticket_type_id, seat_sections(name)')
+            .in('ticket_type_id', data.map((t: any) => t.id));
+          if (ttSections) {
+            const map: Record<string, string[]> = {};
+            for (const row of ttSections as any[]) {
+              const ttId = row.ticket_type_id;
+              const sName = row.seat_sections?.name;
+              if (!sName) continue;
+              if (!map[ttId]) map[ttId] = [];
+              if (!map[ttId].includes(sName)) map[ttId].push(sName);
+            }
+            setSectionNamesPerTicketType(map);
           }
         }
       }
@@ -764,6 +781,16 @@ export function Tickets({ onNavigate: _onNavigate }: TicketsProps) {
 
                         {ticketType.description && (
                           <p className="text-slate-400 text-xs sm:text-sm leading-relaxed">{ticketType.description}</p>
+                        )}
+
+                        {sectionNamesPerTicketType[ticketType.id]?.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {sectionNamesPerTicketType[ticketType.id].map(name => (
+                              <span key={name} className="inline-flex items-center px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-[10px] text-slate-400">
+                                {name}
+                              </span>
+                            ))}
+                          </div>
                         )}
 
                         {remaining <= 0 ? (

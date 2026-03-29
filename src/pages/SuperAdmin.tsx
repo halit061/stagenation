@@ -8,7 +8,6 @@ import { uploadEventImage } from '../lib/imageUpload';
 import { utcToLocalInput, localInputToUtc } from '../lib/timezone';
 import { FloorPlanEditor } from '../components/FloorPlanEditor';
 import { TablePackagesManager } from '../components/TablePackagesManager';
-import { VisualStandingTablesManager } from '../components/VisualStandingTablesManager';
 import { ScannerUsersManager } from '../components/ScannerUsersManager';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/Toast';
@@ -5305,9 +5304,6 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
               <FloorPlanEditor />
             </div>
 
-            <div className="bg-slate-800/80 backdrop-blur border-2 border-slate-600 rounded-2xl p-6">
-              <VisualStandingTablesManager />
-            </div>
           </div>
         )}
 
