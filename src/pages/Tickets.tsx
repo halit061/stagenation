@@ -1,4 +1,4 @@
-import { Check, Minus, Plus, Ticket as TicketIcon, ShieldCheck, CreditCard, AlertTriangle, X, Loader2, Clock, Lock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Check, Minus, Plus, Ticket as TicketIcon, ShieldCheck, CreditCard, AlertTriangle, X, Loader2, Clock, Lock, ChevronDown, ChevronUp, ArrowRight, MapPin } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import type { Database } from '../lib/supabaseClient';
@@ -54,7 +54,7 @@ function ReservationTimer({ expiresAt, onExpired, t }: { expiresAt: string; onEx
   );
 }
 
-export function Tickets({ onNavigate: _onNavigate }: TicketsProps) {
+export function Tickets({ onNavigate }: TicketsProps) {
   const { t, language } = useLanguage();
   const [seoEventName, setSeoEventName] = useState('');
   useDocumentHead({
@@ -97,6 +97,7 @@ export function Tickets({ onNavigate: _onNavigate }: TicketsProps) {
   const [paymentBanner, setPaymentBanner] = useState<{ type: string; visible: boolean }>({ type: '', visible: false });
   const [eventId, setEventId] = useState<string | null>(null);
   const [sectionNamesPerTicketType, setSectionNamesPerTicketType] = useState<Record<string, string[]>>({});
+  const [seatAvailability, setSeatAvailability] = useState<Record<string, number>>({});
 
   // Reservation timer state
   const [reservationOrderId, setReservationOrderId] = useState<string | null>(null);
@@ -199,18 +200,42 @@ export function Tickets({ onNavigate: _onNavigate }: TicketsProps) {
           try {
             const { data: ttSections } = await supabase
               .from('ticket_type_sections')
-              .select('ticket_type_id, seat_sections(name)')
+              .select('ticket_type_id, section_id, seat_sections(name)')
               .in('ticket_type_id', data.map((t: any) => t.id));
             if (ttSections) {
-              const map: Record<string, string[]> = {};
+              const nameMap: Record<string, string[]> = {};
+              const sectionMap: Record<string, string[]> = {};
               for (const row of ttSections as any[]) {
                 const ttId = row.ticket_type_id;
                 const sName = row.seat_sections?.name;
-                if (!sName) continue;
-                if (!map[ttId]) map[ttId] = [];
-                if (!map[ttId].includes(sName)) map[ttId].push(sName);
+                if (sName) {
+                  if (!nameMap[ttId]) nameMap[ttId] = [];
+                  if (!nameMap[ttId].includes(sName)) nameMap[ttId].push(sName);
+                }
+                if (!sectionMap[ttId]) sectionMap[ttId] = [];
+                sectionMap[ttId].push(row.section_id);
               }
-              setSectionNamesPerTicketType(map);
+              setSectionNamesPerTicketType(nameMap);
+
+              if (eventData?.floorplan_enabled) {
+                const allSectionIds = [...new Set(Object.values(sectionMap).flat())];
+                if (allSectionIds.length > 0) {
+                  const { data: seats } = await supabase
+                    .from('seats')
+                    .select('id, section_id, status')
+                    .in('section_id', allSectionIds)
+                    .eq('is_active', true)
+                    .eq('status', 'available');
+                  if (seats) {
+                    const avail: Record<string, number> = {};
+                    for (const ttId of Object.keys(sectionMap)) {
+                      const secIds = new Set(sectionMap[ttId]);
+                      avail[ttId] = seats.filter(s => secIds.has(s.section_id)).length;
+                    }
+                    setSeatAvailability(avail);
+                  }
+                }
+              }
             }
           } catch {
             // Section linkage is optional display info
@@ -836,7 +861,7 @@ export function Tickets({ onNavigate: _onNavigate }: TicketsProps) {
                       </div>
 
                       {/* Price & controls stub */}
-                      <div className="sm:w-40 py-4 px-4 sm:py-5 bg-[#0d1420] flex flex-row sm:flex-col items-center justify-between sm:justify-center gap-3">
+                      <div className={`py-4 px-4 sm:py-5 bg-[#0d1420] flex items-center gap-3 ${eventFloorplanEnabled ? 'sm:w-48 flex-row sm:flex-col justify-between sm:justify-center' : 'sm:w-40 flex-row sm:flex-col justify-between sm:justify-center'}`}>
                         <div className="text-xl sm:text-2xl font-black tracking-tight"
                           style={{ color: tc }}>
                           {'\u20AC'}{(ticketType.price / 100).toFixed(2)}
@@ -844,6 +869,33 @@ export function Tickets({ onNavigate: _onNavigate }: TicketsProps) {
 
                         {isLocked ? (
                           <Lock className="w-5 h-5 text-slate-600" />
+                        ) : eventFloorplanEnabled ? (
+                          (() => {
+                            const seatCount = seatAvailability[ticketType.id];
+                            const noSeats = seatCount !== undefined && seatCount <= 0;
+                            return noSeats ? (
+                              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                {t('tickets.soldOut')}
+                              </span>
+                            ) : (
+                              <div className="flex flex-col items-center gap-1.5">
+                                <button
+                                  onClick={() => onNavigate?.(`seat-picker?event=${eventId}&ticket_type=${ticketType.id}`)}
+                                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all hover:scale-105 active:scale-95"
+                                  style={{ backgroundColor: tc, color: luminance > 0.5 ? '#000' : '#fff' }}
+                                >
+                                  <MapPin className="w-3.5 h-3.5" />
+                                  <span>{t('tickets.chooseSeats') || 'Kies stoelen'}</span>
+                                  <ArrowRight className="w-3.5 h-3.5" />
+                                </button>
+                                {seatCount !== undefined && seatCount > 0 && (
+                                  <span className="text-[10px] text-slate-500">
+                                    {seatCount} {t('tickets.seatsAvailable') || 'beschikbaar'}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()
                         ) : !soldOut ? (
                           <div className="flex items-center gap-1.5">
                             <button
@@ -915,6 +967,34 @@ export function Tickets({ onNavigate: _onNavigate }: TicketsProps) {
 
           <div id="cart-section" className="lg:col-span-1">
             <div className="sticky top-24 space-y-6">
+              {eventFloorplanEnabled ? (
+              <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-2xl p-6">
+                <div className="flex items-center space-x-3 mb-5">
+                  <MapPin className="w-6 h-6 text-cyan-400" />
+                  <h3 className="text-xl font-bold">{t('tickets.seatPickerTitle') || 'Kies je stoelen'}</h3>
+                </div>
+                <div className="space-y-4 text-sm text-slate-300">
+                  <div className="flex items-start gap-3">
+                    <div className="w-7 h-7 rounded-full bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-xs font-bold text-cyan-400">1</span>
+                    </div>
+                    <p>{t('tickets.seatStep1') || 'Kies een tickettype hiernaast'}</p>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-7 h-7 rounded-full bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-xs font-bold text-cyan-400">2</span>
+                    </div>
+                    <p>{t('tickets.seatStep2') || 'Selecteer je stoelen op het zaalplan'}</p>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-7 h-7 rounded-full bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-xs font-bold text-cyan-400">3</span>
+                    </div>
+                    <p>{t('tickets.seatStep3') || 'Bevestig en betaal veilig online'}</p>
+                  </div>
+                </div>
+              </div>
+              ) : (
               <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-2xl p-6">
                 <div className="flex items-center space-x-3 mb-6">
                   <TicketIcon className="w-6 h-6 text-cyan-400" />
@@ -1337,6 +1417,7 @@ export function Tickets({ onNavigate: _onNavigate }: TicketsProps) {
                   </>
                 )}
               </div>
+              )}
 
               <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-2xl p-6">
                 <h3 className="font-bold mb-4 text-cyan-400">{t('tickets.paymentMethods')}</h3>
@@ -1391,7 +1472,7 @@ export function Tickets({ onNavigate: _onNavigate }: TicketsProps) {
         </div>
 
         {/* Mobile floating buttons */}
-        {cart.length > 0 && (
+        {!eventFloorplanEnabled && cart.length > 0 && (
           <div className="fixed bottom-6 left-4 right-20 z-[60] lg:hidden flex gap-2">
             {/* Scroll to top button */}
             <button
