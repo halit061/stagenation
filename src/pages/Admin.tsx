@@ -14,7 +14,7 @@ import { EDGE_FUNCTION_BASE_URL } from '../config/brand';
 import { callEdgeFunction } from '../lib/callEdge';
 import { adminFetch } from '../lib/adminApi';
 import { useToast } from '../components/Toast';
-import { getAllLayouts, saveLayout } from '../services/seatService';
+import { getAllLayouts, saveLayout, getTemplates, copyTemplateForEvent } from '../services/seatService';
 import type { VenueLayout } from '../types/seats';
 
 type Event = Database['public']['Tables']['events']['Row'];
@@ -110,6 +110,8 @@ export function Admin({ onNavigate }: AdminProps = {}) {
   const [cancelOrderLoading, setCancelOrderLoading] = useState(false);
 
   const [venueLayouts, setVenueLayouts] = useState<VenueLayout[]>([]);
+  const [layoutTemplates, setLayoutTemplates] = useState<VenueLayout[]>([]);
+  const [copyingTemplate, setCopyingTemplate] = useState<string | null>(null);
 
   const [seatNotifications, setSeatNotifications] = useState<OrderNotification[]>([]);
   const [seatUnreadCount, setSeatUnreadCount] = useState(0);
@@ -302,8 +304,12 @@ export function Admin({ onNavigate }: AdminProps = {}) {
 
   async function loadVenueLayouts() {
     try {
-      const data = await getAllLayouts();
-      setVenueLayouts(data);
+      const [all, tmpls] = await Promise.all([
+        getAllLayouts(),
+        getTemplates(),
+      ]);
+      setVenueLayouts(all);
+      setLayoutTemplates(tmpls);
     } catch {
       // silently fail
     }
@@ -325,6 +331,34 @@ export function Admin({ onNavigate }: AdminProps = {}) {
       showToast('Zaalindeling bijgewerkt', 'success');
     } catch (err: any) {
       showToast(err.message || 'Fout bij toewijzen layout', 'error');
+    }
+  }
+
+  async function handleCopyTemplate(eventId: string, templateId: string) {
+    const event = events.find(e => e.id === eventId);
+    const template = layoutTemplates.find(t => t.id === templateId);
+    if (!event || !template) return;
+
+    setCopyingTemplate(eventId);
+    try {
+      const prevLayout = venueLayouts.find((l) => l.event_id === eventId);
+      if (prevLayout) {
+        await saveLayout({ id: prevLayout.id, name: prevLayout.name, event_id: null });
+      }
+
+      const newLayoutId = await copyTemplateForEvent(
+        templateId,
+        eventId,
+        `${event.name} - ${template.name}`,
+      );
+      if (newLayoutId) {
+        await loadVenueLayouts();
+        showToast('Template gekopieerd naar event!', 'success');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Fout bij kopiëren template', 'error');
+    } finally {
+      setCopyingTemplate(null);
     }
   }
 
@@ -1059,23 +1093,64 @@ export function Admin({ onNavigate }: AdminProps = {}) {
                           {event.is_active ? 'Actief' : 'Inactief'}
                         </span>
                       </div>
-                      <div className="flex items-center gap-3 pt-3 border-t border-slate-700">
-                        <Armchair className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                        <label className="text-sm text-slate-400 flex-shrink-0">Zaalindeling:</label>
-                        <select
-                          value={assignedLayout?.id || ''}
-                          onChange={(e) => handleAssignLayout(event.id, e.target.value)}
-                          className="flex-1 px-3 py-1.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:border-red-500 focus:outline-none max-w-xs"
-                        >
-                          <option value="">Geen layout</option>
-                          {availableLayouts.map((l) => (
-                            <option key={l.id} value={l.id}>{l.name}</option>
-                          ))}
-                        </select>
-                        {assignedLayout && (
-                          <span className="text-xs text-slate-500">
-                            {assignedLayout.name}
-                          </span>
+                      <div className="pt-3 border-t border-slate-700 space-y-3">
+                        <div className="flex items-center gap-3">
+                          <Armchair className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                          <label className="text-sm text-slate-400 flex-shrink-0">Zaalindeling:</label>
+                          {assignedLayout ? (
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-white font-medium">{assignedLayout.name}</span>
+                              {assignedLayout.source_template_id && (
+                                <span className="text-[10px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded">van template</span>
+                              )}
+                              <button
+                                onClick={() => handleAssignLayout(event.id, '')}
+                                className="text-xs text-slate-500 hover:text-red-400 transition-colors"
+                              >
+                                Ontkoppelen
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-slate-500 italic">Geen layout</span>
+                          )}
+                        </div>
+                        {!assignedLayout && (
+                          <div className="ml-7 flex flex-col sm:flex-row gap-3">
+                            <div className="flex items-center gap-2 flex-1">
+                              <select
+                                value=""
+                                onChange={(e) => handleAssignLayout(event.id, e.target.value)}
+                                className="flex-1 px-3 py-1.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:border-red-500 focus:outline-none max-w-xs"
+                              >
+                                <option value="">Bestaande layout toewijzen...</option>
+                                {availableLayouts.filter(l => !l.is_template).map((l) => (
+                                  <option key={l.id} value={l.id}>{l.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            {layoutTemplates.length > 0 && (
+                              <div className="flex items-center gap-2 flex-1">
+                                <select
+                                  value=""
+                                  onChange={(e) => {
+                                    if (e.target.value) handleCopyTemplate(event.id, e.target.value);
+                                  }}
+                                  disabled={copyingTemplate === event.id}
+                                  className="flex-1 px-3 py-1.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:border-blue-500 focus:outline-none max-w-xs disabled:opacity-50"
+                                >
+                                  <option value="">
+                                    {copyingTemplate === event.id ? 'Kopiëren...' : 'Kopieer van template...'}
+                                  </option>
+                                  {layoutTemplates.map((t) => (
+                                    <option key={t.id} value={t.id}>{t.name}</option>
+                                  ))}
+                                </select>
+                                {copyingTemplate === event.id && (
+                                  <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                                )}
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>

@@ -8,6 +8,7 @@ export interface BestAvailableOptions {
   priceCategory?: string;
   keepTogether: boolean;
   excludeSeatIds?: Set<string>;
+  allowedSectionIds?: string[];
 }
 
 interface ScoredSeat {
@@ -126,6 +127,11 @@ export function findBestAvailable(
 
   if (options.excludeSeatIds && options.excludeSeatIds.size > 0) {
     candidates = candidates.filter((s) => !options.excludeSeatIds!.has(s.id));
+  }
+
+  if (options.allowedSectionIds && options.allowedSectionIds.length > 0) {
+    const allowed = new Set(options.allowedSectionIds);
+    candidates = candidates.filter((s) => allowed.has(s.sectionId));
   }
 
   if (options.sectionId) {

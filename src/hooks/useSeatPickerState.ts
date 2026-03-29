@@ -6,6 +6,7 @@ import {
   fetchSections,
   fetchSeats,
   fetchEventInfo,
+  fetchLinkedSectionIds,
   holdSeatsAtomic,
   extendHolds,
   releaseSessionHolds,
@@ -91,7 +92,7 @@ function computePickerSeats(section: SeatSection, seats: Seat[]): PickerSeat[] {
   });
 }
 
-export function useSeatPickerState(eventId: string) {
+export function useSeatPickerState(eventId: string, ticketTypeId?: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [eventInfo, setEventInfo] = useState<EventInfo | null>(null);
@@ -113,6 +114,7 @@ export function useSeatPickerState(eventId: string) {
   const [bestAvailableResult, setBestAvailableResult] = useState<'none' | 'found' | 'empty'>('none');
   const [bestAvailableRetries, setBestAvailableRetries] = useState(0);
   const [highlightedSeatIds, setHighlightedSeatIds] = useState<Set<string>>(new Set());
+  const [allowedSectionIds, setAllowedSectionIds] = useState<string[] | null>(null);
 
   const lastBestAvailableOpts = useRef<{
     count: number;
@@ -205,6 +207,12 @@ export function useSeatPickerState(eventId: string) {
         const secs = await fetchSections(layoutData.id);
         if (cancelled) return;
         setSections(secs);
+
+        if (ticketTypeId) {
+          const linked = await fetchLinkedSectionIds(ticketTypeId);
+          if (cancelled) return;
+          setAllowedSectionIds(linked.length > 0 ? linked : null);
+        }
 
         const seatData = await fetchSeats(secs.map(s => s.id));
         if (cancelled) return;
@@ -317,6 +325,7 @@ export function useSeatPickerState(eventId: string) {
     if (!seat) return;
     if (seat.status === 'blocked' || seat.status === 'sold') return;
     if (seat.status === 'reserved' && !selectedIds.has(seatId)) return;
+    if (allowedSectionIds && !allowedSectionIds.includes(seat.sectionId) && !selectedIds.has(seatId)) return;
 
     setSelectedIds(prev => {
       const next = new Set(prev);
@@ -328,7 +337,7 @@ export function useSeatPickerState(eventId: string) {
       }
       return next;
     });
-  }, [seatMap, selectedIds, holdActive]);
+  }, [seatMap, selectedIds, holdActive, allowedSectionIds]);
 
   const clearSelection = useCallback(() => {
     if (holdActive) return;
@@ -469,6 +478,7 @@ export function useSeatPickerState(eventId: string) {
     const results = findBestAvailable(allSeats, sections, {
       ...opts,
       excludeSeatIds: new Set(),
+      allowedSectionIds: allowedSectionIds ?? undefined,
     });
 
     if (results.length === 0) {
@@ -484,7 +494,7 @@ export function useSeatPickerState(eventId: string) {
     lastBestAvailableOpts.current = { ...opts, excludedIds: new Set(newIds) };
 
     setTimeout(() => setHighlightedSeatIds(new Set()), 2000);
-  }, [allSeats, sections, holdActive]);
+  }, [allSeats, sections, holdActive, allowedSectionIds]);
 
   const retryBest = useCallback(() => {
     if (!lastBestAvailableOpts.current) return;
@@ -499,6 +509,7 @@ export function useSeatPickerState(eventId: string) {
       priceCategory: prev.priceCategory,
       keepTogether: prev.keepTogether,
       excludeSeatIds: prev.excludedIds,
+      allowedSectionIds: allowedSectionIds ?? undefined,
     });
 
     if (results.length === 0) {
@@ -517,7 +528,7 @@ export function useSeatPickerState(eventId: string) {
     lastBestAvailableOpts.current = { ...prev, excludedIds: merged };
 
     setTimeout(() => setHighlightedSeatIds(new Set()), 2000);
-  }, [allSeats, sections, bestAvailableRetries, holdActive]);
+  }, [allSeats, sections, bestAvailableRetries, holdActive, allowedSectionIds]);
 
   const canvasWidth = layout?.layout_data?.canvasWidth as number || 1600;
   const canvasHeight = layout?.layout_data?.canvasHeight as number || 1000;
@@ -563,5 +574,6 @@ export function useSeatPickerState(eventId: string) {
     bestAvailableRetries,
     highlightedSeatIds,
     dismissNotification,
+    allowedSectionIds,
   };
 }

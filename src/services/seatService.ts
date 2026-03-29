@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabaseClient';
 import type {
+  Brand,
   VenueLayout,
   SeatSection,
   Seat,
@@ -8,12 +9,38 @@ import type {
   SeatWithSection,
   GenerateSeatsConfig,
   BestAvailablePreferences,
+  TicketTypeSection,
 } from '../types/seats';
 
 async function requireAuth() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Niet geautoriseerd');
   return session;
+}
+
+// ---------------------------------------------------------------------------
+// Brands
+// ---------------------------------------------------------------------------
+
+export async function getActiveBrands(): Promise<Brand[]> {
+  const { data, error } = await supabase
+    .from('brands')
+    .select('*')
+    .eq('is_active', true)
+    .order('name');
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function getBrandBySlug(slug: string): Promise<Brand | null> {
+  const { data, error } = await supabase
+    .from('brands')
+    .select('*')
+    .eq('slug', slug)
+    .eq('is_active', true)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
 }
 
 // ---------------------------------------------------------------------------
@@ -27,6 +54,56 @@ export async function getAllLayouts(): Promise<VenueLayout[]> {
     .order('updated_at', { ascending: false });
   if (error) throw error;
   return data ?? [];
+}
+
+export async function getLayoutsByBrand(brandId: string): Promise<VenueLayout[]> {
+  const { data, error } = await supabase
+    .from('venue_layouts')
+    .select('*')
+    .eq('brand_id', brandId)
+    .order('updated_at', { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function getTemplates(brandId?: string): Promise<VenueLayout[]> {
+  let query = supabase
+    .from('venue_layouts')
+    .select('*')
+    .eq('is_template', true)
+    .order('name');
+  if (brandId) query = query.eq('brand_id', brandId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function getEventLayouts(brandId?: string): Promise<VenueLayout[]> {
+  let query = supabase
+    .from('venue_layouts')
+    .select('*')
+    .eq('is_template', false)
+    .not('event_id', 'is', null)
+    .order('updated_at', { ascending: false });
+  if (brandId) query = query.eq('brand_id', brandId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function copyTemplateForEvent(
+  templateId: string,
+  eventId: string,
+  newName: string,
+): Promise<string> {
+  await requireAuth();
+  const { data, error } = await supabase.rpc('copy_template_for_event', {
+    p_template_id: templateId,
+    p_event_id: eventId,
+    p_new_name: newName,
+  });
+  if (error) throw error;
+  return data as string;
 }
 
 export async function getLayoutByEvent(eventId: string): Promise<VenueLayout | null> {
@@ -62,6 +139,8 @@ export async function saveLayout(
         venue_id: layout.venue_id,
         event_id: layout.event_id,
         layout_data: layout.layout_data ?? {},
+        brand_id: layout.brand_id,
+        is_template: layout.is_template,
       })
       .eq('id', layout.id)
       .select()
@@ -77,6 +156,9 @@ export async function saveLayout(
       venue_id: layout.venue_id ?? null,
       event_id: layout.event_id ?? null,
       layout_data: layout.layout_data ?? {},
+      brand_id: layout.brand_id ?? null,
+      is_template: layout.is_template ?? false,
+      source_template_id: layout.source_template_id ?? null,
     })
     .select()
     .single();
@@ -131,6 +213,7 @@ export async function duplicateLayout(
         width: sec.width,
         height: sec.height,
         rotation: sec.rotation,
+        orientation: sec.orientation,
         rows_count: sec.rows_count,
         seats_per_row: sec.seats_per_row,
         row_curve: sec.row_curve,
@@ -692,6 +775,78 @@ export async function findBestAvailable(
   }
 
   return scored.slice(0, count).map((s) => s.seat);
+}
+
+// ---------------------------------------------------------------------------
+// Ticket Type ↔ Section linking
+// ---------------------------------------------------------------------------
+
+export async function getSectionsForTicketType(ticketTypeId: string): Promise<TicketTypeSection[]> {
+  const { data, error } = await supabase
+    .from('ticket_type_sections')
+    .select('*')
+    .eq('ticket_type_id', ticketTypeId);
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function getLinkedSectionIds(ticketTypeId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('ticket_type_sections')
+    .select('section_id')
+    .eq('ticket_type_id', ticketTypeId);
+  if (error) throw error;
+  return (data ?? []).map(r => r.section_id);
+}
+
+export async function linkTicketTypeToSections(
+  ticketTypeId: string,
+  sectionIds: string[],
+): Promise<void> {
+  await requireAuth();
+  const { error: delErr } = await supabase
+    .from('ticket_type_sections')
+    .delete()
+    .eq('ticket_type_id', ticketTypeId);
+  if (delErr) throw delErr;
+
+  if (sectionIds.length === 0) return;
+
+  const rows = sectionIds.map(section_id => ({
+    ticket_type_id: ticketTypeId,
+    section_id,
+  }));
+  const { error } = await supabase
+    .from('ticket_type_sections')
+    .insert(rows);
+  if (error) throw error;
+}
+
+export async function unlinkTicketTypeFromSection(
+  ticketTypeId: string,
+  sectionId: string,
+): Promise<void> {
+  await requireAuth();
+  const { error } = await supabase
+    .from('ticket_type_sections')
+    .delete()
+    .eq('ticket_type_id', ticketTypeId)
+    .eq('section_id', sectionId);
+  if (error) throw error;
+}
+
+export async function getAllTicketTypeSectionsForEvent(eventId: string): Promise<TicketTypeSection[]> {
+  const { data, error } = await supabase
+    .from('ticket_type_sections')
+    .select('*, ticket_types!inner(event_id)')
+    .eq('ticket_types.event_id', eventId);
+  if (error) throw error;
+  return (data ?? []).map(r => ({
+    id: r.id,
+    ticket_type_id: r.ticket_type_id,
+    section_id: r.section_id,
+    created_at: r.created_at,
+  }));
 }
 
 // ---------------------------------------------------------------------------

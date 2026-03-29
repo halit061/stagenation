@@ -217,8 +217,9 @@ case 'contact':
       case 'seat-picker': {
         const seatParams = new URLSearchParams(window.location.search);
         const seatEventId = seatParams.get('event') || '';
+        const seatTicketTypeId = seatParams.get('ticket_type') || undefined;
         if (!seatEventId) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">Event ID ontbreekt</div>;
-        return <SeatPicker eventId={seatEventId} onNavigate={navigate} />;
+        return <SeatPicker eventId={seatEventId} ticketTypeId={seatTicketTypeId} onNavigate={navigate} />;
       }
       case 'seat-checkout': {
         const checkoutParams = new URLSearchParams(window.location.search);

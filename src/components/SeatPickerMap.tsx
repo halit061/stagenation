@@ -17,6 +17,7 @@ interface Props {
   selectedIds: Set<string>;
   highlightedIds?: Set<string>;
   flashingIds?: Set<string>;
+  restrictedSectionIds?: Set<string>;
   onSeatClick: (seatId: string) => void;
   canvasWidth?: number;
   canvasHeight?: number;
@@ -29,6 +30,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
   selectedIds,
   highlightedIds,
   flashingIds,
+  restrictedSectionIds,
   onSeatClick,
   onViewportChange,
 }: Props) {
@@ -287,16 +289,18 @@ export const SeatPickerMap = memo(function SeatPickerMap({
         }}
       >
         <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
-          {sections.map(section => (
-            <g key={section.id} style={getSectionTransform(section.id)}>
+          {sections.map(section => {
+            const isRestricted = restrictedSectionIds?.has(section.id) ?? false;
+            return (
+            <g key={section.id} style={getSectionTransform(section.id)} opacity={isRestricted ? 0.35 : 1}>
               <rect
                 x={section.position_x}
                 y={section.position_y}
                 width={section.width}
                 height={section.height}
                 rx={6}
-                fill="rgba(30,41,59,0.4)"
-                stroke="rgba(100,116,139,0.3)"
+                fill={isRestricted ? 'rgba(30,41,59,0.6)' : 'rgba(30,41,59,0.4)'}
+                stroke={isRestricted ? 'rgba(100,116,139,0.15)' : 'rgba(100,116,139,0.3)'}
                 strokeWidth={1}
               />
               <rect
@@ -305,21 +309,21 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                 width={section.width}
                 height={HEADER_H}
                 rx={6}
-                fill={section.color + '33'}
+                fill={isRestricted ? 'rgba(100,116,139,0.2)' : section.color + '33'}
               />
               <rect
                 x={section.position_x}
                 y={section.position_y + HEADER_H - 3}
                 width={section.width}
                 height={3}
-                fill={section.color + '33'}
+                fill={isRestricted ? 'rgba(100,116,139,0.2)' : section.color + '33'}
               />
               <text
                 x={section.position_x + section.width / 2}
                 y={section.position_y + HEADER_H / 2}
                 textAnchor="middle"
                 dominantBaseline="central"
-                fill="rgba(255,255,255,0.7)"
+                fill={isRestricted ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.7)'}
                 fontSize={11}
                 fontWeight={600}
               >
@@ -332,7 +336,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                 const isHovered = hoveredSeat?.id === seat.id;
                 const isBlocked = seat.status === 'blocked';
                 const isSold = seat.status === 'sold';
-                const isReserved = seat.status === 'reserved' && !isSelected;
+                const isReservedSeat = seat.status === 'reserved' && !isSelected;
                 const isAvailable = seat.status === 'available';
 
                 if (isBlocked) return null;
@@ -342,12 +346,16 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                 let strokeColor = 'rgba(0,0,0,0.2)';
                 let strokeW = 0.5;
 
-                if (isSelected) {
+                if (isRestricted) {
+                  fillColor = '#374151';
+                  fillOpacity = 0.4;
+                  strokeColor = 'transparent';
+                } else if (isSelected) {
                   fillColor = '#3b82f6';
                   fillOpacity = 1;
                   strokeColor = '#ffffff';
                   strokeW = 2;
-                } else if (isSold || isReserved) {
+                } else if (isSold || isReservedSeat) {
                   fillColor = '#4b5563';
                   fillOpacity = 0.5;
                   strokeColor = 'transparent';
@@ -358,8 +366,8 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                   strokeW = 1;
                 }
 
-                const r = isHovered ? seatRadius * 1.3 : seatRadius;
-                const clickable = isAvailable || isSelected;
+                const r = isHovered && !isRestricted ? seatRadius * 1.3 : seatRadius;
+                const clickable = !isRestricted && (isAvailable || isSelected);
 
                 return (
                   <g key={seat.id}>
@@ -401,7 +409,8 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                 );
               })}
             </g>
-          ))}
+          );
+          })}
         </g>
       </svg>
 

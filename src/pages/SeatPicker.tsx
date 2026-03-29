@@ -17,12 +17,13 @@ import { st } from '../lib/seatTranslations';
 
 interface Props {
   eventId: string;
+  ticketTypeId?: string;
   onNavigate: (page: string) => void;
 }
 
-export function SeatPicker({ eventId, onNavigate }: Props) {
+export function SeatPicker({ eventId, ticketTypeId, onNavigate }: Props) {
   const { language } = useLanguage();
-  const state = useSeatPickerState(eventId);
+  const state = useSeatPickerState(eventId, ticketTypeId);
   const [viewport, setViewport] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [showNavGuard, setShowNavGuard] = useState(false);
 
@@ -66,6 +67,16 @@ export function SeatPicker({ eventId, onNavigate }: Props) {
 
   const selectedSeats = useMemo(() => state.getSelectedSeats(), [state.getSelectedSeats]);
   const totalPrice = useMemo(() => state.getTotalPrice(), [state.getTotalPrice]);
+
+  const restrictedSectionIds = useMemo(() => {
+    if (!state.allowedSectionIds) return undefined;
+    const allowed = new Set(state.allowedSectionIds);
+    const restricted = new Set<string>();
+    for (const sec of state.sections) {
+      if (!allowed.has(sec.id)) restricted.add(sec.id);
+    }
+    return restricted.size > 0 ? restricted : undefined;
+  }, [state.allowedSectionIds, state.sections]);
 
   if (state.loading) {
     return (
@@ -217,6 +228,7 @@ export function SeatPicker({ eventId, onNavigate }: Props) {
             selectedIds={state.selectedIds}
             highlightedIds={state.highlightedSeatIds}
             flashingIds={state.flashingSeatIds}
+            restrictedSectionIds={restrictedSectionIds}
             onSeatClick={state.toggleSeat}
             canvasWidth={state.canvasWidth}
             canvasHeight={state.canvasHeight}

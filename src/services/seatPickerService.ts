@@ -193,6 +193,15 @@ export function subscribeToSeatUpdates(
   };
 }
 
+export async function fetchLinkedSectionIds(ticketTypeId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('ticket_type_sections')
+    .select('section_id')
+    .eq('ticket_type_id', ticketTypeId);
+  if (error) throw error;
+  return (data ?? []).map(r => r.section_id);
+}
+
 export async function refreshAllSeats(sectionIds: string[]): Promise<Seat[]> {
   return fetchSeats(sectionIds);
 }

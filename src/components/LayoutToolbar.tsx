@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Save, Copy, Trash2, FolderOpen, Loader2, AlertTriangle, X } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Save, Copy, Trash2, FolderOpen, Loader2, AlertTriangle, X, LayoutGrid as Layout, Calendar } from 'lucide-react';
 import type { VenueLayout } from '../types/seats';
 import { getAllLayouts, saveLayout, deleteLayout, duplicateLayout } from '../services/seatService';
 import { sanitizeText, validateLayoutName } from '../lib/validation';
@@ -27,8 +27,12 @@ export function LayoutToolbar({
   const [loading, setLoading] = useState(false);
   const [showSaveAs, setShowSaveAs] = useState(false);
   const [saveAsName, setSaveAsName] = useState('');
+  const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const templates = useMemo(() => layouts.filter(l => l.is_template), [layouts]);
+  const eventLayouts = useMemo(() => layouts.filter(l => !l.is_template), [layouts]);
 
   useEffect(() => {
     loadLayouts();
@@ -73,18 +77,30 @@ export function LayoutToolbar({
     try {
       if (currentLayout?.id) {
         const dup = await duplicateLayout(currentLayout.id, sanitizeText(saveAsName));
-        onLayoutChange(dup);
+        if (saveAsTemplate !== dup.is_template) {
+          const updated = await saveLayout({
+            id: dup.id,
+            name: dup.name,
+            is_template: saveAsTemplate,
+            event_id: saveAsTemplate ? null : dup.event_id,
+          });
+          onLayoutChange(updated);
+        } else {
+          onLayoutChange(dup);
+        }
       } else {
         const saved = await saveLayout({
           name: sanitizeText(saveAsName),
           layout_data: getLayoutData(),
+          is_template: saveAsTemplate,
         });
         onLayoutChange(saved);
       }
       await loadLayouts();
       setShowSaveAs(false);
       setSaveAsName('');
-      showToast('Layout opgeslagen als kopie!', 'success');
+      setSaveAsTemplate(false);
+      showToast(saveAsTemplate ? 'Template opgeslagen!' : 'Layout opgeslagen als kopie!', 'success');
     } catch (err: any) {
       showToast(err.message || 'Fout bij opslaan', 'error');
     }
@@ -138,20 +154,47 @@ export function LayoutToolbar({
             className="px-3 py-1.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:border-blue-500 focus:outline-none min-w-[180px]"
           >
             <option value="">Nieuwe Layout</option>
-            {layouts.map((l) => (
-              <option key={l.id} value={l.id}>{l.name}</option>
-            ))}
+            {templates.length > 0 && (
+              <optgroup label="Templates">
+                {templates.map((l) => (
+                  <option key={l.id} value={l.id}>{l.name}</option>
+                ))}
+              </optgroup>
+            )}
+            {eventLayouts.length > 0 && (
+              <optgroup label="Event Layouts">
+                {eventLayouts.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}{l.event_id ? '' : ' (los)'}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </div>
 
-        <input
-          type="text"
-          value={layoutName}
-          onChange={(e) => onLayoutNameChange(e.target.value)}
-          placeholder="Layout naam..."
-          maxLength={200}
-          className="px-3 py-1.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:border-blue-500 focus:outline-none flex-1 min-w-[150px]"
-        />
+        <div className="flex items-center gap-2 flex-1 min-w-[150px]">
+          <input
+            type="text"
+            value={layoutName}
+            onChange={(e) => onLayoutNameChange(e.target.value)}
+            placeholder="Layout naam..."
+            maxLength={200}
+            className="px-3 py-1.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:border-blue-500 focus:outline-none flex-1"
+          />
+          {currentLayout?.is_template && (
+            <span className="flex items-center gap-1 text-[10px] font-semibold text-blue-400 bg-blue-500/10 px-2 py-1 rounded-md whitespace-nowrap">
+              <Layout className="w-3 h-3" />
+              Template
+            </span>
+          )}
+          {currentLayout && !currentLayout.is_template && currentLayout.event_id && (
+            <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-md whitespace-nowrap">
+              <Calendar className="w-3 h-3" />
+              Event
+            </span>
+          )}
+        </div>
 
         <div className="flex items-center gap-2">
           <button
@@ -193,21 +236,34 @@ export function LayoutToolbar({
       {showSaveAs && (
         <ConfirmModal
           title="Opslaan Als..."
-          onClose={() => setShowSaveAs(false)}
+          onClose={() => { setShowSaveAs(false); setSaveAsTemplate(false); }}
           onConfirm={handleSaveAs}
           confirmLabel="Opslaan"
           confirmColor="bg-blue-600 hover:bg-blue-500"
           loading={loading}
         >
-          <input
-            type="text"
-            value={saveAsName}
-            onChange={(e) => setSaveAsName(e.target.value)}
-            placeholder="Nieuwe layout naam..."
-            maxLength={200}
-            autoFocus
-            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:border-blue-500 focus:outline-none"
-          />
+          <div className="space-y-3">
+            <input
+              type="text"
+              value={saveAsName}
+              onChange={(e) => setSaveAsName(e.target.value)}
+              placeholder="Nieuwe layout naam..."
+              maxLength={200}
+              autoFocus
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:border-blue-500 focus:outline-none"
+            />
+            <label className="flex items-center gap-2.5 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={saveAsTemplate}
+                onChange={(e) => setSaveAsTemplate(e.target.checked)}
+                className="rounded border-slate-500 text-blue-500 focus:ring-blue-500 focus:ring-offset-0 bg-slate-700"
+              />
+              <span className="text-sm text-slate-300 group-hover:text-white transition-colors">
+                Opslaan als herbruikbare template
+              </span>
+            </label>
+          </div>
         </ConfirmModal>
       )}
 

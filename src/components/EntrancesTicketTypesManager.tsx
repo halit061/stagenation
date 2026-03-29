@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, X, Check, Loader2, DoorOpen, Tag, AlertCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Check, Loader2, DoorOpen, Tag, AlertCircle, Grid2x2 as Grid, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { getSectionsByLayout, getLinkedSectionIds, linkTicketTypeToSections } from '../services/seatService';
+import type { SeatSection } from '../types/seats';
 
 interface Entrance {
   id: string;
@@ -54,23 +56,47 @@ export function EntrancesTicketTypesManager({ events }: Props) {
   const [savingTt, setSavingTt] = useState(false);
   const [deletingTtId, setDeletingTtId] = useState<string | null>(null);
 
+  const [eventSections, setEventSections] = useState<SeatSection[]>([]);
+  const [selectedSectionIds, setSelectedSectionIds] = useState<Set<string>>(new Set());
+  const [linkedSectionsByTt, setLinkedSectionsByTt] = useState<Record<string, string[]>>({});
+  const [sectionsLoading, setSectionsLoading] = useState(false);
+
   const loadData = useCallback(async (eventId: string) => {
     if (!eventId) return;
     setLoading(true);
     setError('');
     try {
-      const [{ data: ents, error: e1 }, { data: tts, error: e2 }] = await Promise.all([
+      const [{ data: ents, error: e1 }, { data: tts, error: e2 }, { data: layoutRow }] = await Promise.all([
         supabase.from('entrances').select('*').eq('event_id', eventId).order('created_at'),
         supabase.from('ticket_types').select('id, event_id, name, entrance_id, color, phase_group, phase_order, created_at').eq('event_id', eventId).order('phase_group', { ascending: true, nullsFirst: true }).order('phase_order').order('created_at'),
+        supabase.from('venue_layouts').select('id').eq('event_id', eventId).maybeSingle(),
       ]);
       if (e1) throw e1;
       if (e2) throw e2;
       setEntrances(ents || []);
       setTicketTypes(tts || []);
+
+      if (layoutRow?.id) {
+        setSectionsLoading(true);
+        const secs = await getSectionsByLayout(layoutRow.id);
+        setEventSections(secs);
+        setSectionsLoading(false);
+
+        const linkMap: Record<string, string[]> = {};
+        for (const tt of (tts || [])) {
+          const ids = await getLinkedSectionIds(tt.id);
+          linkMap[tt.id] = ids;
+        }
+        setLinkedSectionsByTt(linkMap);
+      } else {
+        setEventSections([]);
+        setLinkedSectionsByTt({});
+      }
     } catch (err: any) {
       setError(err.message || 'Laden mislukt');
     } finally {
       setLoading(false);
+      setSectionsLoading(false);
     }
   }, []);
 
@@ -135,12 +161,14 @@ export function EntrancesTicketTypesManager({ events }: Props) {
   function openAddTt() {
     setEditingTt(null);
     setTtForm({ name: '', entrance_id: '', color: '', phase_group: '', phase_order: 0 });
+    setSelectedSectionIds(new Set());
     setShowTtForm(true);
   }
 
   function openEditTt(tt: TicketTypeRow) {
     setEditingTt(tt);
     setTtForm({ name: tt.name, entrance_id: tt.entrance_id || '', color: tt.color || '', phase_group: tt.phase_group || '', phase_order: tt.phase_order || 0 });
+    setSelectedSectionIds(new Set(linkedSectionsByTt[tt.id] || []));
     setShowTtForm(true);
   }
 
@@ -156,14 +184,21 @@ export function EntrancesTicketTypesManager({ events }: Props) {
         phase_group: ttForm.phase_group.trim() || null,
         phase_order: ttForm.phase_group.trim() ? ttForm.phase_order : 0,
       };
+      let ttId = editingTt?.id;
       if (editingTt) {
         const { error } = await supabase.from('ticket_types').update(payload).eq('id', editingTt.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase
+        const { data: inserted, error } = await supabase
           .from('ticket_types')
-          .insert({ ...payload, event_id: selectedEventId });
+          .insert({ ...payload, event_id: selectedEventId })
+          .select('id')
+          .single();
         if (error) throw error;
+        ttId = inserted.id;
+      }
+      if (ttId && eventSections.length > 0) {
+        await linkTicketTypeToSections(ttId, [...selectedSectionIds]);
       }
       setShowTtForm(false);
       setEditingTt(null);
@@ -432,6 +467,76 @@ export function EntrancesTicketTypesManager({ events }: Props) {
                     <p className="text-[10px] text-slate-500 mt-1">0 = altijd beschikbaar in groep. 1 = eerste fase (early bird), 2 = tweede fase, etc.</p>
                   </div>
                 )}
+                {eventSections.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Grid className="w-3.5 h-3.5 text-blue-400" />
+                      <p className="text-xs text-slate-400 font-medium">Secties koppelen (zaalplan)</p>
+                    </div>
+                    {sectionsLoading ? (
+                      <div className="flex items-center gap-2 text-slate-500 text-xs py-2">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Secties laden...
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                        {eventSections.map(sec => {
+                          const isChecked = selectedSectionIds.has(sec.id);
+                          const otherTtIds = Object.entries(linkedSectionsByTt)
+                            .filter(([ttId, sids]) => ttId !== editingTt?.id && sids.includes(sec.id))
+                            .map(([ttId]) => {
+                              const tt = ticketTypes.find(t => t.id === ttId);
+                              return tt?.name;
+                            })
+                            .filter(Boolean);
+                          return (
+                            <label
+                              key={sec.id}
+                              className={`flex items-center gap-3 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                                isChecked
+                                  ? 'bg-blue-500/10 border-blue-500/30'
+                                  : 'bg-slate-700/40 border-slate-600/50 hover:border-slate-500'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {
+                                  setSelectedSectionIds(prev => {
+                                    const next = new Set(prev);
+                                    if (next.has(sec.id)) next.delete(sec.id);
+                                    else next.add(sec.id);
+                                    return next;
+                                  });
+                                }}
+                                className="rounded border-slate-500 text-blue-500 focus:ring-blue-500 focus:ring-offset-0 bg-slate-700"
+                              />
+                              <div
+                                className="w-3 h-3 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: sec.color }}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <span className="text-sm text-white">{sec.name}</span>
+                                <span className="text-xs text-slate-500 ml-2">
+                                  {sec.capacity} stoelen - EUR {Number(sec.price_amount).toFixed(2)}
+                                </span>
+                              </div>
+                              {otherTtIds.length > 0 && (
+                                <span className="flex items-center gap-1 text-[10px] text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded flex-shrink-0">
+                                  <AlertTriangle className="w-2.5 h-2.5" />
+                                  {otherTtIds.join(', ')}
+                                </span>
+                              )}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <p className="text-[10px] text-slate-500 mt-1.5">
+                      Bepaal welke secties beschikbaar zijn voor dit tickettype. Geen selectie = alle secties.
+                    </p>
+                  </div>
+                )}
                 <div className="flex gap-2 pt-1">
                   <button
                     onClick={saveTt}
@@ -463,6 +568,7 @@ export function EntrancesTicketTypesManager({ events }: Props) {
                       <th className="px-6 py-3 font-medium">Naam</th>
                       <th className="px-4 py-3 font-medium">Ingang</th>
                       <th className="px-4 py-3 font-medium">Kleur</th>
+                      <th className="px-4 py-3 font-medium">Secties</th>
                       <th className="px-4 py-3 font-medium">Fase</th>
                       <th className="px-4 py-3 font-medium" />
                     </tr>
@@ -484,6 +590,31 @@ export function EntrancesTicketTypesManager({ events }: Props) {
                           ) : (
                             <span className="text-slate-500 italic">—</span>
                           )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {(() => {
+                            const linked = linkedSectionsByTt[tt.id] || [];
+                            if (linked.length === 0) {
+                              return <span className="text-slate-500 italic text-xs">Alle</span>;
+                            }
+                            return (
+                              <div className="flex flex-wrap gap-1">
+                                {linked.map(sid => {
+                                  const sec = eventSections.find(s => s.id === sid);
+                                  if (!sec) return null;
+                                  return (
+                                    <span
+                                      key={sid}
+                                      className="inline-flex items-center gap-1 text-[10px] bg-slate-600/60 px-1.5 py-0.5 rounded"
+                                    >
+                                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: sec.color }} />
+                                      <span className="text-slate-300">{sec.name}</span>
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="px-4 py-3 text-slate-300">
                           {tt.phase_group ? (

@@ -1,11 +1,40 @@
+export interface Brand {
+  id: string;
+  name: string;
+  slug: string;
+  logo_url: string | null;
+  primary_color: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface VenueLayout {
   id: string;
   venue_id: string | null;
   event_id: string | null;
+  brand_id: string | null;
   name: string;
   layout_data: Record<string, unknown>;
+  is_template: boolean;
+  source_template_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface TicketTypeSection {
+  id: string;
+  ticket_type_id: string;
+  section_id: string;
+  created_at: string;
+}
+
+export interface SeatPickerConfig {
+  event_id: string;
+  layout_id: string;
+  ticket_type_id: string | null;
+  allowed_section_ids: string[];
+  max_seats: number;
 }
 
 export type SeatOrientation = 'top' | 'bottom' | 'left' | 'right';
