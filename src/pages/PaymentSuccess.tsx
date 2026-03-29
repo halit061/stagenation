@@ -118,10 +118,9 @@ export default function PaymentSuccess() {
   // Returns true if polling should stop (terminal state reached or error)
   const fetchOrderDetails = async (): Promise<boolean> => {
     try {
-      // SECURITY: Only select necessary fields, not select('*')
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
-        .select('id, order_number, status, total_amount, payer_email, payer_name, paid_at, email_sent, email_sent_at, email_error, event_id, created_at')
+        .select('id, order_number, status, total_amount, payer_email, payer_name, paid_at, email_sent, email_sent_at, email_error, event_id, created_at, product_type')
         .eq('id', orderId)
         .maybeSingle();
 
@@ -129,6 +128,15 @@ export default function PaymentSuccess() {
         setError('Order not found');
         setLoading(false);
         return true;
+      }
+
+      if ((orderData as any).product_type === 'seat') {
+        const terminalStatuses = ['paid', 'failed', 'cancelled', 'payment_failed', 'payment_canceled', 'payment_expired'];
+        if (terminalStatuses.includes(orderData.status)) {
+          sessionStorage.removeItem('payment_order_id');
+          window.location.replace(`/seat-confirmation?event=${orderData.event_id}&order=${orderData.id}`);
+          return true;
+        }
       }
 
       setOrder(orderData);

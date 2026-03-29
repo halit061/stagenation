@@ -30,6 +30,7 @@ interface StoredHold {
   event_id: string;
   session_id: string;
   extended: boolean;
+  ticket_type_id?: string;
 }
 
 export function saveHoldToStorage(hold: StoredHold) {

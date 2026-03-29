@@ -5,6 +5,7 @@ export interface SeatOrderResult {
   success: boolean;
   order_id?: string;
   order_number?: string;
+  checkoutUrl?: string;
   error?: string;
 }
 
@@ -21,6 +22,7 @@ export interface SeatOrderData {
   notes: string;
   seatIds: string[];
   seatPrices: number[];
+  ticketTypeId?: string;
 }
 
 export async function validateHoldsActive(sessionId: string, eventId: string): Promise<{
@@ -35,14 +37,14 @@ export async function validateHoldsActive(sessionId: string, eventId: string): P
     .eq('status', 'held');
 
   if (error) throw error;
-  const active = (data ?? []).filter((h: any) => true);
+  const active = data ?? [];
   return { valid: active.length > 0, activeCount: active.length };
 }
 
 export async function createSeatOrder(order: SeatOrderData): Promise<SeatOrderResult> {
   const sessionId = getSessionId();
 
-  const { data, error } = await supabase.rpc('create_seat_order_atomic', {
+  const { data, error } = await supabase.rpc('create_seat_order_pending', {
     p_event_id: order.eventId,
     p_customer_first_name: order.firstName,
     p_customer_last_name: order.lastName,
@@ -56,40 +58,122 @@ export async function createSeatOrder(order: SeatOrderData): Promise<SeatOrderRe
     p_session_id: sessionId,
     p_seat_ids: order.seatIds,
     p_seat_prices: order.seatPrices,
+    p_ticket_type_id: order.ticketTypeId || null,
   });
 
   if (error) throw error;
-  const result = data as SeatOrderResult;
+  const rpcResult = data as any;
 
-  if (result.success) {
-    clearHoldStorage();
+  if (!rpcResult.success) {
+    return { success: false, error: rpcResult.error };
   }
 
-  return result;
+  const orderId = rpcResult.order_id;
+  const orderNumber = rpcResult.order_number;
+
+  const paymentUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-payment`;
+  const paymentRes = await fetch(paymentUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ order_id: orderId }),
+  });
+
+  if (!paymentRes.ok) {
+    const errBody = await paymentRes.json().catch(() => ({}));
+    return {
+      success: false,
+      order_id: orderId,
+      order_number: orderNumber,
+      error: errBody.error || 'payment_failed',
+    };
+  }
+
+  const paymentData = await paymentRes.json();
+
+  if (!paymentData.checkoutUrl) {
+    return {
+      success: false,
+      order_id: orderId,
+      order_number: orderNumber,
+      error: 'no_checkout_url',
+    };
+  }
+
+  clearHoldStorage();
+
+  return {
+    success: true,
+    order_id: orderId,
+    order_number: orderNumber,
+    checkoutUrl: paymentData.checkoutUrl,
+  };
+}
+
+export async function fetchServiceFeeForSections(sectionIds: string[], eventId: string): Promise<{
+  feePerTicket: number;
+  feeMode: string;
+}> {
+  const { data: ttSections } = await supabase
+    .from('ticket_type_sections')
+    .select('ticket_type_id')
+    .in('section_id', sectionIds);
+
+  if (!ttSections || ttSections.length === 0) {
+    return { feePerTicket: 0, feeMode: 'none' };
+  }
+
+  const ticketTypeIds = [...new Set(ttSections.map(r => r.ticket_type_id))];
+
+  const { data: ticketTypes } = await supabase
+    .from('ticket_types')
+    .select('service_fee_mode, service_fee_fixed, service_fee_percent, price')
+    .in('id', ticketTypeIds)
+    .eq('event_id', eventId)
+    .limit(1);
+
+  if (!ticketTypes || ticketTypes.length === 0) {
+    return { feePerTicket: 0, feeMode: 'none' };
+  }
+
+  const tt = ticketTypes[0] as any;
+  const mode = tt.service_fee_mode || 'none';
+
+  if (mode === 'fixed') {
+    return { feePerTicket: Number(tt.service_fee_fixed) || 0, feeMode: 'fixed' };
+  }
+  if (mode === 'percent') {
+    const pct = Number(tt.service_fee_percent) || 0;
+    const price = Number(tt.price) || 0;
+    return { feePerTicket: Math.round(price * pct / 100) / 100, feeMode: 'percent' };
+  }
+
+  return { feePerTicket: 0, feeMode: 'none' };
 }
 
 export async function fetchOrderById(orderId: string) {
-  const { data, error } = await supabase
-    .from('orders')
-    .select('*')
-    .eq('id', orderId)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data;
+  const sessionId = getSessionId();
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}&select=*&limit=1`;
+  const res = await fetch(url, {
+    headers: {
+      'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      'x-session-id': sessionId,
+      'Accept': 'application/json',
+    },
+  });
+  if (!res.ok) return null;
+  const rows = await res.json();
+  return rows.length > 0 ? rows[0] : null;
 }
 
 export async function fetchOrderSeats(orderId: string) {
   const { data, error } = await supabase
     .from('ticket_seats')
-    .select(`
-      id,
-      seat_id,
-      event_id,
-      price_paid,
-      assigned_at
-    `)
-    .eq('ticket_id', orderId);
+    .select('id, seat_id, event_id, price_paid, assigned_at, ticket_code, qr_data')
+    .eq('order_id', orderId);
 
   if (error) throw error;
   return data ?? [];

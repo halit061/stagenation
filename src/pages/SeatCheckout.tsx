@@ -11,7 +11,7 @@ import {
   getSessionId,
   releaseSessionHolds,
 } from '../services/seatPickerService';
-import { createSeatOrder } from '../services/seatCheckoutService';
+import { createSeatOrder, fetchServiceFeeForSections } from '../services/seatCheckoutService';
 import { CheckoutForm } from '../components/CheckoutForm';
 import { CheckoutOrderSummary } from '../components/CheckoutOrderSummary';
 import { HoldTimerBar } from '../components/HoldTimerBar';
@@ -125,6 +125,8 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
   const [showNavGuard, setShowNavGuard] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [feePerTicket, setFeePerTicket] = useState(0);
+  const [ticketTypeId, setTicketTypeId] = useState<string | null>(null);
   const [summaryCollapsed, setSummaryCollapsed] = useState(true);
 
   const [formData, setFormData] = useState<CheckoutFormData>({
@@ -216,6 +218,19 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
         }
 
         setHeldSeats(held);
+
+        const sectionIds = [...new Set(held.map(s => s.sectionId))];
+        try {
+          const feeInfo = await fetchServiceFeeForSections(sectionIds, eventId);
+          if (!cancelled) {
+            setFeePerTicket(feeInfo.feePerTicket);
+          }
+        } catch {}
+
+        const storedHold = loadHoldFromStorage();
+        const ttId = storedHold?.ticket_type_id || null;
+        if (ttId) setTicketTypeId(ttId);
+
         setLoading(false);
       } catch {
         if (!cancelled) {
@@ -254,7 +269,7 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
     }, 0);
   }, [heldSeats, sections]);
 
-  const serviceFee = 0;
+  const serviceFee = feePerTicket * heldSeats.length;
   const totalPrice = subtotal + serviceFee;
 
   const seatPrices = useMemo(() => {
@@ -384,10 +399,12 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
         notes: formData.notes.trim(),
         seatIds: heldSeats.map(s => s.id),
         seatPrices,
+        ticketTypeId: ticketTypeId || undefined,
       });
 
-      if (result.success && result.order_id) {
-        onNavigate(`seat-confirmation?event=${eventId}&order=${result.order_id}`);
+      if (result.success && result.checkoutUrl) {
+        window.location.href = result.checkoutUrl;
+        return;
       } else if (result.error === 'holds_expired') {
         setHoldExpired(true);
       } else {
@@ -399,7 +416,7 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
 
     submittingRef.current = false;
     setSubmitting(false);
-  }, [formData, eventId, heldSeats, seatPrices, subtotal, totalPrice, onNavigate, language]);
+  }, [formData, eventId, heldSeats, seatPrices, subtotal, totalPrice, ticketTypeId, onNavigate, language]);
 
   const handleBack = useCallback(() => {
     setShowNavGuard(true);

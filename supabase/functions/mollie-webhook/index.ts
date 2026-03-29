@@ -236,6 +236,26 @@ Deno.serve(async (req: Request) => {
       await supabase.from('tickets').update({ status: 'valid' }).eq('order_id', order.id).eq('status', 'pending');
       await supabase.from('table_bookings').update({ status: 'PAID', paid_at: new Date().toISOString() }).eq('order_id', order.id);
 
+      if (order.product_type === 'seat') {
+        try {
+          const { data: seatRows } = await supabase
+            .from('ticket_seats')
+            .select('seat_id')
+            .eq('order_id', order.id);
+          if (seatRows && seatRows.length > 0) {
+            const seatIds = seatRows.map((r: any) => r.seat_id);
+            await supabase.from('seats').update({ status: 'sold' }).in('id', seatIds);
+          }
+          await supabase.from('seat_holds')
+            .update({ status: 'converted' })
+            .eq('session_id', order.session_id)
+            .eq('event_id', order.event_id)
+            .eq('status', 'held');
+        } catch (seatError) {
+          console.error('Error updating seat status:', seatError);
+        }
+      }
+
       // Legacy: release reserved stock for old hold-based orders
       if (order.reserved_items && Array.isArray(order.reserved_items)) {
         try {
@@ -422,6 +442,26 @@ Deno.serve(async (req: Request) => {
       const orderStatus = statusMap[payment.status] || 'failed';
       await supabase.from('orders').update({ status: orderStatus }).eq('id', order.id);
       await supabase.from('tickets').update({ status: 'revoked', revoked_reason: `Payment ${payment.status}`, revoked_at: new Date().toISOString() }).eq('order_id', order.id).eq('status', 'pending');
+
+      if (order.product_type === 'seat') {
+        try {
+          const { data: seatRows } = await supabase
+            .from('ticket_seats')
+            .select('seat_id')
+            .eq('order_id', order.id);
+          if (seatRows && seatRows.length > 0) {
+            const seatIds = seatRows.map((r: any) => r.seat_id);
+            await supabase.from('seats').update({ status: 'available' }).in('id', seatIds);
+          }
+          await supabase.from('seat_holds')
+            .update({ status: 'released' })
+            .eq('session_id', order.session_id)
+            .eq('event_id', order.event_id)
+            .eq('status', 'held');
+        } catch (seatError) {
+          console.error('Error releasing seats:', seatError);
+        }
+      }
 
       // Legacy: release reserved stock for old hold-based orders
       if (order.reserved_items && Array.isArray(order.reserved_items)) {

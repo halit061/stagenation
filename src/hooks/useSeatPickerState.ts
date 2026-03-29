@@ -372,6 +372,7 @@ export function useSeatPickerState(eventId: string, ticketTypeId?: string) {
           event_id: eventId,
           session_id: getSessionId(),
           extended: false,
+          ticket_type_id: ticketTypeId,
         });
       } else if (result.error === 'seats_unavailable' && result.unavailable_seats) {
         const unavailIds = new Set(result.unavailable_seats);

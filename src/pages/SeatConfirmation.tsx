@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { CheckCircle, Copy, Calendar, MapPin, Share2, ArrowLeft, Download, Ticket } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { CheckCircle, Copy, Calendar, MapPin, Share2, ArrowLeft, Download, Ticket, Loader2, XCircle, RefreshCw } from 'lucide-react';
+import QRCode from 'qrcode';
 import {
   fetchOrderById,
   fetchOrderSeats,
@@ -25,6 +26,8 @@ interface OrderData {
   total_amount: number;
   service_fee_amount: number;
   payment_method: string | null;
+  status: string;
+  verification_code: string | null;
   metadata: any;
   created_at: string;
 }
@@ -37,6 +40,23 @@ interface SeatInfo {
   section_name: string;
   section_color: string;
   price: number;
+  ticket_code: string | null;
+  qr_data: string | null;
+}
+
+function QRCodeImage({ data, size = 160 }: { data: string; size?: number }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (!canvasRef.current || !data) return;
+    QRCode.toCanvas(canvasRef.current, data, {
+      width: size,
+      margin: 2,
+      color: { dark: '#000000', light: '#ffffff' },
+    }).catch(() => {});
+  }, [data, size]);
+
+  return <canvas ref={canvasRef} className="rounded-lg" />;
 }
 
 export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
@@ -48,27 +68,62 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
   const [seats, setSeats] = useState<SeatInfo[]>([]);
   const [copied, setCopied] = useState(false);
   const [animReady, setAnimReady] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState<string>('loading');
+  const pollRef = useRef(0);
 
   const dateLocale = language === 'de' ? 'de-DE' : language === 'fr' ? 'fr-FR' : language === 'tr' ? 'tr-TR' : 'nl-NL';
 
   useEffect(() => {
     let cancelled = false;
+    let pollCount = 0;
 
-    async function load() {
+    async function loadOrder() {
       try {
-        const [orderData, ev] = await Promise.all([
-          fetchOrderById(orderId),
-          fetchEventInfo(eventId),
-        ]);
-
+        const orderData = await fetchOrderById(orderId);
         if (cancelled) return;
-        if (!orderData || !ev) {
+
+        if (!orderData) {
           setError(st(language, 'confirm.notFound'));
+          setPaymentStatus('error');
           setLoading(false);
           return;
         }
 
+        const status = orderData.status;
         setOrder(orderData as OrderData);
+
+        if (status === 'paid') {
+          setPaymentStatus('paid');
+          await loadFullData(orderData);
+          if (!cancelled) {
+            setLoading(false);
+            setTimeout(() => setAnimReady(true), 100);
+          }
+        } else if (['payment_failed', 'payment_canceled', 'payment_expired', 'failed', 'cancelled'].includes(status)) {
+          setPaymentStatus('failed');
+          setLoading(false);
+        } else {
+          setPaymentStatus('pending');
+          setLoading(false);
+          pollCount++;
+          if (pollCount < 30) {
+            const delay = Math.min(2000 * Math.pow(1.3, pollCount - 1), 10000);
+            pollRef.current = window.setTimeout(() => { if (!cancelled) loadOrder(); }, delay);
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setError(st(language, 'confirm.notFound'));
+          setPaymentStatus('error');
+          setLoading(false);
+        }
+      }
+    }
+
+    async function loadFullData(orderData: any) {
+      try {
+        const ev = await fetchEventInfo(eventId);
+        if (cancelled) return;
         setEventInfo(ev);
 
         const ticketSeats = await fetchOrderSeats(orderId);
@@ -94,6 +149,8 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
             section_name: section?.name || st(language, 'confirm.unknown'),
             section_color: section?.color || '#64748b',
             price: Number(ts.price_paid),
+            ticket_code: ts.ticket_code || null,
+            qr_data: ts.qr_data || null,
           };
         });
 
@@ -104,18 +161,14 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
         );
 
         setSeats(seatInfos);
-        setLoading(false);
-        setTimeout(() => setAnimReady(true), 100);
-      } catch (err: any) {
-        if (!cancelled) {
-          setError(err.message || st(language, 'confirm.notFound'));
-          setLoading(false);
-        }
-      }
+      } catch {}
     }
 
-    load();
-    return () => { cancelled = true; };
+    loadOrder();
+    return () => {
+      cancelled = true;
+      if (pollRef.current) clearTimeout(pollRef.current);
+    };
   }, [orderId, eventId, language]);
 
   const handleCopy = useCallback(async () => {
@@ -135,9 +188,7 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
       url: window.location.origin + `/seat-picker?event=${eventId}`,
     };
     if (navigator.share) {
-      try {
-        await navigator.share(shareData);
-      } catch {}
+      try { await navigator.share(shareData); } catch {}
     } else {
       try {
         await navigator.clipboard.writeText(shareData.url);
@@ -146,6 +197,10 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
       } catch {}
     }
   }, [eventInfo, eventId]);
+
+  const handlePrint = useCallback(() => {
+    window.print();
+  }, []);
 
   const formattedDate = useMemo(() => {
     if (!eventInfo?.start_date) return '';
@@ -186,19 +241,51 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
             <div className="h-7 w-48 skeleton rounded mb-2" />
             <div className="h-4 w-56 skeleton rounded" />
           </div>
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-            <div className="h-4 w-28 skeleton rounded mb-2 mx-auto" />
-            <div className="h-6 w-36 skeleton rounded mx-auto" />
+        </div>
+      </div>
+    );
+  }
+
+  if (paymentStatus === 'pending') {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+        <div className="text-center max-w-md">
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-blue-500/15 mb-6">
+            <Loader2 className="w-10 h-10 text-blue-400 animate-spin" />
           </div>
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-            <div className="h-5 w-44 skeleton rounded" />
-            <div className="h-4 w-56 skeleton rounded" />
-            <div className="h-4 w-40 skeleton rounded" />
+          <h2 className="text-2xl font-bold text-white mb-2">{st(language, 'confirm.paymentPending') || 'Betaling wordt verwerkt...'}</h2>
+          <p className="text-slate-400 mb-6">{st(language, 'confirm.paymentPendingDesc') || 'Je betaling wordt verwerkt. Dit kan even duren. Sluit deze pagina niet.'}</p>
+          <div className="flex items-center justify-center gap-2 text-slate-500 text-sm">
+            <RefreshCw className="w-4 h-4 animate-spin" />
+            <span>{st(language, 'confirm.autoRefresh') || 'Automatisch vernieuwen...'}</span>
           </div>
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-2">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-10 skeleton rounded-lg" />
-            ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (paymentStatus === 'failed') {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+        <div className="text-center max-w-md">
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-500/15 mb-6">
+            <XCircle className="w-10 h-10 text-red-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">{st(language, 'confirm.paymentFailed') || 'Betaling mislukt'}</h2>
+          <p className="text-slate-400 mb-6">{st(language, 'confirm.paymentFailedDesc') || 'Je betaling kon niet worden verwerkt. Je stoelen zijn weer beschikbaar.'}</p>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => onNavigate(`seat-picker?event=${eventId}`)}
+              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl transition-colors"
+            >
+              {st(language, 'confirm.tryAgain') || 'Opnieuw proberen'}
+            </button>
+            <button
+              onClick={() => onNavigate('home')}
+              className="px-6 py-3 border border-slate-700 text-slate-300 hover:bg-slate-800 font-medium rounded-xl transition-colors"
+            >
+              {st(language, 'picker.backHome')}
+            </button>
           </div>
         </div>
       </div>
@@ -267,6 +354,11 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
             </button>
           </div>
           {copied && <p className="text-emerald-400 text-xs mt-1" role="status">{st(language, 'confirm.copied')}</p>}
+          {order.verification_code && (
+            <p className="text-slate-500 text-xs mt-2">
+              {st(language, 'confirm.verificationCode') || 'Verificatiecode'}: <span className="font-mono font-bold text-slate-300">{order.verification_code}</span>
+            </p>
+          )}
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
@@ -297,6 +389,7 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
                   <th className="text-left px-5 py-2 font-medium">{st(language, 'confirm.sectionHeader')}</th>
                   <th className="text-left px-3 py-2 font-medium">{st(language, 'confirm.rowHeader')}</th>
                   <th className="text-left px-3 py-2 font-medium">{st(language, 'confirm.seatHeader')}</th>
+                  <th className="text-left px-3 py-2 font-medium">Code</th>
                   <th className="text-right px-5 py-2 font-medium">{st(language, 'confirm.priceHeader')}</th>
                 </tr>
               </thead>
@@ -319,6 +412,11 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
                         <span className="ml-1.5 text-[10px] font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded">VIP</span>
                       )}
                     </td>
+                    <td className="px-3 py-2.5">
+                      {seat.ticket_code && (
+                        <span className="font-mono text-xs text-cyan-400 bg-cyan-400/10 px-2 py-0.5 rounded select-all">{seat.ticket_code}</span>
+                      )}
+                    </td>
                     <td className="px-5 py-2.5 text-right text-white font-medium tabular-nums">EUR {seat.price.toFixed(2)}</td>
                   </tr>
                 ))}
@@ -334,14 +432,19 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
                   <span className="text-xs font-semibold text-slate-400 uppercase">{sectionName}</span>
                 </div>
                 {sectionSeats.map(seat => (
-                  <div key={seat.id} className={`flex justify-between px-3 py-2 rounded-lg ${seat.seat_type === 'vip' ? 'bg-amber-500/5' : 'bg-slate-800/30'}`}>
-                    <span className="text-slate-300 text-sm">
-                      {st(language, 'picker.row')} {seat.row_label} - {st(language, 'picker.seatLabel')} {seat.seat_number}
-                      {seat.seat_type === 'vip' && (
-                        <span className="ml-1.5 text-[10px] font-bold text-amber-400">VIP</span>
-                      )}
-                    </span>
-                    <span className="text-white font-medium text-sm tabular-nums">EUR {seat.price.toFixed(2)}</span>
+                  <div key={seat.id} className={`px-3 py-2 rounded-lg ${seat.seat_type === 'vip' ? 'bg-amber-500/5' : 'bg-slate-800/30'}`}>
+                    <div className="flex justify-between">
+                      <span className="text-slate-300 text-sm">
+                        {st(language, 'picker.row')} {seat.row_label} - {st(language, 'picker.seatLabel')} {seat.seat_number}
+                        {seat.seat_type === 'vip' && (
+                          <span className="ml-1.5 text-[10px] font-bold text-amber-400">VIP</span>
+                        )}
+                      </span>
+                      <span className="text-white font-medium text-sm tabular-nums">EUR {seat.price.toFixed(2)}</span>
+                    </div>
+                    {seat.ticket_code && (
+                      <span className="font-mono text-[10px] text-cyan-400 mt-0.5 block select-all">{seat.ticket_code}</span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -353,10 +456,12 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
               <span className="text-slate-400">{st(language, 'checkout.subtotal')}</span>
               <span className="text-slate-300 tabular-nums">EUR {subtotal.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-400">{st(language, 'checkout.serviceFee')}</span>
-              <span className="text-slate-300 tabular-nums">EUR {serviceFeeVal.toFixed(2)}</span>
-            </div>
+            {serviceFeeVal > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400">{st(language, 'checkout.serviceFee')}</span>
+                <span className="text-slate-300 tabular-nums">EUR {serviceFeeVal.toFixed(2)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-base font-bold pt-2 border-t border-slate-700">
               <span className="text-white">{st(language, 'checkout.totalLabel')}</span>
               <span className="text-white tabular-nums">EUR {totalAmount.toFixed(2)}</span>
@@ -378,25 +483,42 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
           </p>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-          <div className="flex items-center gap-3 mb-4">
-            <Ticket className="w-5 h-5 text-slate-400" aria-hidden="true" />
-            <h3 className="text-white font-semibold text-base">{st(language, 'confirm.yourTickets')}</h3>
-          </div>
-          <p className="text-slate-400 text-sm mb-4">{st(language, 'confirm.ticketsSoon')}</p>
-          <div className="flex items-center justify-center mb-4">
-            <div className="w-32 h-32 bg-slate-800 rounded-xl flex items-center justify-center border border-slate-700">
-              <span className="text-slate-500 text-2xl font-mono font-bold">QR</span>
+        {seats.some(s => s.qr_data) && (
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div className="flex items-center gap-3 mb-4">
+              <Ticket className="w-5 h-5 text-slate-400" aria-hidden="true" />
+              <h3 className="text-white font-semibold text-base">{st(language, 'confirm.yourTickets')}</h3>
             </div>
+            <p className="text-slate-400 text-sm mb-5">{st(language, 'confirm.showQR') || 'Toon deze QR code(s) bij de ingang.'}</p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {seats.filter(s => s.qr_data).map(seat => (
+                <div
+                  key={seat.id}
+                  className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 flex flex-col items-center gap-3"
+                >
+                  <QRCodeImage data={seat.qr_data!} size={160} />
+                  <div className="text-center">
+                    <p className="text-white text-sm font-medium">
+                      {seat.section_name} — {st(language, 'picker.row')} {seat.row_label}, {st(language, 'picker.seatLabel')} {seat.seat_number}
+                    </p>
+                    {seat.ticket_code && (
+                      <p className="font-mono text-xs text-cyan-400 mt-1 select-all">{seat.ticket_code}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={handlePrint}
+              className="w-full mt-5 py-3 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-xl flex items-center justify-center gap-2 transition-colors"
+            >
+              <Download className="w-4 h-4" aria-hidden="true" />
+              {st(language, 'confirm.printTickets') || 'Print tickets'}
+            </button>
           </div>
-          <button
-            disabled
-            className="w-full py-3 bg-slate-800 text-slate-500 font-medium rounded-xl flex items-center justify-center gap-2 cursor-not-allowed"
-          >
-            <Download className="w-4 h-4" aria-hidden="true" />
-            {st(language, 'confirm.soonAvailable')}
-          </button>
-        </div>
+        )}
 
         <div className="flex flex-col sm:flex-row gap-3 print:hidden">
           <button
