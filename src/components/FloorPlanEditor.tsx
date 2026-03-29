@@ -1,14 +1,17 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Save, Trash2, ZoomIn, ZoomOut, Maximize2, Move, Grid3x3, Square, Circle, Copy, Rows3, Armchair, CreditCard as Edit } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Save, Trash2, ZoomIn, ZoomOut, Maximize2, Move, Grid3x3, Square, Circle, Copy, Rows3, Armchair, CreditCard as Edit, BoxSelect } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useToast } from './Toast';
 import { LayoutToolbar } from './LayoutToolbar';
 import { SectionConfigModal } from './SectionConfigModal';
 import { SeatSectionRenderer } from './SeatSectionRenderer';
 import { SectionPropertiesPanel } from './SectionPropertiesPanel';
+import { SeatInteractionLayer } from './SeatInteractionLayer';
+import { SeatPropertiesPanel } from './SeatPropertiesPanel';
+import { SelectionCounter } from './SelectionCounter';
 import type { SectionFormData } from './SectionConfigModal';
 import type { VenueLayout, SeatSection, Seat } from '../types/seats';
-import { getSectionsByLayout, createSection, updateSection, deleteSection, generateSeats, getSeatsBySection } from '../services/seatService';
+import { getSectionsByLayout, createSection, updateSection, deleteSection, generateSeats, getSeatsBySection, updateSeat as updateSeatDb } from '../services/seatService';
 
 interface FloorplanTable {
   id: string;
@@ -97,6 +100,8 @@ export function FloorPlanEditor() {
   const [sectionSaving, setSectionSaving] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; section: SeatSection } | null>(null);
   const [sectionSeats, setSectionSeats] = useState<Record<string, Seat[]>>({});
+  const [selectedSeatIds, setSelectedSeatIds] = useState<Set<string>>(new Set());
+  const [marqueeActive, setMarqueeActive] = useState(false);
 
   useEffect(() => {
     loadAll();
@@ -136,6 +141,7 @@ export function FloorPlanEditor() {
   function handleLayoutChange(layout: VenueLayout | null) {
     setCurrentLayout(layout);
     setSelectedItem(null);
+    setSelectedSeatIds(new Set());
     if (layout) {
       setLayoutName(layout.name);
       loadSections(layout.id);
@@ -149,6 +155,7 @@ export function FloorPlanEditor() {
     setSeatSections([]);
     setSectionSeats({});
     setSelectedItem(null);
+    setSelectedSeatIds(new Set());
   }
 
   function getLayoutData(): Record<string, unknown> {
@@ -331,6 +338,43 @@ export function FloorPlanEditor() {
     }
     setSectionSaving(false);
   }
+
+  const selectedSeats = useMemo(() => {
+    if (selectedSeatIds.size === 0) return [];
+    const result: Seat[] = [];
+    for (const seats of Object.values(sectionSeats)) {
+      for (const s of seats) {
+        if (selectedSeatIds.has(s.id)) result.push(s);
+      }
+    }
+    return result;
+  }, [selectedSeatIds, sectionSeats]);
+
+  const handleSeatSelectionChange = useCallback((ids: Set<string>) => {
+    setSelectedSeatIds(ids);
+    if (ids.size > 0) setSelectedItem(null);
+  }, []);
+
+  const handleUpdateSeats = useCallback(async (
+    seatIds: string[],
+    updates: Partial<Pick<Seat, 'status' | 'seat_type' | 'price_override'>>
+  ) => {
+    try {
+      await updateSeatDb(seatIds, updates);
+      setSectionSeats(prev => {
+        const next = { ...prev };
+        for (const [secId, seats] of Object.entries(next)) {
+          next[secId] = seats.map(s =>
+            seatIds.includes(s.id) ? { ...s, ...updates } as Seat : s
+          );
+        }
+        return next;
+      });
+      showToast('Stoelen bijgewerkt', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Fout bij bijwerken stoelen', 'error');
+    }
+  }, [showToast]);
 
   async function loadTables() {
     const { data, error } = await supabase
@@ -801,17 +845,18 @@ export function FloorPlanEditor() {
           }} icon={<Armchair className="w-5 h-5" />} label="Plein" hoverColor="hover:bg-teal-700" />
           <div className="border-t border-slate-600 my-1" />
           <ToolButton active={showGrid} onClick={() => setShowGrid(!showGrid)} icon={<Grid3x3 className="w-5 h-5" />} label="Grid" />
+          <ToolButton active={marqueeActive} onClick={() => setMarqueeActive(!marqueeActive)} icon={<BoxSelect className="w-5 h-5" />} label="Gebied" hoverColor="hover:bg-blue-600" />
         </div>
 
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-0">
           <div className="lg:col-span-3 p-3">
             <div
-              className="bg-slate-950 rounded-lg overflow-auto"
+              className="bg-slate-950 rounded-lg overflow-auto relative"
               style={{ height: '800px' }}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
-              onClick={() => { if (!isDragging && !isResizing) { setSelectedItem(null); setContextMenu(null); } }}
+              onClick={() => { if (!isDragging && !isResizing) { setSelectedItem(null); setContextMenu(null); if (!marqueeActive) setSelectedSeatIds(new Set()); } }}
             >
               <svg
                 ref={svgRef}
@@ -896,16 +941,16 @@ export function FloorPlanEditor() {
 
                 {seatSections.map((section) => {
                   const isSel = selectedItem?.type === 'section' && selectedItem.data.id === section.id;
+                  const seatCount = (sectionSeats[section.id] || []).length;
                   return (
                     <SeatSectionRenderer
                       key={`sec-${section.id}`}
                       section={section}
-                      seats={sectionSeats[section.id] || []}
-                      zoom={zoom}
+                      seatCount={seatCount}
                       isSelected={isSel}
                       currentTool={currentTool}
                       onMouseDown={(e) => handleItemMouseDown(e, { type: 'section', data: section })}
-                      onClick={(e) => { e.stopPropagation(); setSelectedItem({ type: 'section', data: section }); }}
+                      onClick={(e) => { e.stopPropagation(); setSelectedItem({ type: 'section', data: section }); setSelectedSeatIds(new Set()); }}
                       onDoubleClick={(e) => { e.stopPropagation(); openEditSection(section); }}
                       onContextMenu={(e) => {
                         e.preventDefault();
@@ -918,6 +963,17 @@ export function FloorPlanEditor() {
                     />
                   );
                 })}
+
+                <SeatInteractionLayer
+                  sections={seatSections}
+                  sectionSeats={sectionSeats}
+                  selectedSeatIds={selectedSeatIds}
+                  onSelectionChange={handleSeatSelectionChange}
+                  svgRef={svgRef}
+                  zoom={zoom}
+                  isSelectTool={currentTool === 'select'}
+                  marqueeActive={marqueeActive}
+                />
 
                 {tables.map((table) => {
                   const isSelected = selectedItem?.type === 'table' && selectedItem.data.id === table.id;
@@ -957,11 +1013,19 @@ export function FloorPlanEditor() {
                   );
                 })}
               </svg>
+              <SelectionCounter count={selectedSeatIds.size} onClear={() => setSelectedSeatIds(new Set())} />
             </div>
           </div>
 
           <div className="p-3 space-y-3 bg-slate-800/30 border-l border-slate-700 overflow-y-auto" style={{ maxHeight: '836px' }}>
-            {selectedItem ? (
+            {selectedSeatIds.size > 0 ? (
+              <SeatPropertiesPanel
+                selectedSeats={selectedSeats}
+                sections={seatSections}
+                onDeselectAll={() => setSelectedSeatIds(new Set())}
+                onUpdateSeats={handleUpdateSeats}
+              />
+            ) : selectedItem ? (
               selectedItem.type === 'section' ? (
                 <SectionPropertiesPanel
                   section={selectedItem.data as SeatSection}

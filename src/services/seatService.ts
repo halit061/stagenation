@@ -391,6 +391,18 @@ export async function updateSeatPrice(
   if (error) throw error;
 }
 
+export async function updateSeat(
+  seatIds: string[],
+  updates: Partial<Pick<Seat, 'status' | 'seat_type' | 'price_override'>>
+): Promise<void> {
+  await requireAuth();
+  const { error } = await supabase
+    .from('seats')
+    .update(updates)
+    .in('id', seatIds);
+  if (error) throw error;
+}
+
 export async function deleteSeatsBySection(sectionId: string): Promise<void> {
   await requireAuth();
   const { error } = await supabase

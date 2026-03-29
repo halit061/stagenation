@@ -1,0 +1,612 @@
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import type { SeatSection, Seat, SeatStatus, SeatType } from '../types/seats';
+
+const HEADER_H = 24;
+const PAD = 10;
+const SEAT_R = 5;
+const SEAT_R_HOVER = 6.5;
+const TOOLTIP_DELAY = 200;
+
+const STATUS_COLOR: Record<SeatStatus, string> = {
+  available: '#22c55e',
+  blocked: '#4b5563',
+  reserved: '#f59e0b',
+  sold: '#ef4444',
+};
+
+const STATUS_LABEL: Record<SeatStatus, string> = {
+  available: 'Beschikbaar',
+  blocked: 'Geblokkeerd',
+  reserved: 'Gereserveerd',
+  sold: 'Verkocht',
+};
+
+const STATUS_TEXT_COLOR: Record<SeatStatus, string> = {
+  available: '#4ade80',
+  blocked: '#9ca3af',
+  reserved: '#fbbf24',
+  sold: '#f87171',
+};
+
+const TYPE_LABEL: Record<string, string> = {
+  vip: 'VIP',
+  wheelchair: 'Rolstoel',
+  companion: 'Begeleidersplek',
+  restricted_view: 'Beperkt zicht',
+};
+
+interface ComputedSeat extends Seat {
+  cx: number;
+  cy: number;
+  sectionId: string;
+}
+
+export interface SeatSelectionInfo {
+  selectedIds: Set<string>;
+  seatMap: Map<string, ComputedSeat>;
+}
+
+interface Props {
+  sections: SeatSection[];
+  sectionSeats: Record<string, Seat[]>;
+  selectedSeatIds: Set<string>;
+  onSelectionChange: (ids: Set<string>) => void;
+  svgRef: React.RefObject<SVGSVGElement | null>;
+  zoom: number;
+  isSelectTool: boolean;
+  marqueeActive: boolean;
+}
+
+function computeSeatPositions(section: SeatSection, seats: Seat[]): ComputedSeat[] {
+  if (seats.length === 0) return [];
+  const sx = section.position_x;
+  const sy = section.position_y;
+  const sw = section.width;
+  const sh = section.height;
+  const bodyTop = sy + HEADER_H + PAD;
+  const bodyH = sh - HEADER_H - PAD * 2;
+  const bodyW = sw - PAD * 2;
+  const centerX = sx + sw / 2;
+
+  const minX = Math.min(...seats.map((s) => s.x_position));
+  const maxX = Math.max(...seats.map((s) => s.x_position));
+  const minY = Math.min(...seats.map((s) => s.y_position));
+  const maxY = Math.max(...seats.map((s) => s.y_position));
+  const rangeX = maxX - minX || 1;
+  const rangeY = maxY - minY || 1;
+  const useScaling = rangeX > bodyW || rangeY > bodyH;
+  const scaleX = bodyW / rangeX;
+  const scaleY = bodyH / rangeY;
+
+  return seats.map((seat) => {
+    let cx: number;
+    let cy: number;
+    if (useScaling) {
+      cx = sx + PAD + (seat.x_position - minX) * scaleX;
+      cy = bodyTop + (seat.y_position - minY) * scaleY;
+    } else {
+      cx = centerX + seat.x_position;
+      cy = bodyTop + seat.y_position - minY;
+      if (cy > sy + sh - PAD) cy = sy + sh - PAD;
+    }
+    return { ...seat, cx, cy, sectionId: section.id };
+  });
+}
+
+function SeatIcon({ seat, r }: { seat: ComputedSeat; r: number }) {
+  const st = seat.seat_type as SeatType;
+  const tiny = r * 0.45;
+
+  if (st === 'vip' && seat.status === 'available') {
+    return (
+      <>
+        <polygon
+          points={`${seat.cx},${seat.cy - tiny * 1.1} ${seat.cx + tiny * 0.4},${seat.cy - tiny * 0.2} ${seat.cx + tiny * 1.1},${seat.cy - tiny * 0.2} ${seat.cx + tiny * 0.55},${seat.cy + tiny * 0.35} ${seat.cx + tiny * 0.75},${seat.cy + tiny * 1.1} ${seat.cx},${seat.cy + tiny * 0.6} ${seat.cx - tiny * 0.75},${seat.cy + tiny * 1.1} ${seat.cx - tiny * 0.55},${seat.cy + tiny * 0.35} ${seat.cx - tiny * 1.1},${seat.cy - tiny * 0.2} ${seat.cx - tiny * 0.4},${seat.cy - tiny * 0.2}`}
+          fill="white" fillOpacity={0.9}
+          className="pointer-events-none"
+        />
+      </>
+    );
+  }
+  if (st === 'wheelchair' && seat.status === 'available') {
+    return (
+      <g className="pointer-events-none">
+        <circle cx={seat.cx} cy={seat.cy + tiny * 0.2} r={tiny * 0.7} fill="none" stroke="white" strokeWidth={0.8} />
+        <line x1={seat.cx} y1={seat.cy - tiny} x2={seat.cx} y2={seat.cy + tiny * 0.2} stroke="white" strokeWidth={0.8} />
+        <line x1={seat.cx} y1={seat.cy - tiny * 0.2} x2={seat.cx + tiny * 0.5} y2={seat.cy - tiny * 0.2} stroke="white" strokeWidth={0.8} />
+      </g>
+    );
+  }
+  if (st === 'restricted_view' && seat.status === 'available') {
+    return (
+      <line
+        x1={seat.cx - tiny} y1={seat.cy + tiny}
+        x2={seat.cx + tiny} y2={seat.cy - tiny}
+        stroke="white" strokeWidth={1} strokeOpacity={0.8}
+        className="pointer-events-none"
+      />
+    );
+  }
+  if (seat.status === 'blocked') {
+    return (
+      <g className="pointer-events-none">
+        <line x1={seat.cx - tiny * 0.6} y1={seat.cy - tiny * 0.6} x2={seat.cx + tiny * 0.6} y2={seat.cy + tiny * 0.6} stroke="white" strokeWidth={0.8} strokeOpacity={0.7} />
+        <line x1={seat.cx + tiny * 0.6} y1={seat.cy - tiny * 0.6} x2={seat.cx - tiny * 0.6} y2={seat.cy + tiny * 0.6} stroke="white" strokeWidth={0.8} strokeOpacity={0.7} />
+      </g>
+    );
+  }
+  return null;
+}
+
+function getRowGroups(seats: ComputedSeat[]): Map<string, ComputedSeat[]> {
+  const groups = new Map<string, ComputedSeat[]>();
+  for (const s of seats) {
+    const key = `${s.sectionId}:${s.row_label}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(s);
+  }
+  return groups;
+}
+
+export function SeatInteractionLayer({
+  sections,
+  sectionSeats,
+  selectedSeatIds,
+  onSelectionChange,
+  svgRef,
+  zoom,
+  isSelectTool,
+  marqueeActive,
+}: Props) {
+  const [hoveredSeat, setHoveredSeat] = useState<ComputedSeat | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [marqueeRect, setMarqueeRect] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  const marqueeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const isDraggingMarquee = useRef(false);
+
+  const allComputedSeats = useMemo(() => {
+    const result: ComputedSeat[] = [];
+    for (const section of sections) {
+      const seats = sectionSeats[section.id] || [];
+      result.push(...computeSeatPositions(section, seats));
+    }
+    return result;
+  }, [sections, sectionSeats]);
+
+  const seatById = useMemo(() => {
+    const map = new Map<string, ComputedSeat>();
+    for (const s of allComputedSeats) map.set(s.id, s);
+    return map;
+  }, [allComputedSeats]);
+
+  const rowGroups = useMemo(() => getRowGroups(allComputedSeats), [allComputedSeats]);
+
+  const rowLabels = useMemo(() => {
+    const labels: { sectionId: string; label: string; x: number; y: number }[] = [];
+    for (const section of sections) {
+      const sectionComputedSeats = allComputedSeats.filter(s => s.sectionId === section.id);
+      const rows = new Map<string, ComputedSeat[]>();
+      for (const s of sectionComputedSeats) {
+        if (!rows.has(s.row_label)) rows.set(s.row_label, []);
+        rows.get(s.row_label)!.push(s);
+      }
+      for (const [label, seats] of rows) {
+        const minX = Math.min(...seats.map(s => s.cx));
+        const avgY = seats.reduce((sum, s) => sum + s.cy, 0) / seats.length;
+        labels.push({ sectionId: section.id, label, x: minX - 12, y: avgY });
+      }
+    }
+    return labels;
+  }, [sections, allComputedSeats]);
+
+  function getSvgPoint(e: React.MouseEvent | MouseEvent) {
+    const svg = svgRef.current;
+    if (!svg) return { x: 0, y: 0 };
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return { x: 0, y: 0 };
+    const svgP = pt.matrixTransform(ctm.inverse());
+    return { x: svgP.x, y: svgP.y };
+  }
+
+  function findSeatAt(svgX: number, svgY: number): ComputedSeat | null {
+    const hitR = Math.max(SEAT_R + 2, (SEAT_R + 2) / zoom);
+    let closest: ComputedSeat | null = null;
+    let closestDist = Infinity;
+    for (const s of allComputedSeats) {
+      const dx = s.cx - svgX;
+      const dy = s.cy - svgY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist <= hitR && dist < closestDist) {
+        closest = s;
+        closestDist = dist;
+      }
+    }
+    return closest;
+  }
+
+  const handleSeatClick = useCallback((e: React.MouseEvent, seat: ComputedSeat) => {
+    e.stopPropagation();
+    if (!isSelectTool) return;
+
+    const newSet = new Set(selectedSeatIds);
+
+    if (e.shiftKey) {
+      const lastSelected = [...selectedSeatIds].pop();
+      if (lastSelected) {
+        const lastSeat = seatById.get(lastSelected);
+        if (lastSeat && lastSeat.sectionId === seat.sectionId && lastSeat.row_label === seat.row_label) {
+          const key = `${seat.sectionId}:${seat.row_label}`;
+          const rowSeats = rowGroups.get(key) || [];
+          const sorted = [...rowSeats].sort((a, b) => a.seat_number - b.seat_number);
+          const idxA = sorted.findIndex(s => s.id === lastSelected);
+          const idxB = sorted.findIndex(s => s.id === seat.id);
+          const [lo, hi] = idxA < idxB ? [idxA, idxB] : [idxB, idxA];
+          for (let i = lo; i <= hi; i++) newSet.add(sorted[i].id);
+          onSelectionChange(newSet);
+          return;
+        }
+      }
+      if (newSet.has(seat.id)) newSet.delete(seat.id);
+      else newSet.add(seat.id);
+    } else {
+      if (newSet.has(seat.id)) {
+        newSet.delete(seat.id);
+      } else {
+        newSet.add(seat.id);
+      }
+    }
+    onSelectionChange(newSet);
+  }, [isSelectTool, selectedSeatIds, onSelectionChange, seatById, rowGroups]);
+
+  const handleRowLabelClick = useCallback((e: React.MouseEvent, sectionId: string, label: string) => {
+    e.stopPropagation();
+    if (!isSelectTool) return;
+    const key = `${sectionId}:${label}`;
+    const rowSeats = rowGroups.get(key) || [];
+    const newSet = new Set(selectedSeatIds);
+
+    if (e.shiftKey) {
+      const lastSelected = [...selectedSeatIds].pop();
+      if (lastSelected) {
+        const lastSeat = seatById.get(lastSelected);
+        if (lastSeat && lastSeat.sectionId === sectionId) {
+          const sectionRows = [...rowGroups.entries()]
+            .filter(([k]) => k.startsWith(sectionId + ':'))
+            .map(([k, seats]) => ({ label: k.split(':')[1], seats }))
+            .sort((a, b) => a.label.localeCompare(b.label));
+          const idxA = sectionRows.findIndex(r => r.seats.some(s => s.id === lastSelected));
+          const idxB = sectionRows.findIndex(r => r.label === label);
+          if (idxA >= 0 && idxB >= 0) {
+            const [lo, hi] = idxA < idxB ? [idxA, idxB] : [idxB, idxA];
+            for (let i = lo; i <= hi; i++) {
+              for (const s of sectionRows[i].seats) newSet.add(s.id);
+            }
+            onSelectionChange(newSet);
+            return;
+          }
+        }
+      }
+    }
+
+    for (const s of rowSeats) newSet.add(s.id);
+    onSelectionChange(newSet);
+  }, [isSelectTool, selectedSeatIds, onSelectionChange, rowGroups, seatById]);
+
+  const handleSectionHeaderClick = useCallback((e: React.MouseEvent, sectionId: string) => {
+    e.stopPropagation();
+    if (!isSelectTool) return;
+    const sectionComputedSeats = allComputedSeats.filter(s => s.sectionId === sectionId);
+    const newSet = new Set(selectedSeatIds);
+    for (const s of sectionComputedSeats) newSet.add(s.id);
+    onSelectionChange(newSet);
+  }, [isSelectTool, selectedSeatIds, onSelectionChange, allComputedSeats]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (marqueeActive && isDraggingMarquee.current && marqueeStartRef.current) {
+      const p = getSvgPoint(e);
+      setMarqueeRect({
+        x1: marqueeStartRef.current.x,
+        y1: marqueeStartRef.current.y,
+        x2: p.x,
+        y2: p.y,
+      });
+      return;
+    }
+
+    if (!isSelectTool) return;
+    const p = getSvgPoint(e);
+    const seat = findSeatAt(p.x, p.y);
+
+    if (seat && seat.id !== hoveredSeat?.id) {
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = setTimeout(() => {
+        setHoveredSeat(seat);
+        const svg = svgRef.current;
+        if (svg) {
+          const ctm = svg.getScreenCTM();
+          if (ctm) {
+            const screenX = seat.cx * ctm.a + ctm.e;
+            const screenY = seat.cy * ctm.d + ctm.f;
+            setTooltipPos({ x: screenX, y: screenY });
+          }
+        }
+      }, TOOLTIP_DELAY);
+    } else if (!seat && hoveredSeat) {
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+      setHoveredSeat(null);
+      setTooltipPos(null);
+    }
+  }, [isSelectTool, hoveredSeat, marqueeActive, svgRef, zoom]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (!marqueeActive || !isSelectTool) return;
+    const p = getSvgPoint(e);
+    marqueeStartRef.current = p;
+    isDraggingMarquee.current = true;
+    setMarqueeRect({ x1: p.x, y1: p.y, x2: p.x, y2: p.y });
+  }, [marqueeActive, isSelectTool]);
+
+  const handleMouseUp = useCallback((e: React.MouseEvent) => {
+    if (!isDraggingMarquee.current || !marqueeRect) {
+      isDraggingMarquee.current = false;
+      return;
+    }
+    isDraggingMarquee.current = false;
+
+    const x = Math.min(marqueeRect.x1, marqueeRect.x2);
+    const y = Math.min(marqueeRect.y1, marqueeRect.y2);
+    const w = Math.abs(marqueeRect.x2 - marqueeRect.x1);
+    const h = Math.abs(marqueeRect.y2 - marqueeRect.y1);
+
+    if (w < 3 && h < 3) {
+      setMarqueeRect(null);
+      return;
+    }
+
+    const newSet = e.shiftKey ? new Set(selectedSeatIds) : new Set<string>();
+    for (const seat of allComputedSeats) {
+      if (seat.cx >= x && seat.cx <= x + w && seat.cy >= y && seat.cy <= y + h) {
+        newSet.add(seat.id);
+      }
+    }
+    onSelectionChange(newSet);
+    setMarqueeRect(null);
+  }, [marqueeRect, selectedSeatIds, allComputedSeats, onSelectionChange]);
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        onSelectionChange(new Set());
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        if (selectedSeatIds.size === 0) return;
+        e.preventDefault();
+        const lastId = [...selectedSeatIds].pop();
+        if (!lastId) return;
+        const lastSeat = seatById.get(lastId);
+        if (!lastSeat) return;
+        const sectionComputedSeats = allComputedSeats.filter(s => s.sectionId === lastSeat.sectionId);
+        const newSet = new Set<string>();
+        for (const s of sectionComputedSeats) newSet.add(s.id);
+        onSelectionChange(newSet);
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedSeatIds, onSelectionChange, seatById, allComputedSeats]);
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    };
+  }, []);
+
+  const seatRadius = useMemo(() => {
+    if (allComputedSeats.length === 0) return SEAT_R;
+    let maxR = SEAT_R;
+    for (const section of sections) {
+      const spacingX = section.width / (section.seats_per_row || 1);
+      const spacingY = (section.height - HEADER_H - PAD * 2) / (section.rows_count || 1);
+      const minSpacing = Math.min(spacingX, spacingY);
+      const r = Math.max(2.5, Math.min(SEAT_R, minSpacing * 0.35));
+      if (r < maxR || maxR === SEAT_R) maxR = r;
+    }
+    return maxR;
+  }, [allComputedSeats.length, sections]);
+
+  const hoverRadius = seatRadius * (SEAT_R_HOVER / SEAT_R);
+
+  const marqueePreviewIds = useMemo(() => {
+    if (!marqueeRect) return new Set<string>();
+    const x = Math.min(marqueeRect.x1, marqueeRect.x2);
+    const y = Math.min(marqueeRect.y1, marqueeRect.y2);
+    const w = Math.abs(marqueeRect.x2 - marqueeRect.x1);
+    const h = Math.abs(marqueeRect.y2 - marqueeRect.y1);
+    const ids = new Set<string>();
+    for (const seat of allComputedSeats) {
+      if (seat.cx >= x && seat.cx <= x + w && seat.cy >= y && seat.cy <= y + h) {
+        ids.add(seat.id);
+      }
+    }
+    return ids;
+  }, [marqueeRect, allComputedSeats]);
+
+  const findSectionForSeat = useCallback((seatId: string) => {
+    const seat = seatById.get(seatId);
+    if (!seat) return null;
+    return sections.find(s => s.id === seat.sectionId) || null;
+  }, [seatById, sections]);
+
+  return (
+    <>
+      <g
+        onMouseMove={handleMouseMove}
+        onMouseDown={handleMouseDown}
+        onMouseUp={handleMouseUp}
+        style={{ pointerEvents: marqueeActive ? 'all' : 'none' }}
+      >
+        {marqueeActive && (
+          <rect x={0} y={0} width={9999} height={9999} fill="transparent" style={{ pointerEvents: 'all', cursor: 'crosshair' }} />
+        )}
+      </g>
+
+      {rowLabels.map((rl) => (
+        <text
+          key={`rl-${rl.sectionId}-${rl.label}`}
+          x={rl.x}
+          y={rl.y}
+          textAnchor="end"
+          dominantBaseline="middle"
+          fill="rgba(255,255,255,0.35)"
+          fontSize="9"
+          fontWeight="500"
+          style={{ cursor: isSelectTool ? 'pointer' : 'default', pointerEvents: isSelectTool ? 'all' : 'none' }}
+          onClick={(e) => handleRowLabelClick(e, rl.sectionId, rl.label)}
+        >
+          {rl.label}
+        </text>
+      ))}
+
+      {sections.map((section) => (
+        <rect
+          key={`header-click-${section.id}`}
+          x={section.position_x}
+          y={section.position_y}
+          width={section.width}
+          height={HEADER_H}
+          fill="transparent"
+          style={{ cursor: isSelectTool ? 'pointer' : 'default', pointerEvents: isSelectTool ? 'all' : 'none' }}
+          onClick={(e) => handleSectionHeaderClick(e, section.id)}
+        />
+      ))}
+
+      {allComputedSeats.map((seat) => {
+        const isSelected = selectedSeatIds.has(seat.id);
+        const isHovered = hoveredSeat?.id === seat.id;
+        const isMarqueePreview = marqueePreviewIds.has(seat.id);
+        const isReserved = seat.status === 'reserved';
+        const isVip = seat.seat_type === 'vip' && seat.status === 'available';
+        const baseColor = isVip ? '#eab308' : STATUS_COLOR[seat.status as SeatStatus] || '#22c55e';
+        const r = isHovered ? hoverRadius : seatRadius;
+
+        return (
+          <g key={seat.id} style={{ pointerEvents: isSelectTool ? 'all' : 'none' }}>
+            <circle
+              cx={seat.cx}
+              cy={seat.cy}
+              r={r}
+              fill={baseColor}
+              fillOpacity={isReserved ? undefined : 0.9}
+              stroke={isSelected ? '#ffffff' : isMarqueePreview ? '#93c5fd' : isVip ? '#fbbf24' : 'rgba(0,0,0,0.3)'}
+              strokeWidth={isSelected ? 2 : isMarqueePreview ? 1.5 : isVip ? 1.5 : 0.5}
+              className={`seat-hover-grow ${isReserved ? 'seat-reserved-pulse' : ''}`}
+              style={{
+                cursor: isSelectTool ? 'pointer' : 'default',
+                filter: isSelected ? 'drop-shadow(0 0 3px rgba(255,255,255,0.6))' : isHovered ? 'drop-shadow(0 0 2px rgba(255,255,255,0.3))' : undefined,
+              }}
+              onClick={(e) => handleSeatClick(e, seat)}
+              onMouseMove={handleMouseMove}
+            />
+            <SeatIcon seat={seat} r={r} />
+          </g>
+        );
+      })}
+
+      {marqueeRect && (
+        <rect
+          x={Math.min(marqueeRect.x1, marqueeRect.x2)}
+          y={Math.min(marqueeRect.y1, marqueeRect.y2)}
+          width={Math.abs(marqueeRect.x2 - marqueeRect.x1)}
+          height={Math.abs(marqueeRect.y2 - marqueeRect.y1)}
+          fill="rgba(59,130,246,0.08)"
+          stroke="#3b82f6"
+          strokeWidth={2}
+          strokeDasharray="6 4"
+          className="marquee-rect pointer-events-none"
+          rx="2"
+        />
+      )}
+
+      {hoveredSeat && tooltipPos && <SeatTooltipPortal seat={hoveredSeat} pos={tooltipPos} findSection={findSectionForSeat} />}
+    </>
+  );
+}
+
+function SeatTooltipPortal({ seat, pos, findSection }: {
+  seat: ComputedSeat;
+  pos: { x: number; y: number };
+  findSection: (id: string) => SeatSection | null;
+}) {
+  const section = findSection(seat.id);
+  const price = seat.price_override ?? section?.price_amount ?? 0;
+  const aboveSpace = pos.y > 80;
+  const top = aboveSpace ? pos.y - 10 : pos.y + 20;
+  const transform = aboveSpace ? 'translate(-50%, -100%)' : 'translate(-50%, 0)';
+
+  return (
+    <foreignObject x={0} y={0} width={1} height={1} overflow="visible" className="pointer-events-none" style={{ position: 'relative', zIndex: 9999 }}>
+      <div
+        className="seat-tooltip-enter"
+        style={{
+          position: 'fixed',
+          left: pos.x,
+          top,
+          transform,
+          background: 'rgba(0,0,0,0.92)',
+          color: 'white',
+          borderRadius: 8,
+          padding: '8px 12px',
+          fontSize: 12,
+          lineHeight: 1.5,
+          whiteSpace: 'nowrap',
+          zIndex: 9999,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+          pointerEvents: 'none',
+        }}
+      >
+        <div style={{ fontWeight: 700, fontSize: 13 }}>
+          Rij {seat.row_label} - Stoel {seat.seat_number}
+        </div>
+        <div style={{ color: STATUS_TEXT_COLOR[seat.status as SeatStatus] || '#fff' }}>
+          {STATUS_LABEL[seat.status as SeatStatus] || seat.status}
+        </div>
+        {seat.seat_type !== 'regular' && (
+          <div style={{ color: '#a5b4fc' }}>
+            {TYPE_LABEL[seat.seat_type] || seat.seat_type}
+          </div>
+        )}
+        <div style={{ color: '#94a3b8' }}>
+          EUR {price.toFixed(2)}
+        </div>
+        <div
+          style={{
+            position: 'absolute',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: 0,
+            height: 0,
+            ...(aboveSpace ? {
+              bottom: -6,
+              borderLeft: '6px solid transparent',
+              borderRight: '6px solid transparent',
+              borderTop: '6px solid rgba(0,0,0,0.92)',
+            } : {
+              top: -6,
+              borderLeft: '6px solid transparent',
+              borderRight: '6px solid transparent',
+              borderBottom: '6px solid rgba(0,0,0,0.92)',
+            }),
+          }}
+        />
+      </div>
+    </foreignObject>
+  );
+}
+
+export { computeSeatPositions };
+export type { ComputedSeat };
