@@ -814,3 +814,24 @@ select {
   background: rgba(100, 116, 139, 0.5);
 }
 
+/* ============================================
+   CHECKOUT & CONFIRMATION ANIMATIONS
+   ============================================ */
+
+@keyframes confirmation-check-bounce-kf {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.15); opacity: 1; }
+  70% { transform: scale(0.95); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.confirmation-check-bounce {
+  animation: confirmation-check-bounce-kf 600ms ease-out;
+}
+
+@media print {
+  .print\\:hidden { display: none !important; }
+  .print\\:bg-white { background-color: white !important; }
+  body { background: white !important; }
+}
+

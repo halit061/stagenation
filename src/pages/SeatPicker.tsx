@@ -28,8 +28,8 @@ export function SeatPicker({ eventId, onNavigate }: Props) {
   }, []);
 
   const handleNavigateCheckout = useCallback(() => {
-    onNavigate(`tickets?event=${eventId}&seats=${[...state.selectedIds].join(',')}&holds=${state.holdIds.join(',')}`);
-  }, [onNavigate, eventId, state.selectedIds, state.holdIds]);
+    onNavigate(`seat-checkout?event=${eventId}`);
+  }, [onNavigate, eventId]);
 
   const handleBack = useCallback(() => {
     if (state.holdActive) {
