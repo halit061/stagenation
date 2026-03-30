@@ -1,6 +1,7 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { ArrowLeft, MapPin, Calendar, Users, WifiOff } from 'lucide-react';
 import { useSeatPickerState } from '../hooks/useSeatPickerState';
+import { fetchServiceFeeForSections } from '../services/seatCheckoutService';
 import { SeatPickerMap } from '../components/SeatPickerMap';
 import { SeatPickerSummary } from '../components/SeatPickerSummary';
 import { SeatPickerBottomSheet } from '../components/SeatPickerBottomSheet';
@@ -26,6 +27,15 @@ export function SeatPicker({ eventId, ticketTypeId, onNavigate }: Props) {
   const state = useSeatPickerState(eventId, ticketTypeId);
   const [viewport, setViewport] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [showNavGuard, setShowNavGuard] = useState(false);
+  const [feePerTicket, setFeePerTicket] = useState(0);
+
+  useEffect(() => {
+    if (state.sections.length === 0) return;
+    const sectionIds = state.sections.map(s => s.id);
+    fetchServiceFeeForSections(sectionIds, eventId)
+      .then(info => setFeePerTicket(info.feePerTicket))
+      .catch(() => {});
+  }, [state.sections, eventId]);
 
   const handleViewportChange = useCallback((vp: { x: number; y: number; w: number; h: number }) => {
     setViewport(vp);
@@ -66,7 +76,9 @@ export function SeatPicker({ eventId, ticketTypeId, onNavigate }: Props) {
   }, [state.dismissExpiredModal]);
 
   const selectedSeats = useMemo(() => state.getSelectedSeats(), [state.getSelectedSeats]);
-  const totalPrice = useMemo(() => state.getTotalPrice(), [state.getTotalPrice]);
+  const subtotal = useMemo(() => state.getTotalPrice(), [state.getTotalPrice]);
+  const serviceFee = feePerTicket * selectedSeats.length;
+  const totalPrice = subtotal + serviceFee;
 
   const restrictedSectionIds = useMemo(() => {
     if (!state.allowedSectionIds) return undefined;
@@ -276,6 +288,8 @@ export function SeatPicker({ eventId, ticketTypeId, onNavigate }: Props) {
             selectedSeats={selectedSeats}
             sections={state.sections}
             totalPrice={totalPrice}
+            serviceFee={serviceFee}
+            feePerTicket={feePerTicket}
             maxSeats={state.maxSeats}
             holdIds={state.holdIds}
             expiresAt={state.expiresAt}
@@ -295,6 +309,8 @@ export function SeatPicker({ eventId, ticketTypeId, onNavigate }: Props) {
         selectedSeats={selectedSeats}
         sections={state.sections}
         totalPrice={totalPrice}
+        serviceFee={serviceFee}
+        feePerTicket={feePerTicket}
         maxSeats={state.maxSeats}
         holdIds={state.holdIds}
         expiresAt={state.expiresAt}

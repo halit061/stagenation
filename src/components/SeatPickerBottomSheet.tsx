@@ -12,6 +12,8 @@ interface Props {
   selectedSeats: PickerSeat[];
   sections: SeatSection[];
   totalPrice: number;
+  serviceFee: number;
+  feePerTicket: number;
   maxSeats: number;
   holdIds: string[];
   expiresAt: string | null;
@@ -32,6 +34,8 @@ export const SeatPickerBottomSheet = memo(function SeatPickerBottomSheet({
   selectedSeats,
   sections,
   totalPrice,
+  serviceFee,
+  feePerTicket,
   maxSeats,
   holdIds,
   expiresAt,
@@ -143,6 +147,8 @@ export const SeatPickerBottomSheet = memo(function SeatPickerBottomSheet({
             selectedSeats={selectedSeats}
             sections={sections}
             totalPrice={totalPrice}
+            serviceFee={serviceFee}
+            feePerTicket={feePerTicket}
             maxSeats={maxSeats}
             holdIds={holdIds}
             expiresAt={expiresAt}

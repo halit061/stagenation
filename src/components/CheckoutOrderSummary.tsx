@@ -13,6 +13,7 @@ interface Props {
   sections: SeatSection[];
   priceCategories: PriceCategory[];
   serviceFee: number;
+  feePerTicket?: number;
   totalPrice: number;
   submitting: boolean;
   canSubmit: boolean;
@@ -30,6 +31,7 @@ export function CheckoutOrderSummary({
   sections,
   priceCategories,
   serviceFee,
+  feePerTicket,
   totalPrice,
   submitting,
   canSubmit,
@@ -192,7 +194,11 @@ export function CheckoutOrderSummary({
             <span className="text-slate-300 tabular-nums">EUR {subtotal.toFixed(2)}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-400">{st(language, 'checkout.serviceFee')}</span>
+            <span className="text-slate-400">
+              {feePerTicket && feePerTicket > 0
+                ? `${selectedSeats.length}x EUR ${feePerTicket.toFixed(2)} ${st(language, 'checkout.serviceFee').toLowerCase()}`
+                : st(language, 'checkout.serviceFee')}
+            </span>
             <span className="text-slate-300 tabular-nums">EUR {serviceFee.toFixed(2)}</span>
           </div>
         </div>

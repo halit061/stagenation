@@ -10,6 +10,8 @@ interface Props {
   selectedSeats: PickerSeat[];
   sections: SeatSection[];
   totalPrice: number;
+  serviceFee: number;
+  feePerTicket: number;
   maxSeats: number;
   holdIds: string[];
   expiresAt: string | null;
@@ -27,6 +29,8 @@ export const SeatPickerSummary = memo(function SeatPickerSummary({
   selectedSeats,
   sections,
   totalPrice,
+  serviceFee,
+  feePerTicket,
   maxSeats,
   holdIds,
   expiresAt,
@@ -149,6 +153,18 @@ export const SeatPickerSummary = memo(function SeatPickerSummary({
 
       {selectedSeats.length > 0 && (
         <div className="border-t border-slate-700 px-4 py-3 space-y-3">
+          {serviceFee > 0 && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-400">{st(language, 'checkout.subtotal')}</span>
+                <span className="text-slate-300 tabular-nums">EUR {(totalPrice - serviceFee).toFixed(2)}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-400">{selectedSeats.length}x EUR {feePerTicket.toFixed(2)} {st(language, 'checkout.serviceFee').toLowerCase()}</span>
+                <span className="text-slate-300 tabular-nums">EUR {serviceFee.toFixed(2)}</span>
+              </div>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <span className="text-slate-300 text-sm">{st(language, 'summary.total')}</span>
             <span className="text-white text-lg font-bold tabular-nums">
