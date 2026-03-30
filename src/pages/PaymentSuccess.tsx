@@ -131,12 +131,9 @@ export default function PaymentSuccess() {
       }
 
       if ((orderData as any).product_type === 'seat') {
-        const terminalStatuses = ['paid', 'failed', 'cancelled', 'payment_failed', 'payment_canceled', 'payment_expired'];
-        if (terminalStatuses.includes(orderData.status)) {
-          sessionStorage.removeItem('payment_order_id');
-          window.location.replace(`/seat-confirmation?event=${orderData.event_id}&order=${orderData.id}`);
-          return true;
-        }
+        sessionStorage.removeItem('payment_order_id');
+        window.location.replace(`/seat-confirmation?event=${orderData.event_id}&order=${orderData.id}`);
+        return true;
       }
 
       setOrder(orderData);

@@ -557,6 +557,7 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
               sections={sections}
               priceCategories={priceCategories}
               serviceFee={serviceFee}
+              feePerTicket={feePerTicket}
               totalPrice={totalPrice}
               submitting={submitting}
               canSubmit={canSubmit}

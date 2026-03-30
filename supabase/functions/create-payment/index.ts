@@ -127,7 +127,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .select('id, order_number, event_id, total_amount, payer_email, payer_name, payment_id, status')
+      .select('id, order_number, event_id, total_amount, payer_email, payer_name, payment_id, status, product_type')
       .eq('id', order_id)
       .maybeSingle();
 
@@ -189,8 +189,13 @@ Deno.serve(async (req: Request) => {
       console.warn(`[create-payment] Blocked redirect to untrusted origin: ${sanitizedOrigin}`);
     }
 
-    const redirectUrl = `${BASE_URL}/payment-success?order_id=${order.id}`;
-    const cancelUrl = `${BASE_URL}/tickets?payment=canceled&order_id=${order.id}`;
+    const isSeatOrder = order.product_type === 'seat';
+    const redirectUrl = isSeatOrder
+      ? `${BASE_URL}/seat-confirmation?event=${order.event_id}&order=${order.id}`
+      : `${BASE_URL}/payment-success?order_id=${order.id}`;
+    const cancelUrl = isSeatOrder
+      ? `${BASE_URL}/seat-picker?event=${order.event_id}&payment=canceled`
+      : `${BASE_URL}/tickets?payment=canceled&order_id=${order.id}`;
     const webhookUrl = `${supabaseUrl}/functions/v1/mollie-webhook`;
 
     const mollieIdempotencyKey = `order:${order.id}`;
