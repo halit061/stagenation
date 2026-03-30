@@ -44,25 +44,37 @@ export async function validateHoldsActive(sessionId: string, eventId: string): P
 export async function createSeatOrder(order: SeatOrderData): Promise<SeatOrderResult> {
   const sessionId = getSessionId();
 
-  const { data, error } = await supabase.rpc('create_seat_order_pending', {
-    p_event_id: order.eventId,
-    p_customer_first_name: order.firstName,
-    p_customer_last_name: order.lastName,
-    p_customer_email: order.email,
-    p_customer_phone: order.phone || null,
-    p_subtotal: order.subtotal,
-    p_service_fee: order.serviceFee,
-    p_total_amount: order.totalAmount,
-    p_payment_method: order.paymentMethod,
-    p_notes: order.notes || null,
-    p_session_id: sessionId,
-    p_seat_ids: order.seatIds,
-    p_seat_prices: order.seatPrices,
-    p_ticket_type_id: order.ticketTypeId || null,
+  const edgeUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-seat-order`;
+  const edgeRes = await fetch(edgeUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      p_event_id: order.eventId,
+      p_customer_first_name: order.firstName,
+      p_customer_last_name: order.lastName,
+      p_customer_email: order.email,
+      p_customer_phone: order.phone || null,
+      p_subtotal: order.subtotal,
+      p_service_fee: order.serviceFee,
+      p_total_amount: order.totalAmount,
+      p_payment_method: order.paymentMethod,
+      p_notes: order.notes || null,
+      p_session_id: sessionId,
+      p_seat_ids: order.seatIds,
+      p_seat_prices: order.seatPrices,
+      p_ticket_type_id: order.ticketTypeId || null,
+    }),
   });
 
-  if (error) throw error;
-  const rpcResult = data as any;
+  if (!edgeRes.ok) {
+    const errBody = await edgeRes.json().catch(() => ({}));
+    throw new Error(errBody.error || 'Failed to create seat order');
+  }
+
+  const rpcResult = await edgeRes.json() as any;
 
   if (!rpcResult.success) {
     return { success: false, error: rpcResult.error };
