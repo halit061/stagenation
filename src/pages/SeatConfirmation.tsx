@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { CheckCircle, Copy, Calendar, MapPin, Share2, ArrowLeft, Download, Ticket, Loader2, XCircle, RefreshCw } from 'lucide-react';
+import { CheckCircle, Copy, Calendar, MapPin, Share2, ArrowLeft, Download, Ticket, Loader2, XCircle, RefreshCw, FileText } from 'lucide-react';
 import QRCode from 'qrcode';
 import {
   fetchOrderById,
@@ -8,6 +8,7 @@ import {
   fetchSectionsForOrder,
 } from '../services/seatCheckoutService';
 import { fetchEventInfo } from '../services/seatPickerService';
+import { generateTicketsPdf } from '../lib/generateTicketPdf';
 import { useLanguage } from '../contexts/LanguageContext';
 import { st } from '../lib/seatTranslations';
 
@@ -69,6 +70,7 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
   const [copied, setCopied] = useState(false);
   const [animReady, setAnimReady] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<string>('loading');
+  const [pdfGenerating, setPdfGenerating] = useState(false);
   const pollRef = useRef(0);
 
   const dateLocale = language === 'de' ? 'de-DE' : language === 'fr' ? 'fr-FR' : language === 'tr' ? 'tr-TR' : 'nl-NL';
@@ -201,6 +203,40 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
   const handlePrint = useCallback(() => {
     window.print();
   }, []);
+
+  const handleDownloadPdf = useCallback(async () => {
+    if (!order || !eventInfo || seats.length === 0) return;
+    setPdfGenerating(true);
+    try {
+      await generateTicketsPdf(
+        {
+          order_number: order.order_number,
+          payer_name: order.payer_name,
+          payer_email: order.payer_email,
+          verification_code: order.verification_code,
+        },
+        {
+          name: eventInfo.name,
+          start_date: eventInfo.start_date,
+          location: eventInfo.location,
+          venue_name: eventInfo.venue_name,
+        },
+        seats.map(s => ({
+          row_label: s.row_label,
+          seat_number: s.seat_number,
+          section_name: s.section_name,
+          section_color: s.section_color,
+          price: s.price,
+          ticket_code: s.ticket_code,
+          qr_data: s.qr_data,
+          seat_type: s.seat_type,
+        })),
+      );
+    } catch {
+    } finally {
+      setPdfGenerating(false);
+    }
+  }, [order, eventInfo, seats]);
 
   const formattedDate = useMemo(() => {
     if (!eventInfo?.start_date) return '';
@@ -510,13 +546,32 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
               ))}
             </div>
 
-            <button
-              onClick={handlePrint}
-              className="w-full mt-5 py-3 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-xl flex items-center justify-center gap-2 transition-colors"
-            >
-              <Download className="w-4 h-4" aria-hidden="true" />
-              {st(language, 'confirm.printTickets') || 'Print tickets'}
-            </button>
+            <div className="flex flex-col sm:flex-row gap-3 mt-5">
+              <button
+                onClick={handleDownloadPdf}
+                disabled={pdfGenerating}
+                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-semibold rounded-xl flex items-center justify-center gap-2 transition-colors"
+              >
+                {pdfGenerating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                    PDF wordt gegenereerd...
+                  </>
+                ) : (
+                  <>
+                    <FileText className="w-4 h-4" aria-hidden="true" />
+                    Download Tickets (PDF)
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handlePrint}
+                className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-xl flex items-center justify-center gap-2 transition-colors"
+              >
+                <Download className="w-4 h-4" aria-hidden="true" />
+                {st(language, 'confirm.printTickets') || 'Print tickets'}
+              </button>
+            </div>
           </div>
         )}
 

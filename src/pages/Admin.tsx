@@ -1,4 +1,4 @@
-import { Shield, ShieldCheck, Calendar, Grid2x2 as Grid, MapPin, Ticket, LogOut, ShoppingCart, Users, AlertCircle, RefreshCw, X, Mail, Plus, CheckCircle, Loader2, ChevronDown, DoorOpen, Euro, TrendingUp, BarChart3, Ban, Armchair, Bell, Volume2, VolumeX } from 'lucide-react';
+import { Shield, ShieldCheck, Calendar, Grid2x2 as Grid, MapPin, Ticket, LogOut, ShoppingCart, Users, AlertCircle, RefreshCw, X, Mail, Plus, CheckCircle, Loader2, ChevronDown, DoorOpen, Euro, TrendingUp, BarChart3, Armchair, Bell, Volume2, VolumeX } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import type { Database } from '../lib/supabaseClient';
@@ -14,6 +14,7 @@ import { EDGE_FUNCTION_BASE_URL } from '../config/brand';
 import { callEdgeFunction } from '../lib/callEdge';
 import { adminFetch } from '../lib/adminApi';
 import { useToast } from '../components/Toast';
+import { AdminOrderSearch } from '../components/AdminOrderSearch';
 import { getAllLayouts, saveLayout, getTemplates, copyTemplateForEvent } from '../services/seatService';
 import type { VenueLayout } from '../types/seats';
 
@@ -105,9 +106,6 @@ export function Admin({ onNavigate }: AdminProps = {}) {
   const [rpMessage, setRpMessage] = useState('');
 
   // Cancel order state
-  const [showCancelOrderModal, setShowCancelOrderModal] = useState(false);
-  const [cancelOrderTarget, setCancelOrderTarget] = useState<any>(null);
-  const [cancelOrderLoading, setCancelOrderLoading] = useState(false);
 
   const [venueLayouts, setVenueLayouts] = useState<VenueLayout[]>([]);
   const [layoutTemplates, setLayoutTemplates] = useState<VenueLayout[]>([]);
@@ -201,28 +199,6 @@ export function Admin({ onNavigate }: AdminProps = {}) {
     };
   }, []);
 
-  async function handleCancelOrder(order: any) {
-    setCancelOrderLoading(true);
-    try {
-      const result = await callEdgeFunction({
-        functionName: 'cancel-order',
-        body: { order_id: order.id },
-      });
-
-      if (!result.ok) {
-        throw new Error(result.error || 'Order annuleren mislukt');
-      }
-
-      showToast(`Order ${order.order_number} is geannuleerd (${result.data.tickets_revoked} tickets geannuleerd)`, 'success');
-      setShowCancelOrderModal(false);
-      setCancelOrderTarget(null);
-      loadData();
-    } catch (error: any) {
-      showToast(`Fout: ${error.message}`, 'error');
-    } finally {
-      setCancelOrderLoading(false);
-    }
-  }
 
   useEffect(() => {
     if (authLoading) return;
@@ -1820,163 +1796,7 @@ export function Admin({ onNavigate }: AdminProps = {}) {
           )}
 
           {activeTab === 'orders' && (
-            <div>
-              <h2 className="text-3xl font-bold mb-2 text-white">
-                Order<span className="text-red-400">overzicht</span>
-              </h2>
-              <p className="text-slate-400 mb-8">Bekijk alle bestellingen</p>
-
-              <div className="bg-slate-800/80 border border-slate-700 rounded-xl overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-slate-900 border-b border-slate-700">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-white">Order</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-white">Klant</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-white">Event</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-white">Bedrag</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-white">Status</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-white">Acties</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-700">
-                    {orders.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="px-6 py-12 text-center">
-                          <ShoppingCart className="w-12 h-12 mx-auto mb-4 text-slate-600" />
-                          <p className="text-slate-400">Geen orders gevonden</p>
-                        </td>
-                      </tr>
-                    ) : (
-                      orders.slice(0, 50).map((order) => (
-                        <tr key={order.id} className="hover:bg-slate-700/30">
-                          <td className="px-6 py-4 font-mono text-cyan-400 text-sm">{order.order_number}</td>
-                          <td className="px-6 py-4">
-                            <div className="text-white">{order.payer_name}</div>
-                            <div className="text-sm text-slate-400">{order.payer_email}</div>
-                          </td>
-                          <td className="px-6 py-4 text-white">{order.events?.name}</td>
-                          <td className="px-6 py-4 text-white font-semibold">
-                            {'\u20AC'}{(order.total_amount / 100).toFixed(2)}
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              order.status === 'paid'
-                                ? 'bg-green-500/20 text-green-400'
-                                : order.status === 'pending'
-                                ? 'bg-yellow-500/20 text-yellow-400'
-                                : order.status === 'cancelled'
-                                ? 'bg-red-500/20 text-red-400'
-                                : order.status === 'refunded'
-                                ? 'bg-orange-500/20 text-orange-400'
-                                : order.status === 'comped'
-                                ? 'bg-purple-500/20 text-purple-400'
-                                : 'bg-slate-600/20 text-slate-400'
-                            }`}>
-                              {order.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            {(order.status === 'paid' || order.status === 'pending') && (
-                              <button
-                                onClick={() => {
-                                  setCancelOrderTarget(order);
-                                  setShowCancelOrderModal(true);
-                                }}
-                                className="p-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg text-red-400 transition-colors"
-                                title="Order annuleren"
-                              >
-                                <Ban className="w-4 h-4" />
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Cancel Order Modal */}
-              {showCancelOrderModal && cancelOrderTarget && (
-                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => { setShowCancelOrderModal(false); setCancelOrderTarget(null); }}>
-                  <div className="bg-slate-800 border border-slate-700 rounded-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-xl font-bold text-white">Order Annuleren</h3>
-                      <button
-                        onClick={() => { setShowCancelOrderModal(false); setCancelOrderTarget(null); }}
-                        className="p-2 hover:bg-slate-700 rounded-lg text-slate-400"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-                    <div className="space-y-3 mb-6">
-                      <p className="text-slate-300">
-                        Weet je zeker dat je deze order wilt annuleren?
-                      </p>
-                      <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-lg p-3 flex items-start gap-2">
-                        <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
-                        <div className="text-yellow-400 text-sm">
-                          <p className="font-medium">Let op:</p>
-                          <ul className="list-disc list-inside mt-1 space-y-1">
-                            <li>Alle tickets worden geannuleerd (revoked)</li>
-                            <li>De ticket voorraad wordt hersteld</li>
-                            <li>De betaling moet apart worden teruggestort via Mollie</li>
-                          </ul>
-                        </div>
-                      </div>
-                      <div className="bg-slate-900 rounded-lg p-4 space-y-2">
-                        <p className="text-sm text-slate-400">
-                          <span className="text-slate-500">Order:</span>{' '}
-                          <span className="text-cyan-400 font-mono">{cancelOrderTarget.order_number}</span>
-                        </p>
-                        <p className="text-sm text-slate-400">
-                          <span className="text-slate-500">Klant:</span>{' '}
-                          <span className="text-white">{cancelOrderTarget.payer_name}</span>
-                        </p>
-                        <p className="text-sm text-slate-400">
-                          <span className="text-slate-500">Email:</span>{' '}
-                          <span className="text-white">{cancelOrderTarget.payer_email}</span>
-                        </p>
-                        <p className="text-sm text-slate-400">
-                          <span className="text-slate-500">Bedrag:</span>{' '}
-                          <span className="text-white font-semibold">{'\u20AC'}{(cancelOrderTarget.total_amount / 100).toFixed(2)}</span>
-                        </p>
-                        <p className="text-sm text-slate-400">
-                          <span className="text-slate-500">Status:</span>{' '}
-                          <span className="text-white">{cancelOrderTarget.status}</span>
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => { setShowCancelOrderModal(false); setCancelOrderTarget(null); }}
-                        disabled={cancelOrderLoading}
-                        className="flex-1 px-4 py-3 bg-slate-700 hover:bg-slate-600 rounded-lg font-semibold text-white transition-colors disabled:opacity-50"
-                      >
-                        Terug
-                      </button>
-                      <button
-                        onClick={() => handleCancelOrder(cancelOrderTarget)}
-                        disabled={cancelOrderLoading}
-                        className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-400 rounded-lg font-semibold text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                      >
-                        {cancelOrderLoading ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            Annuleren...
-                          </>
-                        ) : (
-                          <>
-                            <Ban className="w-4 h-4" />
-                            Annuleer Order
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+            <AdminOrderSearch orders={orders} onOrdersChange={loadData} />
           )}
 
           {activeTab === 'entrances' && (
