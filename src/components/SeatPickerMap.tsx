@@ -12,6 +12,14 @@ const MIN_ZOOM = 0.3;
 const MAX_ZOOM = 4;
 const ZOOM_STEP = 0.15;
 
+function hexToRgba(hex: string, alpha: number): string {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.substring(0, 2), 16) || 0;
+  const g = parseInt(h.substring(2, 4), 16) || 0;
+  const b = parseInt(h.substring(4, 6), 16) || 0;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 interface Props {
   sections: SeatSection[];
   seats: PickerSeat[];
@@ -50,10 +58,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const didPan = useRef(false);
 
-  useEffect(() => {
-    if (!containerRef.current) return;
-    if (sections.length === 0 && floorplanObjects.length === 0) return;
-    const rect = containerRef.current.getBoundingClientRect();
+  const bounds = useMemo(() => {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const sec of sections) {
       minX = Math.min(minX, sec.position_x);
@@ -67,19 +72,26 @@ export const SeatPickerMap = memo(function SeatPickerMap({
       maxX = Math.max(maxX, Number(obj.x) + Number(obj.width));
       maxY = Math.max(maxY, Number(obj.y) + Number(obj.height));
     }
-    if (minX === Infinity) return;
-    const pad = 40;
-    const contentW = maxX - minX + pad * 2;
-    const contentH = maxY - minY + pad * 2;
+    return { minX, minY, maxX, maxY };
+  }, [sections, floorplanObjects]);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    if (sections.length === 0 && floorplanObjects.length === 0) return;
+    if (bounds.minX === Infinity) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const pad = 50;
+    const contentW = bounds.maxX - bounds.minX + pad * 2;
+    const contentH = bounds.maxY - bounds.minY + pad * 2;
     const fitZoom = Math.min(rect.width / contentW, rect.height / contentH, 1.5);
-    const centerX = (minX + maxX) / 2;
-    const centerY = (minY + maxY) / 2;
+    const centerX = (bounds.minX + bounds.maxX) / 2;
+    const centerY = (bounds.minY + bounds.maxY) / 2;
     setZoom(fitZoom);
     setPan({
       x: rect.width / 2 - centerX * fitZoom,
       y: rect.height / 2 - centerY * fitZoom,
     });
-  }, [sections, floorplanObjects]);
+  }, [sections, floorplanObjects, bounds]);
 
   useEffect(() => {
     if (!containerRef.current || !onViewportChange) return;
@@ -323,7 +335,23 @@ export const SeatPickerMap = memo(function SeatPickerMap({
           cursor: isPanning.current ? 'grabbing' : 'grab',
         }}
       >
+        <defs>
+          <pattern id="seatPickerGrid" width="50" height="50" patternUnits="userSpaceOnUse">
+            <path d="M 50 0 L 0 0 0 50" fill="none" stroke="rgba(51,65,85,0.15)" strokeWidth="0.5" />
+          </pattern>
+        </defs>
+
         <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
+
+          {bounds.minX !== Infinity && (
+            <rect
+              x={bounds.minX - 100}
+              y={bounds.minY - 100}
+              width={bounds.maxX - bounds.minX + 200}
+              height={bounds.maxY - bounds.minY + 200}
+              fill="url(#seatPickerGrid)"
+            />
+          )}
 
           {floorplanObjects.map(obj => {
             const ox = Number(obj.x);
@@ -333,7 +361,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
             const objType = (obj.type || '').toUpperCase();
             const isDancefloor = objType === 'DANCEFLOOR';
             const isTribune = objType === 'TRIBUNE';
-            const displayName = obj.name || objType;
+            const displayName = obj.name || obj.type || 'Object';
 
             return (
               <g key={obj.id} style={{ pointerEvents: 'none' }}>
@@ -359,7 +387,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                       fontSize={obj.font_size || 14}
                       fontWeight={obj.font_weight || 'bold'}
                     >
-                      {displayName}
+                      {displayName.toUpperCase()}
                     </text>
                   </>
                 ) : (
@@ -367,7 +395,8 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                     <rect
                       x={ox} y={oy} width={ow} height={oh}
                       fill={obj.color || '#6b7280'}
-                      stroke="rgba(71,85,105,0.5)" strokeWidth={1} rx={4}
+                      stroke={isDancefloor ? 'rgba(71,85,105,0.3)' : 'rgba(71,85,105,0.5)'}
+                      strokeWidth={1} rx={4}
                       opacity={isDancefloor ? 0.3 : 0.85}
                     />
                     <text
@@ -376,6 +405,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                       fill={obj.font_color || '#fff'}
                       fontSize={obj.font_size || (isDancefloor ? 14 : 16)}
                       fontWeight={obj.font_weight || 'bold'}
+                      letterSpacing="0.05em"
                       opacity={isDancefloor ? 0.6 : 0.9}
                     >
                       {displayName.toUpperCase()}
@@ -390,6 +420,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
             const isRestricted = restrictedSectionIds?.has(section.id) ?? false;
             const secSeats = seatsBySection.get(section.id) || [];
             const rowLabels = rowLabelsBySection.get(section.id) || [];
+            const color = section.color || '#3b82f6';
 
             return (
             <g key={section.id} style={getSectionTransform(section.id)} opacity={isRestricted ? 0.35 : 1}>
@@ -399,8 +430,8 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                 width={section.width}
                 height={section.height}
                 rx={6}
-                fill={isRestricted ? 'rgba(30,41,59,0.6)' : 'rgba(30,41,59,0.4)'}
-                stroke={isRestricted ? 'rgba(100,116,139,0.15)' : 'rgba(100,116,139,0.3)'}
+                fill={isRestricted ? 'rgba(30,41,59,0.6)' : hexToRgba(color, 0.12)}
+                stroke={isRestricted ? 'rgba(100,116,139,0.15)' : hexToRgba(color, 0.35)}
                 strokeWidth={1}
               />
               <rect
@@ -409,23 +440,23 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                 width={section.width}
                 height={HEADER_H}
                 rx={6}
-                fill={isRestricted ? 'rgba(100,116,139,0.2)' : section.color + '33'}
+                fill={isRestricted ? 'rgba(100,116,139,0.2)' : hexToRgba(color, 0.25)}
               />
               <rect
                 x={section.position_x}
                 y={section.position_y + HEADER_H - 3}
                 width={section.width}
                 height={3}
-                fill={isRestricted ? 'rgba(100,116,139,0.2)' : section.color + '33'}
+                fill={isRestricted ? 'rgba(100,116,139,0.2)' : hexToRgba(color, 0.25)}
               />
               <text
                 x={section.position_x + section.width / 2}
                 y={section.position_y + HEADER_H / 2}
                 textAnchor="middle"
                 dominantBaseline="central"
-                fill={isRestricted ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.7)'}
+                fill={isRestricted ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.8)'}
                 fontSize={11}
-                fontWeight={600}
+                fontWeight={700}
               >
                 {section.name}
                 {isRestricted && (
@@ -607,14 +638,16 @@ function SeatTooltip({
       }}
       role="tooltip"
     >
-      <div className="bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg px-3 py-2 shadow-xl text-sm">
+      <div className="bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg px-3 py-2 shadow-xl text-sm whitespace-nowrap">
         {section && (
-          <div className="text-slate-400 text-xs mb-0.5">{section.name}</div>
+          <div className="text-cyan-400 text-xs font-semibold mb-0.5">
+            {section.name}
+          </div>
         )}
         <div className="font-semibold text-white">
-          {st(language, 'picker.row')} {seat.row_label} - {st(language, 'picker.seatLabel')} {seat.seat_number}
+          {st(language, 'picker.row')} {seat.row_label} &mdash; {st(language, 'picker.seatLabel')} {seat.seat_number}
         </div>
-        <div className="text-emerald-400 font-medium mt-0.5">
+        <div className="text-emerald-400 font-bold mt-0.5">
           EUR {price.toFixed(2)}
         </div>
         {isSelected && (

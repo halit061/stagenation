@@ -105,9 +105,9 @@ export function Tickets({ onNavigate }: TicketsProps) {
   const [reservationExpired, setReservationExpired] = useState(false);
   const [reserving, setReserving] = useState(false);
 
-  // Floorplan data for venue map (from admin FloorPlan Editor)
-  const [floorplanTables, setFloorplanTables] = useState<any[]>([]);
   const [floorplanObjects, setFloorplanObjects] = useState<any[]>([]);
+  const [floorplanSections, setFloorplanSections] = useState<any[]>([]);
+  const [floorplanSeatDots, setFloorplanSeatDots] = useState<any[]>([]);
 
   // Refund protection state
   const [refundProtectionConfig, setRefundProtectionConfig] = useState<{
@@ -169,14 +169,24 @@ export function Tickets({ onNavigate }: TicketsProps) {
           // Cleanup expired reservations (fire and forget)
           try { await supabase.rpc('release_expired_reservations', { p_event_id: evId }); } catch (_) {}
 
-          // Load floorplan data (from admin FloorPlan Editor)
           if (eventData?.floorplan_enabled) {
-            const [{ data: fpTables }, { data: fpObjects }] = await Promise.all([
-              supabase.from('floorplan_tables').select('*').eq('is_active', true).order('table_number'),
+            const [{ data: fpObjects }, { data: layouts }] = await Promise.all([
               supabase.from('floorplan_objects').select('*').eq('is_active', true).eq('is_visible', true).order('created_at'),
+              supabase.from('venue_layouts').select('id').eq('event_id', evId).limit(1),
             ]);
-            if (fpTables) setFloorplanTables(fpTables);
             if (fpObjects) setFloorplanObjects(fpObjects);
+            const layoutId = layouts?.[0]?.id;
+            if (layoutId) {
+              const [{ data: secs }, { data: allSeats }] = await Promise.all([
+                supabase.from('seat_sections').select('id, name, color, position_x, position_y, width, height, rotation').eq('layout_id', layoutId).eq('is_active', true),
+                supabase.from('seats').select('section_id, x_position, y_position, status').eq('is_active', true),
+              ]);
+              if (secs) setFloorplanSections(secs);
+              if (allSeats && secs) {
+                const secIds = new Set(secs.map((s: any) => s.id));
+                setFloorplanSeatDots(allSeats.filter((s: any) => secIds.has(s.section_id)));
+              }
+            }
           }
 
           // Load refund protection config
@@ -955,11 +965,11 @@ export function Tickets({ onNavigate }: TicketsProps) {
             </div>
 
             {/* Venue Map - from admin FloorPlan Editor */}
-            {eventFloorplanEnabled && (floorplanTables.length > 0 || floorplanObjects.length > 0) && (
+            {eventFloorplanEnabled && (floorplanObjects.length > 0 || floorplanSections.length > 0) && (
               <VenueMap
-                tables={floorplanTables}
                 objects={floorplanObjects}
-                ticketTypes={ticketTypes}
+                sections={floorplanSections}
+                seatDots={floorplanSeatDots}
               />
             )}
 
@@ -1419,54 +1429,8 @@ export function Tickets({ onNavigate }: TicketsProps) {
               </div>
               )}
 
-              <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-2xl p-6">
-                <h3 className="font-bold mb-4 text-cyan-400">{t('tickets.paymentMethods')}</h3>
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { name: 'iDEAL', icon: (
-                      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
-                        <circle cx="12" cy="12" r="10" stroke="#CC2E74" strokeWidth="1.5" />
-                        <path d="M8 12h8M12 8v8" stroke="#CC2E74" strokeWidth="2" strokeLinecap="round" />
-                      </svg>
-                    )},
-                    { name: 'Bancontact', icon: (
-                      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
-                        <rect x="2" y="5" width="20" height="14" rx="3" stroke="#005498" strokeWidth="1.5" />
-                        <circle cx="9" cy="12" r="3" fill="#FFD800" fillOpacity="0.8" />
-                        <circle cx="15" cy="12" r="3" fill="#005498" fillOpacity="0.8" />
-                      </svg>
-                    )},
-                    { name: 'Card', icon: (
-                      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
-                        <rect x="2" y="5" width="20" height="14" rx="3" stroke="#94a3b8" strokeWidth="1.5" />
-                        <path d="M2 9h20" stroke="#94a3b8" strokeWidth="1.5" />
-                        <rect x="5" y="14" width="6" height="2" rx="1" fill="#94a3b8" fillOpacity="0.5" />
-                      </svg>
-                    )},
-                    { name: 'Apple Pay', icon: (
-                      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor">
-                        <path d="M17.05 12.54c-.02-2.1 1.73-3.12 1.81-3.17-1-1.44-2.53-1.64-3.07-1.66-1.29-.14-2.54.78-3.2.78-.67 0-1.68-.77-2.77-.75a4.07 4.07 0 0 0-3.43 2.1c-1.48 2.55-.38 6.3 1.04 8.37.71 1.01 1.54 2.14 2.63 2.1 1.06-.04 1.46-.68 2.74-.68 1.27 0 1.64.68 2.74.65 1.14-.02 1.86-1.02 2.54-2.04a8.8 8.8 0 0 0 1.16-2.36 3.61 3.61 0 0 1-2.19-3.34zM14.97 5.92a3.7 3.7 0 0 0 .85-2.67 3.82 3.82 0 0 0-2.48 1.28 3.53 3.53 0 0 0-.88 2.58c.95.07 1.92-.44 2.51-1.19z" />
-                      </svg>
-                    )},
-                    { name: 'Google Pay', icon: (
-                      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
-                        <path d="M12.24 10.28V14h3.68a3.21 3.21 0 0 1-1.39 2.09l2.24 1.74a6.64 6.64 0 0 0 2.03-5.06c0-.53-.05-1.03-.14-1.49H12.24z" fill="#4285F4" />
-                        <path d="M5.55 13.4l-.5.39-1.79 1.39A7.97 7.97 0 0 0 12 20c2.15 0 3.96-.71 5.28-1.93l-2.24-1.74c-.72.47-1.65.75-3.04.75a5.55 5.55 0 0 1-5.23-3.83l-.22.15z" fill="#34A853" />
-                        <path d="M3.26 7.82A7.9 7.9 0 0 0 4 12c0 1.53.37 2.98 1.03 4.26l2.52-1.93A4.87 4.87 0 0 1 7.04 12c0-.82.17-1.6.51-2.33L5.03 7.72l-1.77.1z" fill="#FBBC05" />
-                        <path d="M12 6.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C16.95 4.07 14.67 3.2 12 3.2a7.97 7.97 0 0 0-7.18 4.44L7.35 9.6A5.56 5.56 0 0 1 12 6.58z" fill="#EA4335" />
-                      </svg>
-                    )},
-                  ].map(({ name, icon }) => (
-                    <div
-                      key={name}
-                      className="bg-slate-900/50 border border-slate-700 rounded-lg px-2 py-3 flex flex-col items-center gap-1.5"
-                    >
-                      {icon}
-                      <span className="text-[10px] font-medium text-slate-400">{name}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+
+
             </div>
           </div>
         </div>
