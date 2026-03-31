@@ -69,47 +69,21 @@ export async function createSeatOrder(order: SeatOrderData): Promise<SeatOrderRe
     }),
   });
 
+  const result = await edgeRes.json() as any;
+
   if (!edgeRes.ok) {
-    const errBody = await edgeRes.json().catch(() => ({}));
-    throw new Error(errBody.error || 'Failed to create seat order');
+    throw new Error(result.error || 'Failed to create seat order');
   }
 
-  const rpcResult = await edgeRes.json() as any;
-
-  if (!rpcResult.success) {
-    return { success: false, error: rpcResult.error };
+  if (!result.success) {
+    return { success: false, error: result.error };
   }
 
-  const orderId = rpcResult.order_id;
-  const orderNumber = rpcResult.order_number;
-
-  const paymentUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-payment`;
-  const paymentRes = await fetch(paymentUrl, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ order_id: orderId }),
-  });
-
-  if (!paymentRes.ok) {
-    const errBody = await paymentRes.json().catch(() => ({}));
+  if (!result.checkoutUrl) {
     return {
       success: false,
-      order_id: orderId,
-      order_number: orderNumber,
-      error: errBody.error || 'payment_failed',
-    };
-  }
-
-  const paymentData = await paymentRes.json();
-
-  if (!paymentData.checkoutUrl) {
-    return {
-      success: false,
-      order_id: orderId,
-      order_number: orderNumber,
+      order_id: result.order_id,
+      order_number: result.order_number,
       error: 'no_checkout_url',
     };
   }
@@ -118,9 +92,9 @@ export async function createSeatOrder(order: SeatOrderData): Promise<SeatOrderRe
 
   return {
     success: true,
-    order_id: orderId,
-    order_number: orderNumber,
-    checkoutUrl: paymentData.checkoutUrl,
+    order_id: result.order_id,
+    order_number: result.order_number,
+    checkoutUrl: result.checkoutUrl,
   };
 }
 
