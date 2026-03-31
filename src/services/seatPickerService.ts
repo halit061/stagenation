@@ -78,6 +78,39 @@ export function recordRateAttempt() {
   sessionStorage.setItem(RATE_KEY, JSON.stringify(attempts));
 }
 
+export interface FloorplanObject {
+  id: string;
+  event_id: string | null;
+  type: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  color: string;
+  font_color: string | null;
+  font_size: number | null;
+  font_weight: string | null;
+  is_visible: boolean;
+  is_active: boolean;
+}
+
+export async function fetchFloorplanObjects(eventId: string): Promise<FloorplanObject[]> {
+  const { data, error } = await supabase
+    .from('floorplan_objects')
+    .select('id, event_id, type, object_type, name, label, x, y, width, height, rotation, color, font_color, font_size, font_weight, is_visible, is_active')
+    .eq('is_active', true)
+    .eq('is_visible', true)
+    .order('display_order', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((o: any) => ({
+    ...o,
+    type: o.type || (o.object_type ? o.object_type.toUpperCase() : 'BAR'),
+    name: o.name || o.label || o.type || 'Object',
+  }));
+}
+
 export async function fetchLayoutByEvent(eventId: string): Promise<VenueLayout | null> {
   const { data, error } = await supabase
     .from('venue_layouts')

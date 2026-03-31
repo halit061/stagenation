@@ -7,6 +7,7 @@ import {
   fetchSeats,
   fetchEventInfo,
   fetchLinkedSectionIds,
+  fetchFloorplanObjects,
   holdSeatsAtomic,
   extendHolds,
   releaseSessionHolds,
@@ -19,6 +20,7 @@ import {
   recordRateAttempt,
   getSessionId,
 } from '../services/seatPickerService';
+import type { FloorplanObject } from '../services/seatPickerService';
 import { findBestAvailable } from '../lib/bestAvailable';
 
 export interface PickerSeat extends Seat {
@@ -96,6 +98,7 @@ export function useSeatPickerState(eventId: string, ticketTypeId?: string) {
   const [eventInfo, setEventInfo] = useState<EventInfo | null>(null);
   const [layout, setLayout] = useState<VenueLayout | null>(null);
   const [sections, setSections] = useState<SeatSection[]>([]);
+  const [floorplanObjects, setFloorplanObjects] = useState<FloorplanObject[]>([]);
   const [allSeats, setAllSeats] = useState<PickerSeat[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [holdIds, setHoldIds] = useState<string[]>([]);
@@ -202,9 +205,13 @@ export function useSeatPickerState(eventId: string, ticketTypeId?: string) {
         setEventInfo(ev as EventInfo);
         setLayout(layoutData);
 
-        const secs = await fetchSections(layoutData.id);
+        const [secs, fpObjects] = await Promise.all([
+          fetchSections(layoutData.id),
+          fetchFloorplanObjects(eventId),
+        ]);
         if (cancelled) return;
         setSections(secs);
+        setFloorplanObjects(fpObjects);
 
         if (ticketTypeId) {
           const linked = await fetchLinkedSectionIds(ticketTypeId);
@@ -538,6 +545,7 @@ export function useSeatPickerState(eventId: string, ticketTypeId?: string) {
     eventInfo,
     layout,
     sections,
+    floorplanObjects,
     allSeats,
     visibleSeats,
     selectedIds,

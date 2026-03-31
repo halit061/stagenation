@@ -241,6 +241,7 @@ export function SeatPicker({ eventId, ticketTypeId, onNavigate }: Props) {
             highlightedIds={state.highlightedSeatIds}
             flashingIds={state.flashingSeatIds}
             restrictedSectionIds={restrictedSectionIds}
+            floorplanObjects={state.floorplanObjects}
             onSeatClick={state.toggleSeat}
             canvasWidth={state.canvasWidth}
             canvasHeight={state.canvasHeight}
@@ -249,6 +250,7 @@ export function SeatPicker({ eventId, ticketTypeId, onNavigate }: Props) {
 
           <SeatPickerMiniMap
             sections={state.sections}
+            floorplanObjects={state.floorplanObjects}
             canvasWidth={state.canvasWidth}
             canvasHeight={state.canvasHeight}
             viewport={viewport}

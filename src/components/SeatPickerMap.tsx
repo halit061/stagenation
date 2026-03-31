@@ -1,6 +1,7 @@
 import { useRef, useState, useCallback, useEffect, useMemo, memo } from 'react';
 import type { SeatSection } from '../types/seats';
 import type { PickerSeat } from '../hooks/useSeatPickerState';
+import type { FloorplanObject } from '../services/seatPickerService';
 import { useLanguage } from '../contexts/LanguageContext';
 import { st } from '../lib/seatTranslations';
 import type React from 'react';
@@ -18,6 +19,7 @@ interface Props {
   highlightedIds?: Set<string>;
   flashingIds?: Set<string>;
   restrictedSectionIds?: Set<string>;
+  floorplanObjects?: FloorplanObject[];
   onSeatClick: (seatId: string) => void;
   canvasWidth?: number;
   canvasHeight?: number;
@@ -31,6 +33,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
   highlightedIds,
   flashingIds,
   restrictedSectionIds,
+  floorplanObjects = [],
   onSeatClick,
   onViewportChange,
 }: Props) {
@@ -48,7 +51,8 @@ export const SeatPickerMap = memo(function SeatPickerMap({
   const didPan = useRef(false);
 
   useEffect(() => {
-    if (!containerRef.current || sections.length === 0) return;
+    if (!containerRef.current) return;
+    if (sections.length === 0 && floorplanObjects.length === 0) return;
     const rect = containerRef.current.getBoundingClientRect();
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const sec of sections) {
@@ -57,8 +61,16 @@ export const SeatPickerMap = memo(function SeatPickerMap({
       maxX = Math.max(maxX, sec.position_x + sec.width);
       maxY = Math.max(maxY, sec.position_y + sec.height);
     }
-    const contentW = maxX - minX + 60;
-    const contentH = maxY - minY + 60;
+    for (const obj of floorplanObjects) {
+      minX = Math.min(minX, Number(obj.x));
+      minY = Math.min(minY, Number(obj.y));
+      maxX = Math.max(maxX, Number(obj.x) + Number(obj.width));
+      maxY = Math.max(maxY, Number(obj.y) + Number(obj.height));
+    }
+    if (minX === Infinity) return;
+    const pad = 40;
+    const contentW = maxX - minX + pad * 2;
+    const contentH = maxY - minY + pad * 2;
     const fitZoom = Math.min(rect.width / contentW, rect.height / contentH, 1.5);
     const centerX = (minX + maxX) / 2;
     const centerY = (minY + maxY) / 2;
@@ -67,7 +79,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
       x: rect.width / 2 - centerX * fitZoom,
       y: rect.height / 2 - centerY * fitZoom,
     });
-  }, [sections]);
+  }, [sections, floorplanObjects]);
 
   useEffect(() => {
     if (!containerRef.current || !onViewportChange) return;
@@ -257,6 +269,29 @@ export const SeatPickerMap = memo(function SeatPickerMap({
     return map;
   }, [seats]);
 
+  const rowLabelsBySection = useMemo(() => {
+    const map = new Map<string, { label: string; y: number; minX: number }[]>();
+    for (const [secId, secSeats] of seatsBySection) {
+      const rowMap = new Map<string, { minY: number; maxY: number; minCx: number }>();
+      for (const s of secSeats) {
+        const existing = rowMap.get(s.row_label);
+        if (existing) {
+          existing.minY = Math.min(existing.minY, s.cy);
+          existing.maxY = Math.max(existing.maxY, s.cy);
+          existing.minCx = Math.min(existing.minCx, s.cx);
+        } else {
+          rowMap.set(s.row_label, { minY: s.cy, maxY: s.cy, minCx: s.cx });
+        }
+      }
+      const labels: { label: string; y: number; minX: number }[] = [];
+      for (const [label, info] of rowMap) {
+        labels.push({ label, y: (info.minY + info.maxY) / 2, minX: info.minCx });
+      }
+      map.set(secId, labels);
+    }
+    return map;
+  }, [seatsBySection]);
+
   const sectionForSeat = useCallback((seatId: string) => {
     const seat = seats.find(s => s.id === seatId);
     if (!seat) return null;
@@ -289,8 +324,73 @@ export const SeatPickerMap = memo(function SeatPickerMap({
         }}
       >
         <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
+
+          {floorplanObjects.map(obj => {
+            const ox = Number(obj.x);
+            const oy = Number(obj.y);
+            const ow = Number(obj.width);
+            const oh = Number(obj.height);
+            const objType = (obj.type || '').toUpperCase();
+            const isDancefloor = objType === 'DANCEFLOOR';
+            const isTribune = objType === 'TRIBUNE';
+            const displayName = obj.name || objType;
+
+            return (
+              <g key={obj.id} style={{ pointerEvents: 'none' }}>
+                {isTribune ? (
+                  <>
+                    <rect
+                      x={ox} y={oy} width={ow} height={oh}
+                      fill={obj.color || '#92400e'}
+                      stroke="#78350f" strokeWidth={1.5} rx={4}
+                      opacity={0.85}
+                    />
+                    {[0.2, 0.4, 0.6, 0.8].map((frac) => (
+                      <line key={frac}
+                        x1={ox + ow * frac} y1={oy + 4}
+                        x2={ox + ow * frac} y2={oy + oh - 4}
+                        stroke="rgba(0,0,0,0.25)" strokeWidth={1}
+                      />
+                    ))}
+                    <text
+                      x={ox + ow / 2} y={oy + oh / 2}
+                      textAnchor="middle" dominantBaseline="central"
+                      fill={obj.font_color || '#fff'}
+                      fontSize={obj.font_size || 14}
+                      fontWeight={obj.font_weight || 'bold'}
+                    >
+                      {displayName}
+                    </text>
+                  </>
+                ) : (
+                  <>
+                    <rect
+                      x={ox} y={oy} width={ow} height={oh}
+                      fill={obj.color || '#6b7280'}
+                      stroke="rgba(71,85,105,0.5)" strokeWidth={1} rx={4}
+                      opacity={isDancefloor ? 0.3 : 0.85}
+                    />
+                    <text
+                      x={ox + ow / 2} y={oy + oh / 2}
+                      textAnchor="middle" dominantBaseline="central"
+                      fill={obj.font_color || '#fff'}
+                      fontSize={obj.font_size || (isDancefloor ? 14 : 16)}
+                      fontWeight={obj.font_weight || 'bold'}
+                      opacity={isDancefloor ? 0.6 : 0.9}
+                    >
+                      {displayName.toUpperCase()}
+                    </text>
+                  </>
+                )}
+              </g>
+            );
+          })}
+
           {sections.map(section => {
             const isRestricted = restrictedSectionIds?.has(section.id) ?? false;
+            const secSeats = seatsBySection.get(section.id) || [];
+            const rowLabels = rowLabelsBySection.get(section.id) || [];
+
             return (
             <g key={section.id} style={getSectionTransform(section.id)} opacity={isRestricted ? 0.35 : 1}>
               <rect
@@ -328,8 +428,28 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                 fontWeight={600}
               >
                 {section.name}
+                {isRestricted && (
+                  <tspan fontSize={8} fill="rgba(255,255,255,0.25)"> (niet beschikbaar)</tspan>
+                )}
               </text>
-              {(seatsBySection.get(section.id) || []).map(seat => {
+
+              {!isRestricted && rowLabels.map(rl => (
+                <text
+                  key={rl.label}
+                  x={rl.minX - seatRadius - 4}
+                  y={rl.y}
+                  textAnchor="end"
+                  dominantBaseline="central"
+                  fill="rgba(255,255,255,0.3)"
+                  fontSize={8}
+                  fontWeight={500}
+                  style={{ pointerEvents: 'none' }}
+                >
+                  {rl.label}
+                </text>
+              ))}
+
+              {secSeats.map(seat => {
                 const isSelected = selectedIds.has(seat.id);
                 const isHighlighted = highlightedIds?.has(seat.id);
                 const isFlashing = flashingIds?.has(seat.id);
@@ -488,12 +608,12 @@ function SeatTooltip({
       role="tooltip"
     >
       <div className="bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg px-3 py-2 shadow-xl text-sm">
+        {section && (
+          <div className="text-slate-400 text-xs mb-0.5">{section.name}</div>
+        )}
         <div className="font-semibold text-white">
           {st(language, 'picker.row')} {seat.row_label} - {st(language, 'picker.seatLabel')} {seat.seat_number}
         </div>
-        {section && (
-          <div className="text-slate-400 text-xs">{section.name}</div>
-        )}
         <div className="text-emerald-400 font-medium mt-0.5">
           EUR {price.toFixed(2)}
         </div>
