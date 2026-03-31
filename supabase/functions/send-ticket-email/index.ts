@@ -332,6 +332,161 @@ async function buildTableReservationEmail(order: any, event: any, tableBookings:
   `;
 }
 
+async function buildSeatOrderEmail(order: any, event: any, seatTickets: any[], brand: any): Promise<string> {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const logoUrl = event.logo_url
+    ? `${supabaseUrl}/storage/v1/object/public/${event.logo_url}`
+    : '';
+
+  const BASE_URL = Deno.env.get('BASE_URL') || 'https://stagenation.be';
+  const footerName = brand?.display_name || brand?.name || 'StageNation';
+  const footerEmail = brand?.support_email || brand?.email || 'tickets@stagenation.be';
+
+  const seatQrCodes = await Promise.all(
+    seatTickets.map(async (ts: any) => {
+      const qrData = ts.qr_data || ts.ticket_code || ts.id;
+      return { ts, qrDataUrl: await generateQRCode(qrData) };
+    })
+  );
+
+  const totalCents = order.total_amount || 0;
+  const totalEuros = (totalCents / 100).toFixed(2);
+  const serviceFeeCents = order.service_fee_total_cents || 0;
+  const serviceFeeEuros = (serviceFeeCents / 100).toFixed(2);
+  const subtotalEuros = ((totalCents - serviceFeeCents) / 100).toFixed(2);
+
+  const seatRows = seatQrCodes.map(({ ts, qrDataUrl }) => {
+    const sectionName = ts.seats?.seat_sections?.name || '';
+    const rowLabel = ts.seats?.row_label || '-';
+    const seatNumber = ts.seats?.seat_number || '-';
+    const pricePaid = parseFloat(ts.price_paid || 0).toFixed(2);
+    const ticketCode = ts.ticket_code || '-';
+
+    return `
+    <div style="background-color: #ffffff; border: 2px solid #e2e8f0; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+      <h3 style="color: #0f172a; margin-top: 0; margin-bottom: 4px; font-size: 18px; text-align: center;">
+        ${escapeHtml(sectionName)}
+      </h3>
+      <p style="color: #475569; font-size: 14px; margin: 0 0 16px; text-align: center;">
+        Rij ${escapeHtml(rowLabel)} &mdash; Stoel ${escapeHtml(seatNumber)}
+      </p>
+      <div style="text-align: center; margin: 20px 0;">
+        <img src="${qrDataUrl}" width="220" height="220" alt="QR Code ${escapeHtml(ticketCode)}" style="display: block; margin: 0 auto; width: 220px; height: 220px; border: 1px solid #cbd5e1; border-radius: 8px;" />
+      </div>
+      <div style="background-color: #f1f5f9; border-radius: 8px; padding: 16px; margin: 16px 0; text-align: center;">
+        <p style="color: #64748b; font-size: 12px; margin: 0 0 4px 0; text-transform: uppercase; letter-spacing: 0.5px;">
+          Ticket Code
+        </p>
+        <p style="color: #0f172a; font-size: 18px; font-weight: 700; margin: 0; font-family: 'Courier New', monospace; letter-spacing: 1px;">
+          ${escapeHtml(ticketCode)}
+        </p>
+      </div>
+      <p style="color: #64748b; font-size: 14px; margin: 12px 0; text-align: center;">
+        <strong style="color: #0f172a;">Prijs:</strong> EUR ${pricePaid}
+      </p>
+    </div>`;
+  }).join('');
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Je tickets voor ${escapeHtml(event.name)}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #0f172a; color: #1e293b;">
+  <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+
+    <div style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 40px 24px; text-align: center;">
+      ${event.logo_url ? `<div style="margin-bottom: 20px;"><img src="${logoUrl}" alt="${escapeHtml(event.name)}" style="max-width: 200px; height: auto; display: inline-block;" /></div>` : ''}
+      <div style="width: 60px; height: 60px; background-color: rgba(255,255,255,0.2); border-radius: 50%; margin: 0 auto 16px; line-height: 60px; font-size: 30px; color: #ffffff;">&#10003;</div>
+      <h1 style="color: #ffffff; margin: 0; font-size: 26px; font-weight: 700;">Betaling Geslaagd!</h1>
+      <p style="color: rgba(255,255,255,0.85); margin: 12px 0 0 0; font-size: 16px;">
+        Je tickets voor ${escapeHtml(event.name)}
+      </p>
+    </div>
+
+    <div style="padding: 32px 24px;">
+
+      <div style="background-color: #f1f5f9; border-left: 4px solid #059669; padding: 20px; margin-bottom: 32px; border-radius: 8px;">
+        <h2 style="color: #0f172a; margin-top: 0; margin-bottom: 16px; font-size: 20px;">Event Details</h2>
+        <p style="color: #475569; margin: 8px 0; font-size: 15px; line-height: 1.6;">
+          <strong style="color: #0f172a;">Locatie:</strong> ${escapeHtml(event.venue_name || event.location || '')}<br />
+          ${event.location_address ? `<span style="color: #64748b; font-size: 14px;">${escapeHtml(event.location_address)}</span><br />` : ''}
+          <strong style="color: #0f172a;">Datum:</strong> ${formatDate(event.start_date)}<br />
+          <strong style="color: #0f172a;">Tijd:</strong> ${formatTime(event.start_date)}
+        </p>
+      </div>
+
+      <div style="background-color: #f9fafb; border-radius: 12px; padding: 20px; margin-bottom: 32px;">
+        <h2 style="color: #0f172a; margin-top: 0; margin-bottom: 16px; font-size: 20px;">Bestelgegevens</h2>
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Bestelnummer:</td>
+            <td style="padding: 8px 0; color: #0f172a; font-size: 14px; font-weight: bold; text-align: right; font-family: 'Courier New', monospace;">${escapeHtml(order.order_number)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Naam:</td>
+            <td style="padding: 8px 0; color: #0f172a; font-size: 14px; text-align: right;">${escapeHtml(order.payer_name || '')}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">E-mail:</td>
+            <td style="padding: 8px 0; color: #0f172a; font-size: 14px; text-align: right;">${escapeHtml(order.payer_email)}</td>
+          </tr>
+        </table>
+      </div>
+
+      <h2 style="color: #0f172a; margin-bottom: 20px; font-size: 20px;">Jouw Stoelen</h2>
+      ${seatRows}
+
+      <div style="background-color: #f9fafb; border-radius: 12px; padding: 20px; margin: 24px 0;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 6px 0; color: #6b7280; font-size: 14px;">Subtotaal:</td>
+            <td style="padding: 6px 0; color: #0f172a; font-size: 14px; text-align: right;">EUR ${subtotalEuros}</td>
+          </tr>
+          ${serviceFeeCents > 0 ? `<tr>
+            <td style="padding: 6px 0; color: #6b7280; font-size: 14px;">Servicekosten:</td>
+            <td style="padding: 6px 0; color: #0f172a; font-size: 14px; text-align: right;">EUR ${serviceFeeEuros}</td>
+          </tr>` : ''}
+          <tr>
+            <td style="padding: 10px 0 0; color: #0f172a; font-size: 18px; font-weight: bold; border-top: 2px solid #e5e7eb;">Totaal:</td>
+            <td style="padding: 10px 0 0; color: #059669; font-size: 18px; font-weight: bold; text-align: right; border-top: 2px solid #e5e7eb;">EUR ${totalEuros}</td>
+          </tr>
+        </table>
+      </div>
+
+      ${order.verification_code ? `
+      <div style="background-color: #eff6ff; border-radius: 12px; padding: 16px; margin-bottom: 24px; text-align: center;">
+        <p style="margin: 0 0 4px; color: #6b7280; font-size: 12px;">Verificatiecode (bewaar voor klantenservice)</p>
+        <p style="margin: 0; font-size: 24px; font-weight: bold; font-family: 'Courier New', monospace; color: #1e40af; letter-spacing: 4px;">${escapeHtml(order.verification_code)}</p>
+      </div>` : ''}
+
+      <div style="background-color: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; padding: 16px; margin-top: 32px;">
+        <p style="color: #92400e; margin: 0; font-size: 14px; line-height: 1.6;">
+          <strong>Belangrijk:</strong> Toon je QR-code(s) bij de ingang op je telefoon of print ze uit.
+          Elk ticket kan slechts een keer worden gescand. Bewaar deze e-mail als bewijs van aankoop.
+        </p>
+      </div>
+
+    </div>
+
+    <div style="background-color: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;">
+      <p style="color: #64748b; margin: 0; font-size: 14px; line-height: 1.6;">
+        Met vriendelijke groeten,<br />
+        <strong style="color: #0f172a;">${escapeHtml(footerName)}</strong>
+      </p>
+      ${footerEmail ? `<p style="color: #94a3b8; margin: 16px 0 0 0; font-size: 12px;">
+        Voor vragen, neem contact met ons op via <a href="mailto:${escapeHtml(footerEmail)}" style="color: #059669; text-decoration: none;">${escapeHtml(footerEmail)}</a>
+      </p>` : ''}
+    </div>
+
+  </div>
+</body>
+</html>`;
+}
+
 async function buildTicketEmail(order: any, event: any, tickets: any[], brand: any): Promise<string> {
   const qrCodes = await Promise.all(
     tickets.map(async (ticket) => {
@@ -764,17 +919,32 @@ Deno.serve(async (req: Request) => {
       console.error('TABLE_BOOKINGS: Error -', bookingsError.message);
     }
 
+    let seatTickets: any[] = [];
+    if (order.product_type === 'seat' || order.product_type === 'seats') {
+      const { data: seatData, error: seatError } = await adminClient
+        .from('ticket_seats')
+        .select('*, seats(id, row_label, seat_number, section_id, seat_sections(id, name, color, price_category, price_amount))')
+        .eq('order_id', orderId);
+
+      if (seatError) {
+        console.error('SEAT_TICKETS: Error -', seatError.message);
+      } else {
+        seatTickets = seatData || [];
+      }
+    }
+
     const hasTickets = tickets && tickets.length > 0;
     const hasTableBookings = tableBookings && tableBookings.length > 0;
+    const hasSeatTickets = seatTickets.length > 0;
 
-    if (!hasTickets && !hasTableBookings) {
-      console.error('ITEMS: No tickets or table bookings found for order:', orderId);
+    if (!hasTickets && !hasTableBookings && !hasSeatTickets) {
+      console.error('ITEMS: No tickets, table bookings, or seat tickets found for order:', orderId);
       return new Response(
         JSON.stringify({
           ok: false,
           error: 'No tickets or table bookings found for this order',
           code: 'NO_ITEMS',
-          details: `Order ${order.order_number} has no valid/used tickets or active table bookings`
+          details: `Order ${order.order_number} has no valid/used tickets, active table bookings, or seat tickets`
         }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -802,7 +972,10 @@ Deno.serve(async (req: Request) => {
     let html: string;
     let emailSubject: string;
 
-    if (hasTableBookings) {
+    if (hasSeatTickets) {
+      html = await buildSeatOrderEmail(order, event, seatTickets, brand);
+      emailSubject = `Je tickets voor ${event.name}`;
+    } else if (hasTableBookings) {
       html = await buildTableReservationEmail(order, event, tableBookings, brand);
       emailSubject = `Je tafelreservatie voor ${event.name}`;
     } else {
@@ -849,12 +1022,13 @@ Deno.serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         ok: true,
-        message: hasTableBookings ? 'Table reservation confirmation sent successfully' : 'Tickets sent successfully',
+        message: hasSeatTickets ? 'Seat tickets sent successfully' : hasTableBookings ? 'Table reservation confirmation sent successfully' : 'Tickets sent successfully',
         order_id: orderId,
         recipient: recipientEmailResolved,
         ticket_count: hasTickets ? tickets.length : 0,
+        seat_count: hasSeatTickets ? seatTickets.length : 0,
         table_count: hasTableBookings ? tableBookings.length : 0,
-        type: hasTableBookings ? 'table_reservation' : 'tickets',
+        type: hasSeatTickets ? 'seat_tickets' : hasTableBookings ? 'table_reservation' : 'tickets',
         email_id: emailResult.id,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
