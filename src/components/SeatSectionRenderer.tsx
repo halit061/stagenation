@@ -7,11 +7,14 @@ interface Props {
   section: SeatSection;
   seatCount: number;
   isSelected: boolean;
+  isHovered?: boolean;
   currentTool: string;
   onMouseDown: (e: React.MouseEvent) => void;
   onClick: (e: React.MouseEvent) => void;
   onDoubleClick: (e: React.MouseEvent) => void;
   onContextMenu: (e: React.MouseEvent) => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
   renderResizeHandles: () => React.ReactNode;
 }
 
@@ -19,11 +22,14 @@ function SeatSectionRendererInner({
   section,
   seatCount,
   isSelected,
+  isHovered = false,
   currentTool,
   onMouseDown,
   onClick,
   onDoubleClick,
   onContextMenu,
+  onMouseEnter,
+  onMouseLeave,
   renderResizeHandles,
 }: Props) {
   const isTribune = section.section_type === 'tribune';
@@ -36,6 +42,9 @@ function SeatSectionRendererInner({
   const centerX = sx + sw / 2;
   const centerY = sy + sh / 2;
 
+  const strokeColor = isSelected ? '#3b82f6' : isHovered ? '#60a5fa' : section.color;
+  const strokeW = isSelected ? 2.5 : isHovered ? 2 : 1.5;
+
   return (
     <g style={rotation ? { transform: `rotate(${rotation}deg)`, transformOrigin: `${centerX}px ${centerY}px` } : undefined}>
       <g
@@ -43,13 +52,15 @@ function SeatSectionRendererInner({
         onClick={onClick}
         onDoubleClick={onDoubleClick}
         onContextMenu={onContextMenu}
-        style={{ cursor: currentTool === 'select' ? 'move' : 'default' }}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+        style={{ cursor: currentTool === 'select' ? 'grab' : 'default' }}
       >
         <rect
           x={sx} y={sy} width={sw} height={sh}
-          fill={section.color} fillOpacity={0.12}
-          stroke={isSelected ? '#ef4444' : section.color}
-          strokeWidth={isSelected ? 3 : 2}
+          fill={section.color} fillOpacity={isHovered ? 0.18 : 0.12}
+          stroke={strokeColor}
+          strokeWidth={strokeW}
           strokeDasharray={isTribune ? 'none' : '8 4'}
           rx="6"
         />
@@ -120,6 +131,7 @@ export const SeatSectionRenderer = React.memo(SeatSectionRendererInner, (prev, n
   if (prev.section.rotation !== next.section.rotation) return false;
   if (prev.seatCount !== next.seatCount) return false;
   if (prev.isSelected !== next.isSelected) return false;
+  if (prev.isHovered !== next.isHovered) return false;
   if (prev.currentTool !== next.currentTool) return false;
   return true;
 });

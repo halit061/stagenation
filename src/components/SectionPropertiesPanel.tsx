@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Copy, Trash2, RefreshCw, Pencil, Maximize, Ticket } from 'lucide-react';
+import { Copy, Trash2, RefreshCw, Pencil, Maximize, Ticket, RotateCw } from 'lucide-react';
 import type { SeatSection, Seat, SeatStatus, TicketType } from '../types/seats';
 
 const labelCls = 'block text-slate-400 text-xs font-medium mb-1';
@@ -19,10 +19,11 @@ interface Props {
   onDuplicate: (section: SeatSection) => void;
   onDelete: (section: SeatSection) => void;
   onAutoFit?: (section: SeatSection) => void;
+  onRotate?: (angle: number) => void;
   linkedTicketTypes?: TicketType[];
 }
 
-export function SectionPropertiesPanel({ section, seats, onEdit, onRegenerate, onDuplicate, onDelete, onAutoFit, linkedTicketTypes = [] }: Props) {
+export function SectionPropertiesPanel({ section, seats, onEdit, onRegenerate, onDuplicate, onDelete, onAutoFit, onRotate, linkedTicketTypes = [] }: Props) {
   const stats = useMemo(() => {
     const total = seats.length;
     const available = seats.filter((s) => s.status === 'available').length;
@@ -125,6 +126,51 @@ export function SectionPropertiesPanel({ section, seats, onEdit, onRegenerate, o
             X: {Math.round(section.position_x)}, Y: {Math.round(section.position_y)} | {Math.round(section.width)} x {Math.round(section.height)}
           </p>
         </div>
+
+        {onRotate && (
+          <div>
+            <label className={labelCls}>
+              <span className="flex items-center gap-1">
+                <RotateCw className="w-3 h-3" />
+                Rotatie
+              </span>
+            </label>
+            <div className="flex items-center gap-2 mb-1.5">
+              <input
+                type="range"
+                min="0"
+                max="360"
+                value={section.rotation || 0}
+                onChange={(e) => onRotate(parseInt(e.target.value))}
+                className="flex-1 accent-blue-500 h-1.5"
+              />
+              <input
+                type="number"
+                min="0"
+                max="360"
+                value={section.rotation || 0}
+                onChange={(e) => onRotate(Math.max(0, Math.min(360, parseInt(e.target.value) || 0)))}
+                className="w-14 px-1.5 py-0.5 bg-slate-700 border border-slate-600 rounded text-white text-xs text-center focus:border-blue-500 focus:outline-none"
+              />
+              <span className="text-slate-500 text-xs">deg</span>
+            </div>
+            <div className="flex gap-1">
+              {[0, 90, 180, 270].map((a) => (
+                <button
+                  key={a}
+                  onClick={() => onRotate(a)}
+                  className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                    (section.rotation || 0) === a
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  {a}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="border-t border-slate-700 pt-3 mt-3">
           <label className={labelCls}>Beschikbaarheid</label>

@@ -17,6 +17,7 @@ import { AdminViewerCount } from './AdminViewerCount';
 import { AdminEventStatus } from './AdminEventStatus';
 import { AdminSalesWidget } from './AdminSalesWidget';
 import { OrderToast } from './AdminNotifications';
+import { FloatingToolbar } from './FloatingToolbar';
 import { useAdminSeatRealtime } from '../hooks/useAdminSeatRealtime';
 import type { SectionFormData } from './SectionConfigModal';
 import type { VenueLayout, SeatSection, Seat, TicketType } from '../types/seats';
@@ -84,6 +85,11 @@ type SelectedItemType = { type: 'table' | 'object' | 'section'; data: FloorplanT
 
 const CANVAS_W = 1600;
 const CANVAS_H = 1000;
+const DRAG_THRESHOLD = 5;
+const SNAP_GRID = 10;
+const SNAP_PROXIMITY = 10;
+const MIN_SECTION_W = 80;
+const MIN_SECTION_H = 60;
 
 export function FloorPlanEditor() {
   const { showToast } = useToast();
@@ -98,6 +104,17 @@ export function FloorPlanEditor() {
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0, ox: 0, oy: 0 });
   const resizeOrigSection = useRef<{ width: number; height: number } | null>(null);
   const [zoom, setZoom] = useState(1);
+  const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
+  const [snapLines, setSnapLines] = useState<{ x?: number; y?: number }[]>([]);
+  const dragIntent = useRef<{
+    type: 'drag' | 'resize';
+    startX: number;
+    startY: number;
+    item: SelectedItemType;
+    handle?: 'se' | 'sw' | 'ne' | 'nw' | 'n' | 's' | 'e' | 'w';
+    thresholdMet: boolean;
+  } | null>(null);
+  const dragGhostPos = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
   const [currentTool, setCurrentTool] = useState<EditorTool>('select');
   const [showGrid, setShowGrid] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -177,6 +194,51 @@ export function FloorPlanEditor() {
     loadAll();
   }, []);
 
+  const nudgeItem = useCallback((dx: number, dy: number) => {
+    if (!selectedItem) return;
+    if (selectedItem.type === 'section') {
+      const sec = selectedItem.data as SeatSection;
+      const nx = Math.max(0, Math.min(CANVAS_W - sec.width, sec.position_x + dx));
+      const ny = Math.max(0, Math.min(CANVAS_H - sec.height, sec.position_y + dy));
+      const updated = { ...sec, position_x: nx, position_y: ny };
+      setSeatSections(prev => prev.map(s => s.id === sec.id ? updated : s));
+      setSelectedItem({ type: 'section', data: updated });
+      updateSection(sec.id, { position_x: nx, position_y: ny }).catch(() => {});
+    } else {
+      const d = selectedItem.data as FloorplanTable | FloorplanObject;
+      const nx = Math.max(0, Math.min(CANVAS_W - d.width, d.x + dx));
+      const ny = Math.max(0, Math.min(CANVAS_H - d.height, d.y + dy));
+      const updated = { ...d, x: nx, y: ny } as FloorplanTable | FloorplanObject;
+      applyLocalUpdate(updated);
+      if (selectedItem.type === 'table') saveTable(updated as FloorplanTable);
+      else saveObject(updated as FloorplanObject);
+    }
+  }, [selectedItem, seatSections]);
+
+  const rotateSelectedItem = useCallback((angle: number) => {
+    if (!selectedItem) return;
+    const current = selectedItem.data.rotation || 0;
+    const newAngle = ((current + angle) % 360 + 360) % 360;
+    handleRotateItem(newAngle);
+  }, [selectedItem]);
+
+  const handleRotateItem = useCallback(async (angle: number) => {
+    if (!selectedItem) return;
+    if (selectedItem.type === 'section') {
+      const sec = selectedItem.data as SeatSection;
+      const updated = { ...sec, rotation: angle };
+      setSeatSections(prev => prev.map(s => s.id === sec.id ? updated : s));
+      setSelectedItem({ type: 'section', data: updated });
+      try { await updateSection(sec.id, { rotation: angle }); } catch {}
+    } else {
+      const d = selectedItem.data as FloorplanTable | FloorplanObject;
+      const updated = { ...d, rotation: angle } as FloorplanTable | FloorplanObject;
+      applyLocalUpdate(updated);
+      if (selectedItem.type === 'table') await saveTable(updated as FloorplanTable);
+      else await saveObject(updated as FloorplanObject);
+    }
+  }, [selectedItem]);
+
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement)?.tagName;
@@ -202,15 +264,48 @@ export function FloorPlanEditor() {
         handleSaveShortcut();
         return;
       }
+      if (e.key === 'Escape') {
+        setSelectedItem(null);
+        setContextMenu(null);
+        setSeatContextMenu(null);
+        return;
+      }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedSeatIds.size > 0) {
         e.preventDefault();
         setShowDeleteConfirm(true);
         return;
       }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedItem) {
+        e.preventDefault();
+        if (selectedItem.type === 'section') handleDeleteSection(selectedItem.data as SeatSection);
+        else deleteItem();
+        return;
+      }
+      if (selectedItem) {
+        const step = e.shiftKey ? 10 : 1;
+        if (e.key === 'ArrowLeft') { e.preventDefault(); nudgeItem(-step, 0); return; }
+        if (e.key === 'ArrowRight') { e.preventDefault(); nudgeItem(step, 0); return; }
+        if (e.key === 'ArrowUp') { e.preventDefault(); nudgeItem(0, -step); return; }
+        if (e.key === 'ArrowDown') { e.preventDefault(); nudgeItem(0, step); return; }
+        if (e.key === 'r' || e.key === 'R') { e.preventDefault(); rotateSelectedItem(15); return; }
+        if (e.key === '[') { e.preventDefault(); rotateSelectedItem(-15); return; }
+        if (e.key === ']') { e.preventDefault(); rotateSelectedItem(15); return; }
+        if (e.key === 'd' || (e.ctrlKey && e.key === 'd') || (e.metaKey && e.key === 'd')) {
+          e.preventDefault();
+          if (selectedItem.type === 'section') handleDuplicateSection(selectedItem.data as SeatSection);
+          else duplicateItem();
+          return;
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (selectedItem.type === 'section') openEditSection(selectedItem.data as SeatSection);
+          return;
+        }
+      }
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, selectedSeatIds]);
+  }, [undo, redo, selectedSeatIds, selectedItem, nudgeItem, rotateSelectedItem]);
 
   async function handleSaveShortcut() {
     const saveBtn = document.querySelector('[data-layout-save]') as HTMLButtonElement | null;
@@ -875,8 +970,8 @@ export function FloorPlanEditor() {
     if (currentTool !== 'select') return;
     e.stopPropagation();
     const p = getSvgPoint(e);
-    setIsDragging(true);
     setSelectedItem(item);
+    setSelectedSeatIds(new Set());
     if (item.type === 'section') {
       const sec = item.data as SeatSection;
       setDragOffset({ x: p.x - sec.position_x, y: p.y - sec.position_y });
@@ -884,13 +979,27 @@ export function FloorPlanEditor() {
       const d = item.data as FloorplanTable | FloorplanObject;
       setDragOffset({ x: p.x - d.x, y: p.y - d.y });
     }
+    dragIntent.current = {
+      type: 'drag',
+      startX: p.x,
+      startY: p.y,
+      item,
+      thresholdMet: false,
+    };
+    const isSection = item.type === 'section';
+    const d = item.data;
+    dragGhostPos.current = {
+      x: isSection ? (d as SeatSection).position_x : (d as any).x,
+      y: isSection ? (d as SeatSection).position_y : (d as any).y,
+      w: d.width,
+      h: d.height,
+    };
   };
 
   const handleResizeStart = (e: React.MouseEvent, handle: 'se' | 'sw' | 'ne' | 'nw' | 'n' | 's' | 'e' | 'w') => {
     e.stopPropagation();
     if (!selectedItem) return;
     const p = getSvgPoint(e);
-    setIsResizing(true);
     setResizeHandle(handle);
     if (selectedItem.type === 'section') {
       const sec = selectedItem.data as SeatSection;
@@ -905,59 +1014,163 @@ export function FloorPlanEditor() {
         oy: (selectedItem.data as FloorplanTable | FloorplanObject).y,
       });
     }
+    dragIntent.current = {
+      type: 'resize',
+      startX: p.x,
+      startY: p.y,
+      item: selectedItem,
+      handle,
+      thresholdMet: false,
+    };
   };
 
+  function snapToGrid(val: number): number {
+    return showGrid ? Math.round(val / SNAP_GRID) * SNAP_GRID : val;
+  }
+
+  function computeSnapLines(
+    movingId: string,
+    nx: number, ny: number, nw: number, nh: number
+  ): { x?: number; y?: number }[] {
+    const lines: { x?: number; y?: number }[] = [];
+    const others = [
+      ...seatSections.filter(s => s.id !== movingId).map(s => ({
+        x: s.position_x, y: s.position_y, w: s.width, h: s.height,
+      })),
+      ...objects.filter(o => selectedItem?.data?.id !== o.id).map(o => ({
+        x: o.x, y: o.y, w: o.width, h: o.height,
+      })),
+    ];
+    for (const o of others) {
+      const edges = [
+        { a: nx, b: o.x },
+        { a: nx + nw, b: o.x + o.w },
+        { a: nx, b: o.x + o.w },
+        { a: nx + nw, b: o.x },
+        { a: nx + nw / 2, b: o.x + o.w / 2 },
+      ];
+      for (const { a, b } of edges) {
+        if (Math.abs(a - b) < SNAP_PROXIMITY) lines.push({ x: b });
+      }
+      const yEdges = [
+        { a: ny, b: o.y },
+        { a: ny + nh, b: o.y + o.h },
+        { a: ny, b: o.y + o.h },
+        { a: ny + nh, b: o.y },
+        { a: ny + nh / 2, b: o.y + o.h / 2 },
+      ];
+      for (const { a, b } of yEdges) {
+        if (Math.abs(a - b) < SNAP_PROXIMITY) lines.push({ y: b });
+      }
+    }
+    return lines;
+  }
+
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!selectedItem) return;
+    const intent = dragIntent.current;
+    if (!intent) return;
     const p = getSvgPoint(e);
 
-    if (selectedItem.type === 'section') {
-      const sec = selectedItem.data as SeatSection;
-      if (isResizing && resizeHandle) {
-        const dx = p.x - resizeStart.x;
-        const dy = p.y - resizeStart.y;
-        const MIN_W = 100, MIN_H = 80;
+    if (!intent.thresholdMet) {
+      const dist = Math.sqrt((p.x - intent.startX) ** 2 + (p.y - intent.startY) ** 2);
+      if (dist < DRAG_THRESHOLD) return;
+      intent.thresholdMet = true;
+      if (intent.type === 'drag') setIsDragging(true);
+      else setIsResizing(true);
+    }
+
+    const sel = intent.item;
+
+    if (intent.type === 'resize') {
+      const handle = intent.handle || resizeHandle;
+      if (!handle) return;
+      const dx = p.x - resizeStart.x;
+      const dy = p.y - resizeStart.y;
+
+      if (sel.type === 'section') {
+        const sec = sel.data as SeatSection;
         let nw = resizeStart.width, nh = resizeStart.height;
         let nx = resizeStart.ox, ny = resizeStart.oy;
-        const moveE = resizeHandle.includes('e');
-        const moveW = resizeHandle === 'w' || resizeHandle === 'nw' || resizeHandle === 'sw';
-        const moveS = resizeHandle.includes('s');
-        const moveN = resizeHandle === 'n' || resizeHandle === 'ne' || resizeHandle === 'nw';
-        if (moveE) nw = Math.max(MIN_W, resizeStart.width + dx);
-        if (moveW) { nw = Math.max(MIN_W, resizeStart.width - dx); nx = resizeStart.ox + (resizeStart.width - nw); }
-        if (moveS) nh = Math.max(MIN_H, resizeStart.height + dy);
-        if (moveN) { nh = Math.max(MIN_H, resizeStart.height - dy); ny = resizeStart.oy + (resizeStart.height - nh); }
-        nx = Math.max(0, Math.min(CANVAS_W - nw, nx));
-        ny = Math.max(0, Math.min(CANVAS_H - nh, ny));
+        const moveE = handle.includes('e');
+        const moveW = handle === 'w' || handle === 'nw' || handle === 'sw';
+        const moveS = handle.includes('s');
+        const moveN = handle === 'n' || handle === 'ne' || handle === 'nw';
+        if (moveE) nw = Math.max(MIN_SECTION_W, resizeStart.width + dx);
+        if (moveW) { nw = Math.max(MIN_SECTION_W, resizeStart.width - dx); nx = resizeStart.ox + (resizeStart.width - nw); }
+        if (moveS) nh = Math.max(MIN_SECTION_H, resizeStart.height + dy);
+        if (moveN) { nh = Math.max(MIN_SECTION_H, resizeStart.height - dy); ny = resizeStart.oy + (resizeStart.height - nh); }
+        if (e.shiftKey) {
+          const aspect = resizeStart.width / resizeStart.height;
+          if (nw / nh > aspect) nh = nw / aspect;
+          else nw = nh * aspect;
+        }
+        nw = snapToGrid(nw);
+        nh = snapToGrid(nh);
+        nx = Math.max(0, Math.min(CANVAS_W - nw, snapToGrid(nx)));
+        ny = Math.max(0, Math.min(CANVAS_H - nh, snapToGrid(ny)));
         const updated = { ...sec, position_x: nx, position_y: ny, width: nw, height: nh };
         setSeatSections(prev => prev.map(s => s.id === sec.id ? updated : s));
         setSelectedItem({ type: 'section', data: updated });
-      } else if (isDragging) {
-        const nx = Math.max(0, Math.min(CANVAS_W - sec.width, p.x - dragOffset.x));
-        const ny = Math.max(0, Math.min(CANVAS_H - sec.height, p.y - dragOffset.y));
-        const updated = { ...sec, position_x: nx, position_y: ny };
-        setSeatSections(prev => prev.map(s => s.id === sec.id ? updated : s));
-        setSelectedItem({ type: 'section', data: updated });
+      } else {
+        let nw = resizeStart.width, nh = resizeStart.height;
+        let nx = resizeStart.ox, ny = resizeStart.oy;
+        const moveE = handle.includes('e');
+        const moveW = handle === 'w' || handle === 'nw' || handle === 'sw';
+        const moveS = handle.includes('s');
+        const moveN = handle === 'n' || handle === 'ne' || handle === 'nw';
+        if (moveE) nw = Math.max(40, resizeStart.width + dx);
+        if (moveW) { nw = Math.max(40, resizeStart.width - dx); nx = resizeStart.ox + (resizeStart.width - nw); }
+        if (moveS) nh = Math.max(30, resizeStart.height + dy);
+        if (moveN) { nh = Math.max(30, resizeStart.height - dy); ny = resizeStart.oy + (resizeStart.height - nh); }
+        if (e.shiftKey) {
+          const aspect = resizeStart.width / resizeStart.height;
+          if (nw / nh > aspect) nh = nw / aspect;
+          else nw = nh * aspect;
+        }
+        nw = snapToGrid(nw);
+        nh = snapToGrid(nh);
+        nx = Math.max(0, Math.min(CANVAS_W - nw, snapToGrid(nx)));
+        ny = Math.max(0, Math.min(CANVAS_H - nh, snapToGrid(ny)));
+        applyLocalUpdate({ ...sel.data, x: nx, y: ny, width: nw, height: nh } as FloorplanTable | FloorplanObject);
       }
       return;
     }
 
-    if (isResizing && resizeHandle) {
-      const dx = p.x - resizeStart.x;
-      const dy = p.y - resizeStart.y;
-      let nw = resizeStart.width, nh = resizeStart.height;
-      let nx = resizeStart.ox, ny = resizeStart.oy;
-      if (resizeHandle === 'se') { nw = Math.max(40, resizeStart.width + dx); nh = Math.max(30, resizeStart.height + dy); }
-      else if (resizeHandle === 'sw') { nw = Math.max(40, resizeStart.width - dx); nh = Math.max(30, resizeStart.height + dy); nx = resizeStart.ox + (resizeStart.width - nw); }
-      else if (resizeHandle === 'ne') { nw = Math.max(40, resizeStart.width + dx); nh = Math.max(30, resizeStart.height - dy); ny = resizeStart.oy + (resizeStart.height - nh); }
-      else if (resizeHandle === 'nw') { nw = Math.max(40, resizeStart.width - dx); nh = Math.max(30, resizeStart.height - dy); nx = resizeStart.ox + (resizeStart.width - nw); ny = resizeStart.oy + (resizeStart.height - nh); }
-      nx = Math.max(0, Math.min(CANVAS_W - nw, nx));
-      ny = Math.max(0, Math.min(CANVAS_H - nh, ny));
-      applyLocalUpdate({ ...selectedItem.data, x: nx, y: ny, width: nw, height: nh } as FloorplanTable | FloorplanObject);
-    } else if (isDragging) {
-      const item = selectedItem.data as FloorplanTable | FloorplanObject;
-      const nx = Math.max(0, Math.min(CANVAS_W - item.width, p.x - dragOffset.x));
-      const ny = Math.max(0, Math.min(CANVAS_H - item.height, p.y - dragOffset.y));
+    if (sel.type === 'section') {
+      const sec = sel.data as SeatSection;
+      let nx = snapToGrid(Math.max(0, Math.min(CANVAS_W - sec.width, p.x - dragOffset.x)));
+      let ny = snapToGrid(Math.max(0, Math.min(CANVAS_H - sec.height, p.y - dragOffset.y)));
+      const lines = computeSnapLines(sec.id, nx, ny, sec.width, sec.height);
+      setSnapLines(lines);
+      for (const line of lines) {
+        if (line.x !== undefined) {
+          if (Math.abs(nx - line.x) < SNAP_PROXIMITY) nx = line.x;
+          else if (Math.abs(nx + sec.width - line.x) < SNAP_PROXIMITY) nx = line.x - sec.width;
+        }
+        if (line.y !== undefined) {
+          if (Math.abs(ny - line.y) < SNAP_PROXIMITY) ny = line.y;
+          else if (Math.abs(ny + sec.height - line.y) < SNAP_PROXIMITY) ny = line.y - sec.height;
+        }
+      }
+      const updated = { ...sec, position_x: nx, position_y: ny };
+      setSeatSections(prev => prev.map(s => s.id === sec.id ? updated : s));
+      setSelectedItem({ type: 'section', data: updated });
+    } else {
+      const item = sel.data as FloorplanTable | FloorplanObject;
+      let nx = snapToGrid(Math.max(0, Math.min(CANVAS_W - item.width, p.x - dragOffset.x)));
+      let ny = snapToGrid(Math.max(0, Math.min(CANVAS_H - item.height, p.y - dragOffset.y)));
+      const lines = computeSnapLines(item.id, nx, ny, item.width, item.height);
+      setSnapLines(lines);
+      for (const line of lines) {
+        if (line.x !== undefined) {
+          if (Math.abs(nx - line.x) < SNAP_PROXIMITY) nx = line.x;
+          else if (Math.abs(nx + item.width - line.x) < SNAP_PROXIMITY) nx = line.x - item.width;
+        }
+        if (line.y !== undefined) {
+          if (Math.abs(ny - line.y) < SNAP_PROXIMITY) ny = line.y;
+          else if (Math.abs(ny + item.height - line.y) < SNAP_PROXIMITY) ny = line.y - item.height;
+        }
+      }
       applyLocalUpdate({ ...item, x: nx, y: ny } as FloorplanTable | FloorplanObject);
     }
   };
@@ -972,7 +1185,10 @@ export function FloorPlanEditor() {
   }
 
   const handleMouseUp = async () => {
-    if ((isDragging || isResizing) && selectedItem) {
+    const wasDragging = isDragging;
+    const wasResizing = isResizing;
+
+    if ((wasDragging || wasResizing) && selectedItem) {
       if (selectedItem.type === 'section') {
         const sec = selectedItem.data as SeatSection;
         try {
@@ -982,7 +1198,7 @@ export function FloorPlanEditor() {
             width: sec.width,
             height: sec.height,
           });
-          if (isResizing && resizeOrigSection.current) {
+          if (wasResizing && resizeOrigSection.current) {
             const orig = resizeOrigSection.current;
             const scaleX = sec.width / orig.width;
             const scaleY = sec.height / orig.height;
@@ -1019,6 +1235,9 @@ export function FloorPlanEditor() {
     setIsDragging(false);
     setIsResizing(false);
     setResizeHandle(null);
+    setSnapLines([]);
+    dragIntent.current = null;
+    dragGhostPos.current = null;
   };
 
   const handleToolClick = (tool: EditorTool) => {
@@ -1062,8 +1281,12 @@ export function FloorPlanEditor() {
     return (
       <>
         {handles.map(h => (
-          <circle key={h.handle} cx={h.cx} cy={h.cy} r="4" fill="#ef4444" stroke="white" strokeWidth="1.5"
-            style={{ cursor: cursorMap[h.handle] }} onMouseDown={(e) => handleResizeStart(e, h.handle)} />
+          <g key={h.handle}>
+            <circle cx={h.cx} cy={h.cy} r="10" fill="transparent"
+              style={{ cursor: cursorMap[h.handle] }} onMouseDown={(e) => handleResizeStart(e, h.handle)} />
+            <circle cx={h.cx} cy={h.cy} r="5" fill="#3b82f6" stroke="white" strokeWidth="1.5"
+              style={{ cursor: cursorMap[h.handle], pointerEvents: 'none' }} />
+          </g>
         ))}
       </>
     );
@@ -1160,7 +1383,12 @@ export function FloorPlanEditor() {
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
-              onClick={() => { if (!isDragging && !isResizing) { setSelectedItem(null); setContextMenu(null); setSeatContextMenu(null); if (!marqueeActive) setSelectedSeatIds(new Set()); } }}
+              onClick={() => {
+                if (!isDragging && !isResizing && !dragIntent.current?.thresholdMet) {
+                  setSelectedItem(null); setContextMenu(null); setSeatContextMenu(null);
+                  if (!marqueeActive) setSelectedSeatIds(new Set());
+                }
+              }}
             >
               <svg
                 ref={svgRef}
@@ -1192,6 +1420,7 @@ export function FloorPlanEditor() {
 
                 {objects.map((obj) => {
                   const isSelected = selectedItem?.type === 'object' && selectedItem.data.id === obj.id;
+                  const isHovered = hoveredItemId === obj.id && !isSelected;
                   const displayName = obj.name || obj.label || obj.type || '';
                   const isDancefloor = obj.type === 'DANCEFLOOR';
                   const isTribune = obj.type === 'TRIBUNE';
@@ -1200,14 +1429,16 @@ export function FloorPlanEditor() {
                     <g key={obj.id}>
                       <g
                         onMouseDown={(e) => handleItemMouseDown(e, { type: 'object', data: obj })}
-                        onClick={(e) => { e.stopPropagation(); setSelectedItem({ type: 'object', data: obj }); }}
-                        style={{ cursor: currentTool === 'select' ? 'move' : 'default' }}
+                        onClick={(e) => { e.stopPropagation(); setSelectedItem({ type: 'object', data: obj }); setSelectedSeatIds(new Set()); }}
+                        onMouseEnter={() => setHoveredItemId(obj.id)}
+                        onMouseLeave={() => setHoveredItemId(null)}
+                        style={{ cursor: currentTool === 'select' ? (isDragging ? 'grabbing' : 'grab') : 'default' }}
                       >
                         {isTribune ? (
                           <>
                             <rect x={obj.x} y={obj.y} width={obj.width} height={obj.height}
-                              fill={obj.color} stroke={isSelected ? '#ef4444' : '#78350f'}
-                              strokeWidth={isSelected ? '3' : '2'} rx="4" />
+                              fill={obj.color} stroke={isSelected ? '#3b82f6' : isHovered ? '#60a5fa' : '#78350f'}
+                              strokeWidth={isSelected ? 2.5 : isHovered ? 2 : 1.5} rx="4" />
                             {[0.2, 0.4, 0.6, 0.8].map((frac) => (
                               <line key={frac}
                                 x1={obj.x + obj.width * frac} y1={obj.y + 4}
@@ -1225,8 +1456,8 @@ export function FloorPlanEditor() {
                         ) : (
                           <>
                             <rect x={obj.x} y={obj.y} width={obj.width} height={obj.height}
-                              fill={obj.color} stroke={isSelected ? '#ef4444' : '#475569'}
-                              strokeWidth={isSelected ? '3' : '2'} rx="4"
+                              fill={obj.color} stroke={isSelected ? '#3b82f6' : isHovered ? '#60a5fa' : '#475569'}
+                              strokeWidth={isSelected ? 2.5 : isHovered ? 2 : 1.5} rx="4"
                               opacity={isDancefloor ? 0.35 : 1} />
                             <text x={obj.x + obj.width / 2} y={obj.y + obj.height / 2}
                               textAnchor="middle" dominantBaseline="middle"
@@ -1245,6 +1476,7 @@ export function FloorPlanEditor() {
 
                 {seatSections.map((section) => {
                   const isSel = selectedItem?.type === 'section' && selectedItem.data.id === section.id;
+                  const isHovered = hoveredItemId === section.id && !isSel;
                   const seatCount = (sectionSeats[section.id] || []).length;
                   return (
                     <SeatSectionRenderer
@@ -1252,6 +1484,7 @@ export function FloorPlanEditor() {
                       section={section}
                       seatCount={seatCount}
                       isSelected={isSel}
+                      isHovered={isHovered}
                       currentTool={currentTool}
                       onMouseDown={(e) => handleItemMouseDown(e, { type: 'section', data: section })}
                       onClick={(e) => { e.stopPropagation(); setSelectedItem({ type: 'section', data: section }); setSelectedSeatIds(new Set()); }}
@@ -1261,12 +1494,38 @@ export function FloorPlanEditor() {
                         e.stopPropagation();
                         setContextMenu({ x: e.clientX, y: e.clientY, section });
                       }}
+                      onMouseEnter={() => setHoveredItemId(section.id)}
+                      onMouseLeave={() => setHoveredItemId(null)}
                       renderResizeHandles={() =>
                         isSel && currentTool === 'select' ? <ResizeHandles item={section} /> : null
                       }
                     />
                   );
                 })}
+
+                {snapLines.length > 0 && (isDragging || isResizing) && snapLines.map((line, i) => (
+                  <line key={i}
+                    x1={line.x !== undefined ? line.x : 0}
+                    y1={line.y !== undefined ? line.y : 0}
+                    x2={line.x !== undefined ? line.x : CANVAS_W}
+                    y2={line.y !== undefined ? line.y : CANVAS_H}
+                    stroke="#f59e0b" strokeWidth="1" strokeDasharray="4 4" opacity={0.7}
+                  />
+                ))}
+
+                {isResizing && selectedItem && (() => {
+                  const isSection = selectedItem.type === 'section';
+                  const d = selectedItem.data;
+                  const ix = isSection ? (d as SeatSection).position_x : (d as any).x;
+                  const iy = isSection ? (d as SeatSection).position_y : (d as any).y;
+                  return (
+                    <text x={ix + d.width / 2} y={iy - 8}
+                      textAnchor="middle" fill="#f59e0b" fontSize="11" fontWeight="bold"
+                      className="pointer-events-none">
+                      {Math.round(d.width)} x {Math.round(d.height)}
+                    </text>
+                  );
+                })()}
 
                 <SeatInteractionLayer
                   sections={seatSections}
@@ -1286,6 +1545,7 @@ export function FloorPlanEditor() {
 
                 {tables.map((table) => {
                   const isSelected = selectedItem?.type === 'table' && selectedItem.data.id === table.id;
+                  const isHovered = hoveredItemId === table.id && !isSelected;
                   const isSeated = table.table_type === 'SEATED';
                   const isSold = table.manual_status === 'SOLD';
                   const fillColor = isSold ? '#ef4444' : isSeated ? '#22c55e' : '#3b82f6';
@@ -1294,12 +1554,14 @@ export function FloorPlanEditor() {
                     <g key={table.id}>
                       <g
                         onMouseDown={(e) => handleItemMouseDown(e, { type: 'table', data: table })}
-                        onClick={(e) => { e.stopPropagation(); setSelectedItem({ type: 'table', data: table }); }}
-                        style={{ cursor: currentTool === 'select' ? 'move' : 'default' }}
+                        onClick={(e) => { e.stopPropagation(); setSelectedItem({ type: 'table', data: table }); setSelectedSeatIds(new Set()); }}
+                        onMouseEnter={() => setHoveredItemId(table.id)}
+                        onMouseLeave={() => setHoveredItemId(null)}
+                        style={{ cursor: currentTool === 'select' ? (isDragging ? 'grabbing' : 'grab') : 'default' }}
                       >
                         <rect x={table.x} y={table.y} width={table.width} height={table.height}
-                          fill={fillColor} stroke={isSelected ? '#ef4444' : '#475569'}
-                          strokeWidth={isSelected ? '3' : '2'} rx="4" />
+                          fill={fillColor} stroke={isSelected ? '#3b82f6' : isHovered ? '#60a5fa' : '#475569'}
+                          strokeWidth={isSelected ? 2.5 : isHovered ? 2 : 1.5} rx="4" />
                         {isSeated && [
                           [table.x + 12, table.y + 12],
                           [table.x + table.width - 12, table.y + 12],
@@ -1323,6 +1585,25 @@ export function FloorPlanEditor() {
                 })}
               </svg>
               <SelectionCounter count={selectedSeatIds.size} onClear={() => setSelectedSeatIds(new Set())} />
+
+              {selectedItem && currentTool === 'select' && !isDragging && !isResizing && (
+                <FloatingToolbar
+                  item={selectedItem}
+                  svgRef={svgRef as React.RefObject<SVGSVGElement>}
+                  onEdit={() => {
+                    if (selectedItem.type === 'section') openEditSection(selectedItem.data as SeatSection);
+                  }}
+                  onDuplicate={() => {
+                    if (selectedItem.type === 'section') handleDuplicateSection(selectedItem.data as SeatSection);
+                    else duplicateItem();
+                  }}
+                  onDelete={() => {
+                    if (selectedItem.type === 'section') handleDeleteSection(selectedItem.data as SeatSection);
+                    else deleteItem();
+                  }}
+                  onRotate={handleRotateItem}
+                />
+              )}
             </div>
           </div>
 
@@ -1344,6 +1625,7 @@ export function FloorPlanEditor() {
                   onDuplicate={handleDuplicateSection}
                   onDelete={handleDeleteSection}
                   onAutoFit={autoFitSectionToSeats}
+                  onRotate={handleRotateItem}
                   linkedTicketTypes={
                     selectedEventId
                       ? eventTicketTypes.filter(tt => (sectionTicketLinks[(selectedItem.data as SeatSection).id] || []).includes(tt.id))
