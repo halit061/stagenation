@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Save, Trash2, ZoomIn, ZoomOut, Maximize2, Move, Grid3x3, Square, Circle, Copy, Rows3, Armchair, CreditCard as Edit, BoxSelect, Undo2, Redo2, HelpCircle } from 'lucide-react';
+import { Save, Trash2, ZoomIn, ZoomOut, Maximize2, Move, Grid3x3, Square, Circle, Copy, Rows3, Armchair, CreditCard as Edit, BoxSelect, Undo2, Redo2, HelpCircle, Image, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useToast } from './Toast';
 import { LayoutToolbar } from './LayoutToolbar';
@@ -18,7 +18,9 @@ import { AdminEventStatus } from './AdminEventStatus';
 import { AdminSalesWidget } from './AdminSalesWidget';
 import { OrderToast } from './AdminNotifications';
 import { FloatingToolbar } from './FloatingToolbar';
+import { BackgroundUploadModal } from './BackgroundUploadModal';
 import { useAdminSeatRealtime } from '../hooks/useAdminSeatRealtime';
+import type { BackgroundSettings } from '../lib/backgroundUpload';
 import type { SectionFormData } from './SectionConfigModal';
 import type { VenueLayout, SeatSection, Seat, TicketType } from '../types/seats';
 import { getSectionsByLayout, createSection, updateSection, deleteSection, generateSeats, getSeatsBySection, updateSeat as updateSeatDb, deleteSeatsById, updateSectionCapacity, updateSeatPositions, getTicketTypesForEvent, getAllTicketTypeSectionsForEvent, linkTicketTypeToSections } from '../services/seatService';
@@ -115,6 +117,18 @@ export function FloorPlanEditor() {
     thresholdMet: boolean;
   } | null>(null);
   const dragGhostPos = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
+
+  const emptyBg: BackgroundSettings = {
+    background_image_url: null, background_opacity: 0.3,
+    background_position_x: 0, background_position_y: 0,
+    background_width: null, background_height: null,
+    background_rotation: 0, background_locked: true,
+  };
+  const [bgSettings, setBgSettings] = useState<BackgroundSettings>(emptyBg);
+  const [bgVisible, setBgVisible] = useState(true);
+  const [showBgModal, setShowBgModal] = useState(false);
+  const [bgImageLoaded, setBgImageLoaded] = useState(false);
+  const bgImageRef = useRef<HTMLImageElement | null>(null);
   const [currentTool, setCurrentTool] = useState<EditorTool>('select');
   const [showGrid, setShowGrid] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -350,9 +364,51 @@ export function FloorPlanEditor() {
     if (layout) {
       setLayoutName(layout.name);
       loadSections(layout.id);
+      loadBackgroundSettings(layout);
     } else {
       setSeatSections([]);
       setSectionSeats({});
+      setBgSettings(emptyBg);
+      setBgImageLoaded(false);
+    }
+  }
+
+  function loadBackgroundSettings(layout: any) {
+    const settings: BackgroundSettings = {
+      background_image_url: layout.background_image_url || null,
+      background_opacity: layout.background_opacity ?? 0.3,
+      background_position_x: layout.background_position_x ?? 0,
+      background_position_y: layout.background_position_y ?? 0,
+      background_width: layout.background_width ?? null,
+      background_height: layout.background_height ?? null,
+      background_rotation: layout.background_rotation ?? 0,
+      background_locked: layout.background_locked ?? true,
+    };
+    setBgSettings(settings);
+    setBgVisible(true);
+    setBgImageLoaded(false);
+
+    if (settings.background_image_url) {
+      const img = new window.Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        bgImageRef.current = img;
+        setBgImageLoaded(true);
+        if (!settings.background_width || !settings.background_height) {
+          const aspect = img.naturalWidth / img.naturalHeight;
+          const fitW = Math.min(CANVAS_W * 0.9, img.naturalWidth);
+          const fitH = fitW / aspect;
+          const newSettings = {
+            ...settings,
+            background_width: fitW,
+            background_height: fitH,
+            background_position_x: (CANVAS_W - fitW) / 2,
+            background_position_y: (CANVAS_H - fitH) / 2,
+          };
+          setBgSettings(newSettings);
+        }
+      };
+      img.src = settings.background_image_url;
     }
   }
 
@@ -361,6 +417,37 @@ export function FloorPlanEditor() {
     setSectionSeats({});
     setSelectedItem(null);
     setSelectedSeatIds(new Set());
+  }
+
+  function handleBgSettingsChange(newSettings: BackgroundSettings) {
+    setBgSettings(newSettings);
+    if (newSettings.background_image_url) {
+      if (newSettings.background_image_url !== bgSettings.background_image_url) {
+        setBgImageLoaded(false);
+        const img = new window.Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          bgImageRef.current = img;
+          setBgImageLoaded(true);
+          if (!newSettings.background_width || !newSettings.background_height) {
+            const aspect = img.naturalWidth / img.naturalHeight;
+            const fitW = Math.min(CANVAS_W * 0.9, img.naturalWidth);
+            const fitH = fitW / aspect;
+            setBgSettings(prev => ({
+              ...prev,
+              background_width: fitW,
+              background_height: fitH,
+              background_position_x: (CANVAS_W - fitW) / 2,
+              background_position_y: (CANVAS_H - fitH) / 2,
+            }));
+          }
+        };
+        img.src = newSettings.background_image_url;
+      }
+    } else {
+      bgImageRef.current = null;
+      setBgImageLoaded(false);
+    }
   }
 
   const handleEventChange = useCallback((eventId: string | null, eventName: string | null) => {
@@ -1350,6 +1437,38 @@ export function FloorPlanEditor() {
             >
               <HelpCircle className="w-5 h-5" />
             </button>
+            <div className="h-6 w-px bg-slate-600" />
+            <button
+              onClick={() => {
+                if (!currentLayout) { showToast('Sla eerst een layout op', 'error'); return; }
+                setShowBgModal(true);
+              }}
+              className={`p-2 rounded-lg transition-colors ${
+                bgSettings.background_image_url
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-slate-700 hover:bg-slate-600 text-white'
+              }`}
+              title="Achtergrond plattegrond"
+            >
+              <Image className="w-5 h-5" />
+            </button>
+            {bgSettings.background_image_url && (
+              <button
+                onClick={() => setBgVisible(v => !v)}
+                className={`p-2 rounded-lg transition-colors ${
+                  bgVisible
+                    ? 'bg-slate-700 hover:bg-slate-600 text-white'
+                    : 'bg-slate-700 hover:bg-slate-600 text-slate-500'
+                }`}
+                title={bgVisible ? 'Achtergrond verbergen' : 'Achtergrond tonen'}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setShowBgModal(true);
+                }}
+              >
+                {bgVisible ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -1416,6 +1535,24 @@ export function FloorPlanEditor() {
                     <rect x="0" y="0" width={CANVAS_W} height={CANVAS_H} fill="url(#gridMinor)" />
                     <rect x="0" y="0" width={CANVAS_W} height={CANVAS_H} fill="url(#gridMajor)" />
                   </>
+                )}
+
+                {bgVisible && bgSettings.background_image_url && bgImageLoaded && bgSettings.background_width && bgSettings.background_height && (
+                  <g style={bgSettings.background_rotation ? {
+                    transform: `rotate(${bgSettings.background_rotation}deg)`,
+                    transformOrigin: `${bgSettings.background_position_x + bgSettings.background_width / 2}px ${bgSettings.background_position_y + bgSettings.background_height / 2}px`,
+                  } : undefined}>
+                    <image
+                      href={bgSettings.background_image_url}
+                      x={bgSettings.background_position_x}
+                      y={bgSettings.background_position_y}
+                      width={bgSettings.background_width}
+                      height={bgSettings.background_height}
+                      opacity={bgSettings.background_opacity}
+                      preserveAspectRatio="none"
+                      style={{ pointerEvents: bgSettings.background_locked ? 'none' : 'auto' }}
+                    />
+                  </g>
                 )}
 
                 {objects.map((obj) => {
@@ -1851,6 +1988,17 @@ export function FloorPlanEditor() {
             </div>
           </div>
         </div>
+      )}
+
+      {currentLayout && (
+        <BackgroundUploadModal
+          isOpen={showBgModal}
+          onClose={() => setShowBgModal(false)}
+          layoutId={currentLayout.id}
+          currentSettings={bgSettings}
+          onSettingsChange={handleBgSettingsChange}
+          showToast={showToast}
+        />
       )}
     </div>
   );

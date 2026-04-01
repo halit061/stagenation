@@ -20,6 +20,14 @@ export interface VenueLayout {
   source_template_id: string | null;
   created_at: string;
   updated_at: string;
+  background_image_url: string | null;
+  background_opacity: number;
+  background_position_x: number;
+  background_position_y: number;
+  background_width: number | null;
+  background_height: number | null;
+  background_rotation: number;
+  background_locked: boolean;
 }
 
 export interface TicketTypeSection {
