@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { X, Upload, Loader2, Image, Trash2, FileText } from 'lucide-react';
 import { validateBackgroundFile, isPdf, uploadBackgroundImage, deleteBackgroundImage } from '../lib/backgroundUpload';
 import { saveBackgroundSettings } from '../lib/backgroundUpload';
@@ -28,6 +28,14 @@ export function BackgroundUploadModal({
   const [locked, setLocked] = useState(currentSettings.background_locked);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setPreviewUrl(currentSettings.background_image_url);
+      setOpacity(currentSettings.background_opacity);
+      setLocked(currentSettings.background_locked);
+    }
+  }, [isOpen, currentSettings]);
 
   const handleFile = useCallback(async (file: File) => {
     const validationError = validateBackgroundFile(file);

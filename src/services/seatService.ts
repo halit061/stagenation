@@ -181,16 +181,26 @@ export async function saveLayout(
   await requireAuth();
 
   if (layout.id) {
+    const updatePayload: Record<string, unknown> = {
+      name: layout.name,
+      venue_id: layout.venue_id,
+      event_id: layout.event_id,
+      layout_data: layout.layout_data ?? {},
+      brand_id: layout.brand_id,
+      is_template: layout.is_template,
+    };
+    if (layout.background_image_url !== undefined) updatePayload.background_image_url = layout.background_image_url;
+    if (layout.background_opacity !== undefined) updatePayload.background_opacity = layout.background_opacity;
+    if (layout.background_position_x !== undefined) updatePayload.background_position_x = layout.background_position_x;
+    if (layout.background_position_y !== undefined) updatePayload.background_position_y = layout.background_position_y;
+    if (layout.background_width !== undefined) updatePayload.background_width = layout.background_width;
+    if (layout.background_height !== undefined) updatePayload.background_height = layout.background_height;
+    if (layout.background_rotation !== undefined) updatePayload.background_rotation = layout.background_rotation;
+    if (layout.background_locked !== undefined) updatePayload.background_locked = layout.background_locked;
+
     const { data, error } = await supabase
       .from('venue_layouts')
-      .update({
-        name: layout.name,
-        venue_id: layout.venue_id,
-        event_id: layout.event_id,
-        layout_data: layout.layout_data ?? {},
-        brand_id: layout.brand_id,
-        is_template: layout.is_template,
-      })
+      .update(updatePayload)
       .eq('id', layout.id)
       .select()
       .single();

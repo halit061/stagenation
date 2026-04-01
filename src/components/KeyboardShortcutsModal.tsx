@@ -16,6 +16,7 @@ const shortcuts = [
   { keys: 'Shift + Klik', description: 'Bereik selecteren' },
   { keys: 'Klik + Sleep', description: 'Stoel verplaatsen' },
   { keys: 'Scroll', description: 'Zoomen (muis op canvas)' },
+  { keys: 'B', description: 'Achtergrond aan/uit' },
 ];
 
 export function KeyboardShortcutsModal({ isOpen, onClose }: Props) {

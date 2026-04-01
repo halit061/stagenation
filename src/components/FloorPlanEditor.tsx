@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Save, Trash2, ZoomIn, ZoomOut, Maximize2, Move, Grid3x3, Square, Circle, Copy, Rows3, Armchair, CreditCard as Edit, BoxSelect, Undo2, Redo2, HelpCircle, Image, Eye, EyeOff } from 'lucide-react';
+import { Save, Trash2, ZoomIn, ZoomOut, Maximize2, Move, Grid3x3, Square, Circle, Copy, Rows3, Armchair, CreditCard as Edit, BoxSelect, Undo2, Redo2, HelpCircle, Image, Eye, EyeOff, Ruler } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useToast } from './Toast';
 import { LayoutToolbar } from './LayoutToolbar';
@@ -85,8 +85,8 @@ type EditorTool = 'select' | 'add_seated' | 'add_standing' | 'add_decor' | 'add_
 type ObjectType = 'BAR' | 'STAGE' | 'DANCEFLOOR' | 'DECOR_TABLE' | 'DJ_BOOTH' | 'ENTRANCE' | 'EXIT' | 'RESTROOM' | 'TRIBUNE';
 type SelectedItemType = { type: 'table' | 'object' | 'section'; data: FloorplanTable | FloorplanObject | SeatSection };
 
-const CANVAS_W = 1600;
-const CANVAS_H = 1000;
+const CANVAS_W = 4000;
+const CANVAS_H = 3000;
 const DRAG_THRESHOLD = 5;
 const SNAP_GRID = 10;
 const SNAP_PROXIMITY = 10;
@@ -105,7 +105,8 @@ export function FloorPlanEditor() {
   const [resizeHandle, setResizeHandle] = useState<'se' | 'sw' | 'ne' | 'nw' | 'n' | 's' | 'e' | 'w' | null>(null);
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0, ox: 0, oy: 0 });
   const resizeOrigSection = useRef<{ width: number; height: number } | null>(null);
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(0.35);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
   const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
   const [snapLines, setSnapLines] = useState<{ x?: number; y?: number }[]>([]);
   const dragIntent = useRef<{
@@ -129,6 +130,12 @@ export function FloorPlanEditor() {
   const [showBgModal, setShowBgModal] = useState(false);
   const [bgImageLoaded, setBgImageLoaded] = useState(false);
   const bgImageRef = useRef<HTMLImageElement | null>(null);
+  const [rulerActive, setRulerActive] = useState(false);
+  const [rulerPoints, setRulerPoints] = useState<{ x: number; y: number }[]>([]);
+  const [rulerPixelLength, setRulerPixelLength] = useState<number | null>(null);
+  const [showRulerModal, setShowRulerModal] = useState(false);
+  const [rulerRealDistance, setRulerRealDistance] = useState('');
+  const [scaleMetersPerPixel, setScaleMetersPerPixel] = useState<number | null>(null);
   const [currentTool, setCurrentTool] = useState<EditorTool>('select');
   const [showGrid, setShowGrid] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -295,6 +302,13 @@ export function FloorPlanEditor() {
         else deleteItem();
         return;
       }
+      if (e.key === 'b' || e.key === 'B') {
+        if (!e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          setBgVisible(v => !v);
+          return;
+        }
+      }
       if (selectedItem) {
         const step = e.shiftKey ? 10 : 1;
         if (e.key === 'ArrowLeft') { e.preventDefault(); nudgeItem(-step, 0); return; }
@@ -387,6 +401,9 @@ export function FloorPlanEditor() {
     setBgSettings(settings);
     setBgVisible(true);
     setBgImageLoaded(false);
+    if (layout.layout_data?.scale_meters_per_pixel) {
+      setScaleMetersPerPixel(layout.layout_data.scale_meters_per_pixel as number);
+    }
 
     if (settings.background_image_url) {
       const img = new window.Image();
@@ -396,7 +413,7 @@ export function FloorPlanEditor() {
         setBgImageLoaded(true);
         if (!settings.background_width || !settings.background_height) {
           const aspect = img.naturalWidth / img.naturalHeight;
-          const fitW = Math.min(CANVAS_W * 0.9, img.naturalWidth);
+          const fitW = CANVAS_W * 0.95;
           const fitH = fitW / aspect;
           const newSettings = {
             ...settings,
@@ -419,6 +436,65 @@ export function FloorPlanEditor() {
     setSelectedSeatIds(new Set());
   }
 
+  const handleFitToScreen = useCallback(() => {
+    const container = canvasContainerRef.current;
+    if (!container) return;
+    const cw = container.clientWidth - 20;
+    const ch = container.clientHeight - 20;
+    const fitZoom = Math.min(cw / CANVAS_W, ch / CANVAS_H);
+    setZoom(Math.max(0.15, Math.min(fitZoom, 1)));
+  }, []);
+
+  function fitBgToCanvas() {
+    if (!bgImageRef.current) return;
+    const img = bgImageRef.current;
+    const aspect = img.naturalWidth / img.naturalHeight;
+    const fitW = CANVAS_W * 0.95;
+    const fitH = fitW / aspect;
+    const newSettings: BackgroundSettings = {
+      ...bgSettings,
+      background_width: fitW,
+      background_height: fitH,
+      background_position_x: (CANVAS_W - fitW) / 2,
+      background_position_y: (CANVAS_H - fitH) / 2,
+    };
+    setBgSettings(newSettings);
+    saveBackgroundSettingsQuiet(newSettings);
+  }
+
+  function resetBgToOriginal() {
+    if (!bgImageRef.current) return;
+    const img = bgImageRef.current;
+    const newSettings: BackgroundSettings = {
+      ...bgSettings,
+      background_width: img.naturalWidth,
+      background_height: img.naturalHeight,
+      background_position_x: (CANVAS_W - img.naturalWidth) / 2,
+      background_position_y: (CANVAS_H - img.naturalHeight) / 2,
+    };
+    setBgSettings(newSettings);
+    saveBackgroundSettingsQuiet(newSettings);
+  }
+
+  function centerBg() {
+    if (!bgSettings.background_width || !bgSettings.background_height) return;
+    const newSettings: BackgroundSettings = {
+      ...bgSettings,
+      background_position_x: (CANVAS_W - bgSettings.background_width) / 2,
+      background_position_y: (CANVAS_H - bgSettings.background_height) / 2,
+    };
+    setBgSettings(newSettings);
+    saveBackgroundSettingsQuiet(newSettings);
+  }
+
+  async function saveBackgroundSettingsQuiet(settings: BackgroundSettings) {
+    if (!currentLayout?.id) return;
+    try {
+      const { saveBackgroundSettings: saveBg } = await import('../lib/backgroundUpload');
+      await saveBg(currentLayout.id, settings);
+    } catch {}
+  }
+
   function handleBgSettingsChange(newSettings: BackgroundSettings) {
     setBgSettings(newSettings);
     if (newSettings.background_image_url) {
@@ -431,7 +507,7 @@ export function FloorPlanEditor() {
           setBgImageLoaded(true);
           if (!newSettings.background_width || !newSettings.background_height) {
             const aspect = img.naturalWidth / img.naturalHeight;
-            const fitW = Math.min(CANVAS_W * 0.9, img.naturalWidth);
+            const fitW = CANVAS_W * 0.95;
             const fitH = fitW / aspect;
             setBgSettings(prev => ({
               ...prev,
@@ -490,6 +566,7 @@ export function FloorPlanEditor() {
         width: s.width,
         height: s.height,
       })),
+      ...(scaleMetersPerPixel ? { scale_meters_per_pixel: scaleMetersPerPixel } : {}),
     };
   }
 
@@ -1426,9 +1503,9 @@ export function FloorPlanEditor() {
             </button>
             <div className="h-6 w-px bg-slate-600" />
             <span className="text-slate-400 text-sm font-mono tabular-nums min-w-[52px] text-center">{Math.round(zoom * 100)}%</span>
-            <button onClick={() => setZoom(z => Math.min(z + 0.25, 3))} className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors" title="Zoom In"><ZoomIn className="w-5 h-5" /></button>
-            <button onClick={() => setZoom(z => Math.max(z - 0.25, 0.5))} className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors" title="Zoom Out"><ZoomOut className="w-5 h-5" /></button>
-            <button onClick={() => setZoom(1)} className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors" title="Reset"><Maximize2 className="w-5 h-5" /></button>
+            <button onClick={() => setZoom(z => Math.min(z + 0.1, 4))} className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors" title="Zoom In"><ZoomIn className="w-5 h-5" /></button>
+            <button onClick={() => setZoom(z => Math.max(z - 0.1, 0.15))} className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors" title="Zoom Out"><ZoomOut className="w-5 h-5" /></button>
+            <button onClick={handleFitToScreen} className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors" title="Passend in scherm"><Maximize2 className="w-5 h-5" /></button>
             <div className="h-6 w-px bg-slate-600" />
             <button
               onClick={() => setShowShortcutsModal(true)}
@@ -1492,13 +1569,18 @@ export function FloorPlanEditor() {
           <div className="border-t border-slate-600 my-1" />
           <ToolButton active={showGrid} onClick={() => setShowGrid(!showGrid)} icon={<Grid3x3 className="w-5 h-5" />} label="Grid" />
           <ToolButton active={marqueeActive} onClick={() => setMarqueeActive(!marqueeActive)} icon={<BoxSelect className="w-5 h-5" />} label="Gebied" hoverColor="hover:bg-blue-600" />
+          <ToolButton active={rulerActive} onClick={() => {
+            setRulerActive(!rulerActive);
+            setRulerPoints([]);
+          }} icon={<Ruler className="w-5 h-5" />} label="Meten" hoverColor="hover:bg-teal-600" />
         </div>
 
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-0">
           <div className="lg:col-span-3 p-3">
             <div
+              ref={canvasContainerRef}
               className="bg-slate-950 rounded-lg overflow-auto relative"
-              style={{ height: '800px', paddingBottom: selectedSeatIds.size > 0 ? 60 : 0 }}
+              style={{ height: 'calc(100vh - 200px)', minHeight: '500px', paddingBottom: selectedSeatIds.size > 0 ? 60 : 0 }}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
@@ -1517,10 +1599,31 @@ export function FloorPlanEditor() {
                   height: CANVAS_H * zoom,
                   minWidth: '100%',
                   minHeight: '100%',
-                  cursor: currentTool === 'select' ? 'default' : 'crosshair',
+                  cursor: rulerActive ? 'crosshair' : currentTool === 'select' ? 'default' : 'crosshair',
                 }}
               >
-                <rect x="0" y="0" width={CANVAS_W} height={CANVAS_H} fill="#0f172a" />
+                <rect x="0" y="0" width={CANVAS_W} height={CANVAS_H} fill="#0f172a"
+                  onClick={(e) => {
+                    if (!rulerActive) return;
+                    const svg = svgRef.current;
+                    if (!svg) return;
+                    const pt = svg.createSVGPoint();
+                    pt.x = e.clientX;
+                    pt.y = e.clientY;
+                    const canvasPt = pt.matrixTransform(svg.getScreenCTM()?.inverse());
+                    const newPoint = { x: Math.round(canvasPt.x), y: Math.round(canvasPt.y) };
+                    if (rulerPoints.length === 0) {
+                      setRulerPoints([newPoint]);
+                    } else if (rulerPoints.length === 1) {
+                      const p1 = rulerPoints[0];
+                      const dist = Math.sqrt((newPoint.x - p1.x) ** 2 + (newPoint.y - p1.y) ** 2);
+                      setRulerPoints([p1, newPoint]);
+                      setRulerPixelLength(Math.round(dist));
+                      setShowRulerModal(true);
+                      setRulerActive(false);
+                    }
+                  }}
+                />
 
                 {showGrid && (
                   <>
@@ -1720,6 +1823,57 @@ export function FloorPlanEditor() {
                     </g>
                   );
                 })}
+                {rulerPoints.length >= 1 && (
+                  <g>
+                    <circle cx={rulerPoints[0].x} cy={rulerPoints[0].y} r={6} fill="#14b8a6" stroke="white" strokeWidth={2} />
+                    {rulerPoints.length === 2 && (
+                      <>
+                        <line
+                          x1={rulerPoints[0].x} y1={rulerPoints[0].y}
+                          x2={rulerPoints[1].x} y2={rulerPoints[1].y}
+                          stroke="#14b8a6" strokeWidth={2.5} strokeDasharray="8 4"
+                        />
+                        <circle cx={rulerPoints[1].x} cy={rulerPoints[1].y} r={6} fill="#14b8a6" stroke="white" strokeWidth={2} />
+                        <text
+                          x={(rulerPoints[0].x + rulerPoints[1].x) / 2}
+                          y={(rulerPoints[0].y + rulerPoints[1].y) / 2 - 12}
+                          textAnchor="middle"
+                          fill="white" fontSize="14" fontWeight="bold"
+                          className="pointer-events-none"
+                        >
+                          {rulerPixelLength}px
+                          {scaleMetersPerPixel && rulerPixelLength
+                            ? ` = ${(rulerPixelLength * scaleMetersPerPixel).toFixed(1)}m`
+                            : ''}
+                        </text>
+                      </>
+                    )}
+                  </g>
+                )}
+
+                {scaleMetersPerPixel && (
+                  <g>
+                    {(() => {
+                      const targetPx = 200;
+                      const meters = targetPx * scaleMetersPerPixel;
+                      const roundedM = Math.round(meters / 5) * 5 || Math.round(meters);
+                      const actualPx = roundedM / scaleMetersPerPixel;
+                      const x = 30;
+                      const y = CANVAS_H - 40;
+                      return (
+                        <>
+                          <rect x={x - 5} y={y - 18} width={actualPx + 10} height={30} rx={4} fill="rgba(0,0,0,0.7)" />
+                          <line x1={x} y1={y} x2={x + actualPx} y2={y} stroke="white" strokeWidth={2} />
+                          <line x1={x} y1={y - 5} x2={x} y2={y + 5} stroke="white" strokeWidth={2} />
+                          <line x1={x + actualPx} y1={y - 5} x2={x + actualPx} y2={y + 5} stroke="white" strokeWidth={2} />
+                          <text x={x + actualPx / 2} y={y - 5} textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" className="pointer-events-none">
+                            {roundedM}m
+                          </text>
+                        </>
+                      );
+                    })()}
+                  </g>
+                )}
               </svg>
               <SelectionCounter count={selectedSeatIds.size} onClear={() => setSelectedSeatIds(new Set())} />
 
@@ -1817,6 +1971,116 @@ export function FloorPlanEditor() {
                   <p>Dubbelklik op sectie om te bewerken</p>
                   <p>Rechtermuisknop op sectie voor meer opties</p>
                 </div>
+              </div>
+            )}
+
+            {bgSettings.background_image_url && bgImageLoaded && (
+              <div className="bg-slate-800 rounded-lg p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Achtergrond</h3>
+                  <button
+                    onClick={() => setBgVisible(v => !v)}
+                    className="p-1 hover:bg-slate-700 rounded transition-colors"
+                    title={bgVisible ? 'Verbergen' : 'Tonen'}
+                  >
+                    {bgVisible ? <Eye className="w-3.5 h-3.5 text-slate-400" /> : <EyeOff className="w-3.5 h-3.5 text-slate-500" />}
+                  </button>
+                </div>
+                <div>
+                  <label className="flex items-center justify-between text-[10px] text-slate-500 mb-1">
+                    <span>Opacity</span>
+                    <span className="text-slate-300">{Math.round(bgSettings.background_opacity * 100)}%</span>
+                  </label>
+                  <input
+                    type="range" min="0.1" max="1" step="0.05"
+                    value={bgSettings.background_opacity}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      setBgSettings(prev => ({ ...prev, background_opacity: val }));
+                    }}
+                    onMouseUp={() => saveBackgroundSettingsQuiet(bgSettings)}
+                    className="w-full accent-blue-500 h-1"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div>
+                    <label className="text-[10px] text-slate-500 block mb-0.5">Breedte</label>
+                    <input
+                      type="number"
+                      value={Math.round(bgSettings.background_width || 0)}
+                      onChange={(e) => {
+                        const w = parseInt(e.target.value) || 0;
+                        if (!bgImageRef.current || !bgSettings.background_width) return;
+                        const aspect = bgImageRef.current.naturalWidth / bgImageRef.current.naturalHeight;
+                        setBgSettings(prev => ({ ...prev, background_width: w, background_height: w / aspect }));
+                      }}
+                      onBlur={() => saveBackgroundSettingsQuiet(bgSettings)}
+                      className="w-full px-2 py-1 bg-slate-700 border border-slate-600 rounded text-xs text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-500 block mb-0.5">Hoogte</label>
+                    <input
+                      type="number"
+                      value={Math.round(bgSettings.background_height || 0)}
+                      disabled
+                      className="w-full px-2 py-1 bg-slate-700/50 border border-slate-600 rounded text-xs text-slate-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-500 block mb-0.5">X positie</label>
+                    <input
+                      type="number"
+                      value={Math.round(bgSettings.background_position_x)}
+                      onChange={(e) => setBgSettings(prev => ({ ...prev, background_position_x: parseInt(e.target.value) || 0 }))}
+                      onBlur={() => saveBackgroundSettingsQuiet(bgSettings)}
+                      className="w-full px-2 py-1 bg-slate-700 border border-slate-600 rounded text-xs text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-500 block mb-0.5">Y positie</label>
+                    <input
+                      type="number"
+                      value={Math.round(bgSettings.background_position_y)}
+                      onChange={(e) => setBgSettings(prev => ({ ...prev, background_position_y: parseInt(e.target.value) || 0 }))}
+                      onBlur={() => saveBackgroundSettingsQuiet(bgSettings)}
+                      className="w-full px-2 py-1 bg-slate-700 border border-slate-600 rounded text-xs text-white"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={fitBgToCanvas}
+                    className="flex-1 px-2 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-medium rounded transition-all"
+                  >
+                    Vul canvas
+                  </button>
+                  <button
+                    onClick={resetBgToOriginal}
+                    className="flex-1 px-2 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-[10px] font-medium rounded transition-all"
+                  >
+                    Origineel
+                  </button>
+                  <button
+                    onClick={centerBg}
+                    className="flex-1 px-2 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-[10px] font-medium rounded transition-all"
+                  >
+                    Centreer
+                  </button>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={bgSettings.background_locked}
+                    onChange={(e) => {
+                      const locked = e.target.checked;
+                      setBgSettings(prev => ({ ...prev, background_locked: locked }));
+                      saveBackgroundSettingsQuiet({ ...bgSettings, background_locked: locked });
+                    }}
+                    className="w-3.5 h-3.5 rounded bg-slate-700 border-slate-600 accent-blue-500"
+                  />
+                  <span className="text-[11px] text-slate-400">Vergrendeld</span>
+                </label>
               </div>
             )}
 
@@ -1999,6 +2263,64 @@ export function FloorPlanEditor() {
           onSettingsChange={handleBgSettingsChange}
           showToast={showToast}
         />
+      )}
+
+      {showRulerModal && rulerPixelLength && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60" onClick={() => { setShowRulerModal(false); setRulerPoints([]); }} />
+          <div className="relative bg-slate-800 rounded-xl border border-slate-600 shadow-2xl w-full max-w-sm p-5">
+            <h3 className="text-base font-bold text-white mb-1">Schaal instellen</h3>
+            <p className="text-xs text-slate-400 mb-4">
+              De gemeten lijn is <span className="text-teal-400 font-mono font-bold">{rulerPixelLength} px</span> lang. Hoe lang is deze afstand in het echt?
+            </p>
+            <div className="flex items-center gap-2 mb-4">
+              <input
+                type="number"
+                value={rulerRealDistance}
+                onChange={(e) => setRulerRealDistance(e.target.value)}
+                placeholder="bijv. 40"
+                min="0.1"
+                step="0.1"
+                autoFocus
+                className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:border-teal-500 focus:outline-none"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const dist = parseFloat(rulerRealDistance);
+                    if (dist > 0 && rulerPixelLength) {
+                      const scale = dist / rulerPixelLength;
+                      setScaleMetersPerPixel(scale);
+                      setShowRulerModal(false);
+                      showToast(`Schaal ingesteld: 1px = ${scale.toFixed(4)}m`, 'success');
+                    }
+                  }
+                }}
+              />
+              <span className="text-sm text-slate-300 font-medium">meter</span>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setShowRulerModal(false); setRulerPoints([]); }}
+                className="flex-1 px-3 py-2 border border-slate-600 text-slate-300 hover:text-white rounded-lg text-sm transition-all"
+              >
+                Annuleren
+              </button>
+              <button
+                onClick={() => {
+                  const dist = parseFloat(rulerRealDistance);
+                  if (dist > 0 && rulerPixelLength) {
+                    const scale = dist / rulerPixelLength;
+                    setScaleMetersPerPixel(scale);
+                    setShowRulerModal(false);
+                    showToast(`Schaal ingesteld: 1px = ${scale.toFixed(4)}m`, 'success');
+                  }
+                }}
+                className="flex-1 px-3 py-2 bg-teal-600 hover:bg-teal-500 text-white font-medium rounded-lg text-sm transition-all"
+              >
+                Instellen
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
