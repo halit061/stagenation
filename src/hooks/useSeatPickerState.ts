@@ -8,6 +8,7 @@ import {
   fetchEventInfo,
   fetchLinkedSectionIds,
   fetchFloorplanObjects,
+  fetchTicketTypePricesForSections,
   holdSeatsAtomic,
   extendHolds,
   releaseSessionHolds,
@@ -116,6 +117,7 @@ export function useSeatPickerState(eventId: string, ticketTypeId?: string) {
   const [bestAvailableRetries, setBestAvailableRetries] = useState(0);
   const [highlightedSeatIds, setHighlightedSeatIds] = useState<Set<string>>(new Set());
   const [allowedSectionIds, setAllowedSectionIds] = useState<string[] | null>(null);
+  const [sectionTicketPrices, setSectionTicketPrices] = useState<Map<string, { ttName: string; price: number }>>(new Map());
 
   const lastBestAvailableOpts = useRef<{
     count: number;
@@ -133,14 +135,18 @@ export function useSeatPickerState(eventId: string, ticketTypeId?: string) {
   const priceCategories: PriceCategory[] = sections.reduce<PriceCategory[]>((acc, sec) => {
     const key = sec.price_category || sec.name;
     const existing = acc.find(c => c.id === key);
+    const sectionPrice = Number(sec.price_amount) || 0;
+    const ttInfo = sectionTicketPrices.get(sec.id);
+    const resolvedPrice = sectionPrice > 0 ? sectionPrice : (ttInfo?.price ?? 0);
     if (existing) {
       existing.sectionIds.push(sec.id);
+      if (resolvedPrice > 0 && existing.price === 0) existing.price = resolvedPrice;
     } else {
       acc.push({
         id: key,
         name: sec.price_category || sec.name,
         color: sec.color,
-        price: Number(sec.price_amount),
+        price: resolvedPrice,
         sectionIds: [sec.id],
       });
     }
@@ -219,6 +225,11 @@ export function useSeatPickerState(eventId: string, ticketTypeId?: string) {
           setAllowedSectionIds(linked.length > 0 ? linked : null);
         }
 
+        const sectionIds = secs.map(s => s.id);
+        const ttPrices = await fetchTicketTypePricesForSections(sectionIds);
+        if (cancelled) return;
+        setSectionTicketPrices(ttPrices);
+
         const seatData = await fetchSeats(secs.map(s => s.id));
         if (cancelled) return;
 
@@ -229,7 +240,6 @@ export function useSeatPickerState(eventId: string, ticketTypeId?: string) {
         }
         setAllSeats(computed);
 
-        const sectionIds = secs.map(s => s.id);
         unsubRef.current = subscribeToSeatUpdates(
           layoutData.id,
           sectionIds,
@@ -468,10 +478,13 @@ export function useSeatPickerState(eventId: string, ticketTypeId?: string) {
     const seats = getSelectedSeats();
     return seats.reduce((total, seat) => {
       const section = sections.find(s => s.id === seat.sectionId);
-      const price = seat.price_override ?? (section ? Number(section.price_amount) : 0);
+      const sectionPrice = section ? Number(section.price_amount) : 0;
+      const ttInfo = sectionTicketPrices.get(seat.sectionId);
+      const resolvedPrice = sectionPrice > 0 ? sectionPrice : (ttInfo?.price ?? 0);
+      const price = seat.price_override ?? resolvedPrice;
       return total + price;
     }, 0);
-  }, [getSelectedSeats, sections]);
+  }, [getSelectedSeats, sections, sectionTicketPrices]);
 
   const findBest = useCallback((opts: {
     count: number;

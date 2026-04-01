@@ -1,16 +1,18 @@
 import { useRef, useState, useCallback, useEffect, useMemo, memo } from 'react';
+import { ArrowLeft, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 import type { SeatSection } from '../types/seats';
 import type { PickerSeat } from '../hooks/useSeatPickerState';
 import type { FloorplanObject } from '../services/seatPickerService';
 import { useLanguage } from '../contexts/LanguageContext';
 import { st } from '../lib/seatTranslations';
-import type React from 'react';
 
 const HEADER_H = 24;
-const SEAT_R = 5;
-const MIN_ZOOM = 0.3;
-const MAX_ZOOM = 4;
-const ZOOM_STEP = 0.15;
+const SEAT_DOT_R = 3;
+const SEAT_CIRCLE_R = 7;
+const MIN_ZOOM = 0.15;
+const MAX_ZOOM = 5;
+const ZOOM_STEP_FACTOR = 1.4;
+const ZOOM_SECTION_FILL = 0.7;
 
 function hexToRgba(hex: string, alpha: number): string {
   const h = hex.replace('#', '');
@@ -50,13 +52,14 @@ export const SeatPickerMap = memo(function SeatPickerMap({
   const svgRef = useRef<SVGSVGElement>(null);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const isPanning = useRef(false);
-  const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
-  const lastPinchDist = useRef<number | null>(null);
+  const [focusedSectionId, setFocusedSectionId] = useState<string | null>(null);
   const [hoveredSeat, setHoveredSeat] = useState<PickerSeat | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [animating, setAnimating] = useState(false);
+  const animRef = useRef<number | null>(null);
+  const lastPinchDist = useRef<number | null>(null);
   const didPan = useRef(false);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const bounds = useMemo(() => {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -72,26 +75,35 @@ export const SeatPickerMap = memo(function SeatPickerMap({
       maxX = Math.max(maxX, Number(obj.x) + Number(obj.width));
       maxY = Math.max(maxY, Number(obj.y) + Number(obj.height));
     }
+    if (minX === Infinity) return { minX: 0, minY: 0, maxX: 1600, maxY: 1000 };
     return { minX, minY, maxX, maxY };
   }, [sections, floorplanObjects]);
 
-  useEffect(() => {
+  const fitToOverview = useCallback(() => {
     if (!containerRef.current) return;
-    if (sections.length === 0 && floorplanObjects.length === 0) return;
     if (bounds.minX === Infinity) return;
     const rect = containerRef.current.getBoundingClientRect();
-    const pad = 50;
+    const pad = 60;
     const contentW = bounds.maxX - bounds.minX + pad * 2;
     const contentH = bounds.maxY - bounds.minY + pad * 2;
-    const fitZoom = Math.min(rect.width / contentW, rect.height / contentH, 1.5);
+    const fitZoom = Math.min(rect.width / contentW, rect.height / contentH, 2);
     const centerX = (bounds.minX + bounds.maxX) / 2;
     const centerY = (bounds.minY + bounds.maxY) / 2;
-    setZoom(fitZoom);
-    setPan({
-      x: rect.width / 2 - centerX * fitZoom,
-      y: rect.height / 2 - centerY * fitZoom,
-    });
-  }, [sections, floorplanObjects, bounds]);
+    return {
+      zoom: fitZoom,
+      panX: rect.width / 2 - centerX * fitZoom,
+      panY: rect.height / 2 - centerY * fitZoom,
+    };
+  }, [bounds]);
+
+  useEffect(() => {
+    if (sections.length === 0 && floorplanObjects.length === 0) return;
+    const fit = fitToOverview();
+    if (fit) {
+      setZoom(fit.zoom);
+      setPan({ x: fit.panX, y: fit.panY });
+    }
+  }, [sections.length, floorplanObjects.length, fitToOverview]);
 
   useEffect(() => {
     if (!containerRef.current || !onViewportChange) return;
@@ -104,41 +116,90 @@ export const SeatPickerMap = memo(function SeatPickerMap({
     });
   }, [zoom, pan, onViewportChange]);
 
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, []);
+
+  const animateTo = useCallback((targetZoom: number, targetPanX: number, targetPanY: number) => {
+    if (animRef.current) cancelAnimationFrame(animRef.current);
+    setAnimating(true);
+    const startZoom = zoom;
+    const startPanX = pan.x;
+    const startPanY = pan.y;
+    const duration = 350;
+    const startTime = performance.now();
+
+    function step(now: number) {
+      const elapsed = now - startTime;
+      const t = Math.min(1, elapsed / duration);
+      const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      const z = startZoom + (targetZoom - startZoom) * ease;
+      const px = startPanX + (targetPanX - startPanX) * ease;
+      const py = startPanY + (targetPanY - startPanY) * ease;
+      setZoom(z);
+      setPan({ x: px, y: py });
+      if (t < 1) {
+        animRef.current = requestAnimationFrame(step);
+      } else {
+        setAnimating(false);
+        animRef.current = null;
+      }
+    }
+    animRef.current = requestAnimationFrame(step);
+  }, [zoom, pan]);
+
+  const handleOverview = useCallback(() => {
+    setFocusedSectionId(null);
+    const fit = fitToOverview();
+    if (fit) animateTo(fit.zoom, fit.panX, fit.panY);
+  }, [fitToOverview, animateTo]);
+
+  const handleSectionClick = useCallback((sectionId: string) => {
+    const isRestricted = restrictedSectionIds?.has(sectionId) ?? false;
+    if (isRestricted) return;
+    const section = sections.find(s => s.id === sectionId);
+    if (!section || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const sectionCenterX = section.position_x + section.width / 2;
+    const sectionCenterY = section.position_y + section.height / 2;
+    const zoomX = (rect.width * ZOOM_SECTION_FILL) / section.width;
+    const zoomY = (rect.height * ZOOM_SECTION_FILL) / section.height;
+    const targetZoom = Math.min(zoomX, zoomY, MAX_ZOOM);
+    const targetPanX = rect.width / 2 - sectionCenterX * targetZoom;
+    const targetPanY = rect.height / 2 - sectionCenterY * targetZoom;
+    setFocusedSectionId(sectionId);
+    animateTo(targetZoom, targetPanX, targetPanY);
+  }, [sections, restrictedSectionIds, animateTo]);
+
+  const handleZoomIn = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-    const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
-    const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom + delta));
-    const scale = newZoom / zoom;
-    setPan(prev => ({
-      x: mx - scale * (mx - prev.x),
-      y: my - scale * (my - prev.y),
-    }));
-    setZoom(newZoom);
-  }, [zoom]);
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+    const newZoom = Math.min(MAX_ZOOM, zoom * ZOOM_STEP_FACTOR);
+    const s = newZoom / zoom;
+    const newPan = { x: cx - s * (cx - pan.x), y: cy - s * (cy - pan.y) };
+    animateTo(newZoom, newPan.x, newPan.y);
+  }, [zoom, pan, animateTo]);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button !== 0) return;
-    isPanning.current = true;
-    didPan.current = false;
-    panStart.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
-  }, [pan]);
-
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isPanning.current) return;
-    const dx = e.clientX - panStart.current.x;
-    const dy = e.clientY - panStart.current.y;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) didPan.current = true;
-    setPan({ x: panStart.current.panX + dx, y: panStart.current.panY + dy });
-  }, []);
-
-  const handleMouseUp = useCallback(() => {
-    isPanning.current = false;
-  }, []);
+  const handleZoomOut = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+    const newZoom = Math.max(MIN_ZOOM, zoom / ZOOM_STEP_FACTOR);
+    const s = newZoom / zoom;
+    const newPan = { x: cx - s * (cx - pan.x), y: cy - s * (cy - pan.y) };
+    animateTo(newZoom, newPan.x, newPan.y);
+  }, [zoom, pan, animateTo]);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (e.touches.length === 2) {
@@ -147,19 +208,8 @@ export const SeatPickerMap = memo(function SeatPickerMap({
         e.touches[0].clientY - e.touches[1].clientY,
       );
       lastPinchDist.current = d;
-      return;
     }
-    if (e.touches.length === 1) {
-      isPanning.current = true;
-      didPan.current = false;
-      panStart.current = {
-        x: e.touches[0].clientX,
-        y: e.touches[0].clientY,
-        panX: pan.x,
-        panY: pan.y,
-      };
-    }
-  }, [pan]);
+  }, []);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (e.touches.length === 2 && lastPinchDist.current !== null) {
@@ -179,49 +229,22 @@ export const SeatPickerMap = memo(function SeatPickerMap({
       const s = newZoom / zoom;
       setPan(prev => ({ x: cx - s * (cx - prev.x), y: cy - s * (cy - prev.y) }));
       setZoom(newZoom);
-      return;
-    }
-    if (e.touches.length === 1 && isPanning.current) {
-      const dx = e.touches[0].clientX - panStart.current.x;
-      const dy = e.touches[0].clientY - panStart.current.y;
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) didPan.current = true;
-      setPan({ x: panStart.current.panX + dx, y: panStart.current.panY + dy });
     }
   }, [zoom]);
 
   const handleTouchEnd = useCallback(() => {
-    isPanning.current = false;
     lastPinchDist.current = null;
   }, []);
 
-  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
-    const container = containerRef.current;
-    if (!container) return;
-    const rect = container.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-    const newZoom = Math.min(MAX_ZOOM, zoom * 1.5);
-    const scale = newZoom / zoom;
-    setPan(prev => ({ x: mx - scale * (mx - prev.x), y: my - scale * (my - prev.y) }));
-    setZoom(newZoom);
-  }, [zoom]);
+  const isZoomedIn = zoom > 1.5;
 
-  const seatRadius = useMemo(() => {
-    if (seats.length === 0) return SEAT_R;
-    let minSpacing = Infinity;
-    for (const section of sections) {
-      const spacingX = section.width / (section.seats_per_row || 1);
-      const spacingY = (section.height - HEADER_H - 20) / (section.rows_count || 1);
-      minSpacing = Math.min(minSpacing, spacingX, spacingY);
-    }
-    return Math.max(2.5, Math.min(SEAT_R, minSpacing * 0.35));
-  }, [seats.length, sections]);
+  const seatRadius = isZoomedIn ? SEAT_CIRCLE_R : SEAT_DOT_R;
 
   const handleSeatPointerDown = useCallback((e: React.PointerEvent, seat: PickerSeat) => {
     if (seat.status === 'blocked' || seat.status === 'sold') return;
     if (seat.status === 'reserved' && !selectedIds.has(seat.id)) return;
-
     if (e.pointerType === 'touch') {
+      didPan.current = false;
       longPressTimer.current = setTimeout(() => {
         setHoveredSeat(seat);
         if (containerRef.current) {
@@ -239,7 +262,6 @@ export const SeatPickerMap = memo(function SeatPickerMap({
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
-    if (didPan.current) return;
     if (hoveredSeat) { setHoveredSeat(null); setTooltipPos(null); return; }
     onSeatClick(seat.id);
   }, [onSeatClick, hoveredSeat]);
@@ -315,15 +337,9 @@ export const SeatPickerMap = memo(function SeatPickerMap({
       ref={containerRef}
       className="relative w-full h-full overflow-hidden bg-slate-950 rounded-xl select-none"
       style={{ touchAction: 'none' }}
-      onWheel={handleWheel}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      onDoubleClick={handleDoubleClick}
     >
       <svg
         ref={svgRef}
@@ -331,9 +347,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
         height="100%"
         role="img"
         aria-label={st(language, 'picker.title')}
-        style={{
-          cursor: isPanning.current ? 'grabbing' : 'grab',
-        }}
+        style={{ cursor: 'default' }}
       >
         <defs>
           <pattern id="seatPickerGrid" width="50" height="50" patternUnits="userSpaceOnUse">
@@ -342,13 +356,12 @@ export const SeatPickerMap = memo(function SeatPickerMap({
         </defs>
 
         <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
-
           {bounds.minX !== Infinity && (
             <rect
-              x={bounds.minX - 100}
-              y={bounds.minY - 100}
-              width={bounds.maxX - bounds.minX + 200}
-              height={bounds.maxY - bounds.minY + 200}
+              x={bounds.minX - 200}
+              y={bounds.minY - 200}
+              width={bounds.maxX - bounds.minX + 400}
+              height={bounds.maxY - bounds.minY + 400}
               fill="url(#seatPickerGrid)"
             />
           )}
@@ -361,6 +374,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
             const objType = (obj.type || '').toUpperCase();
             const isDancefloor = objType === 'DANCEFLOOR';
             const isTribune = objType === 'TRIBUNE';
+            const isStage = objType === 'STAGE';
             const displayName = obj.name || obj.type || 'Object';
 
             return (
@@ -386,6 +400,26 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                       fill={obj.font_color || '#fff'}
                       fontSize={obj.font_size || 14}
                       fontWeight={obj.font_weight || 'bold'}
+                    >
+                      {displayName.toUpperCase()}
+                    </text>
+                  </>
+                ) : isStage ? (
+                  <>
+                    <rect
+                      x={ox} y={oy} width={ow} height={oh}
+                      fill={obj.color || '#1e40af'}
+                      stroke="rgba(59,130,246,0.5)"
+                      strokeWidth={2} rx={6}
+                      opacity={0.9}
+                    />
+                    <text
+                      x={ox + ow / 2} y={oy + oh / 2}
+                      textAnchor="middle" dominantBaseline="central"
+                      fill={obj.font_color || '#fff'}
+                      fontSize={obj.font_size || 18}
+                      fontWeight={obj.font_weight || 'bold'}
+                      letterSpacing="0.15em"
                     >
                       {displayName.toUpperCase()}
                     </text>
@@ -421,146 +455,190 @@ export const SeatPickerMap = memo(function SeatPickerMap({
             const secSeats = seatsBySection.get(section.id) || [];
             const rowLabels = rowLabelsBySection.get(section.id) || [];
             const color = section.color || '#3b82f6';
+            const isFocused = focusedSectionId === section.id;
+            const showBigSeats = isZoomedIn;
 
             return (
-            <g key={section.id} style={getSectionTransform(section.id)} opacity={isRestricted ? 0.35 : 1}>
-              <rect
-                x={section.position_x}
-                y={section.position_y}
-                width={section.width}
-                height={section.height}
-                rx={6}
-                fill={isRestricted ? 'rgba(30,41,59,0.6)' : hexToRgba(color, 0.12)}
-                stroke={isRestricted ? 'rgba(100,116,139,0.15)' : hexToRgba(color, 0.35)}
-                strokeWidth={1}
-              />
-              <rect
-                x={section.position_x}
-                y={section.position_y}
-                width={section.width}
-                height={HEADER_H}
-                rx={6}
-                fill={isRestricted ? 'rgba(100,116,139,0.2)' : hexToRgba(color, 0.25)}
-              />
-              <rect
-                x={section.position_x}
-                y={section.position_y + HEADER_H - 3}
-                width={section.width}
-                height={3}
-                fill={isRestricted ? 'rgba(100,116,139,0.2)' : hexToRgba(color, 0.25)}
-              />
-              <text
-                x={section.position_x + section.width / 2}
-                y={section.position_y + HEADER_H / 2}
-                textAnchor="middle"
-                dominantBaseline="central"
-                fill={isRestricted ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.8)'}
-                fontSize={11}
-                fontWeight={700}
-              >
-                {section.name}
-                {isRestricted && (
-                  <tspan fontSize={8} fill="rgba(255,255,255,0.25)"> (niet beschikbaar)</tspan>
-                )}
-              </text>
+              <g key={section.id} style={getSectionTransform(section.id)}>
+                <rect
+                  x={section.position_x}
+                  y={section.position_y}
+                  width={section.width}
+                  height={section.height}
+                  rx={6}
+                  fill={isRestricted ? 'rgba(30,41,59,0.6)' : hexToRgba(color, 0.1)}
+                  stroke={isRestricted ? 'rgba(100,116,139,0.2)' : isFocused ? hexToRgba(color, 0.6) : hexToRgba(color, 0.3)}
+                  strokeWidth={isFocused ? 2 : 1}
+                  style={{
+                    cursor: isRestricted ? 'not-allowed' : 'pointer',
+                    pointerEvents: 'all',
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!isRestricted) handleSectionClick(section.id);
+                  }}
+                />
 
-              {!isRestricted && rowLabels.map(rl => (
+                <rect
+                  x={section.position_x}
+                  y={section.position_y}
+                  width={section.width}
+                  height={HEADER_H}
+                  rx={6}
+                  fill={isRestricted ? 'rgba(100,116,139,0.15)' : hexToRgba(color, 0.2)}
+                  style={{ pointerEvents: 'none' }}
+                />
+                <rect
+                  x={section.position_x}
+                  y={section.position_y + HEADER_H - 3}
+                  width={section.width}
+                  height={3}
+                  fill={isRestricted ? 'rgba(100,116,139,0.15)' : hexToRgba(color, 0.2)}
+                  style={{ pointerEvents: 'none' }}
+                />
+
                 <text
-                  key={rl.label}
-                  x={rl.minX - seatRadius - 4}
-                  y={rl.y}
-                  textAnchor="end"
+                  x={section.position_x + section.width / 2}
+                  y={section.position_y + HEADER_H / 2}
+                  textAnchor="middle"
                   dominantBaseline="central"
-                  fill="rgba(255,255,255,0.3)"
-                  fontSize={8}
-                  fontWeight={500}
+                  fill={isRestricted ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.85)'}
+                  fontSize={11}
+                  fontWeight={700}
                   style={{ pointerEvents: 'none' }}
                 >
-                  {rl.label}
+                  {section.name}
                 </text>
-              ))}
 
-              {secSeats.map(seat => {
-                const isSelected = selectedIds.has(seat.id);
-                const isHighlighted = highlightedIds?.has(seat.id);
-                const isFlashing = flashingIds?.has(seat.id);
-                const isHovered = hoveredSeat?.id === seat.id;
-                const isBlocked = seat.status === 'blocked';
-                const isSold = seat.status === 'sold';
-                const isReservedSeat = seat.status === 'reserved' && !isSelected;
-                const isAvailable = seat.status === 'available';
+                {isRestricted && (
+                  <text
+                    x={section.position_x + section.width / 2}
+                    y={section.position_y + section.height / 2 + 4}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    fill="rgba(255,255,255,0.2)"
+                    fontSize={9}
+                    fontWeight={500}
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    Niet beschikbaar
+                  </text>
+                )}
 
-                if (isBlocked) return null;
+                {isRestricted && (
+                  <rect
+                    x={section.position_x}
+                    y={section.position_y}
+                    width={section.width}
+                    height={section.height}
+                    rx={6}
+                    fill="rgba(15,23,42,0.5)"
+                    style={{ pointerEvents: 'none' }}
+                  />
+                )}
 
-                let fillColor = '#22c55e';
-                let fillOpacity = 0.85;
-                let strokeColor = 'rgba(0,0,0,0.2)';
-                let strokeW = 0.5;
+                {showBigSeats && !isRestricted && rowLabels.map(rl => (
+                  <text
+                    key={rl.label}
+                    x={rl.minX - seatRadius - 6}
+                    y={rl.y}
+                    textAnchor="end"
+                    dominantBaseline="central"
+                    fill="rgba(255,255,255,0.4)"
+                    fontSize={9}
+                    fontWeight={600}
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    {rl.label}
+                  </text>
+                ))}
 
-                if (isRestricted) {
-                  fillColor = '#374151';
-                  fillOpacity = 0.4;
-                  strokeColor = 'transparent';
-                } else if (isSelected) {
-                  fillColor = '#3b82f6';
-                  fillOpacity = 1;
-                  strokeColor = '#ffffff';
-                  strokeW = 2;
-                } else if (isSold || isReservedSeat) {
-                  fillColor = '#4b5563';
-                  fillOpacity = 0.5;
-                  strokeColor = 'transparent';
-                } else if (seat.seat_type === 'vip' && isAvailable) {
-                  fillColor = '#eab308';
-                  fillOpacity = 0.9;
-                  strokeColor = '#fbbf24';
-                  strokeW = 1;
-                }
+                {secSeats.map(seat => {
+                  const isSelected = selectedIds.has(seat.id);
+                  const isHighlighted = highlightedIds?.has(seat.id);
+                  const isFlashing = flashingIds?.has(seat.id);
+                  const isHovered = hoveredSeat?.id === seat.id;
+                  const isBlocked = seat.status === 'blocked';
+                  const isSold = seat.status === 'sold';
+                  const isReservedSeat = seat.status === 'reserved' && !isSelected;
+                  const isAvailable = seat.status === 'available';
 
-                const r = isHovered && !isRestricted ? seatRadius * 1.3 : seatRadius;
-                const clickable = !isRestricted && (isAvailable || isSelected);
+                  if (isBlocked && !showBigSeats) return null;
 
-                return (
-                  <g key={seat.id}>
-                    {isHighlighted && (
+                  let fillColor = '#22c55e';
+                  let fillOpacity = showBigSeats ? 0.9 : 0.7;
+                  let strokeColor = 'transparent';
+                  let strokeW = 0;
+
+                  if (isRestricted) {
+                    fillColor = '#374151';
+                    fillOpacity = 0.2;
+                  } else if (isSelected) {
+                    fillColor = '#3b82f6';
+                    fillOpacity = 1;
+                    strokeColor = '#ffffff';
+                    strokeW = showBigSeats ? 2 : 1;
+                  } else if (isSold || isReservedSeat) {
+                    fillColor = '#4b5563';
+                    fillOpacity = showBigSeats ? 0.4 : 0.3;
+                  } else if (isBlocked) {
+                    fillColor = '#374151';
+                    fillOpacity = 0.2;
+                  } else if (seat.seat_type === 'vip' && isAvailable) {
+                    fillColor = '#eab308';
+                    fillOpacity = 0.9;
+                    strokeColor = '#fbbf24';
+                    strokeW = showBigSeats ? 1 : 0;
+                  }
+
+                  const r = showBigSeats
+                    ? (isHovered && !isRestricted ? SEAT_CIRCLE_R * 1.2 : SEAT_CIRCLE_R)
+                    : SEAT_DOT_R;
+                  const clickable = !isRestricted && (isAvailable || isSelected) && showBigSeats;
+
+                  return (
+                    <g key={seat.id}>
+                      {isHighlighted && showBigSeats && (
+                        <circle
+                          cx={seat.cx}
+                          cy={seat.cy}
+                          r={SEAT_CIRCLE_R * 2.5}
+                          fill="none"
+                          stroke="#3b82f6"
+                          strokeWidth={1.5}
+                          className="seat-best-pulse"
+                          style={{ pointerEvents: 'none' }}
+                        />
+                      )}
                       <circle
                         cx={seat.cx}
                         cy={seat.cy}
-                        r={seatRadius * 2.5}
-                        fill="none"
-                        stroke="#3b82f6"
-                        strokeWidth={1.5}
-                        className="seat-best-pulse"
+                        r={r}
+                        fill={fillColor}
+                        fillOpacity={fillOpacity}
+                        stroke={strokeColor}
+                        strokeWidth={strokeW}
+                        className={`${isSelected ? 'seat-picker-selected' : ''} ${isFlashing ? 'seat-status-flash' : ''}`}
+                        style={{
+                          cursor: clickable ? 'pointer' : 'default',
+                          filter: isSelected && showBigSeats
+                            ? 'drop-shadow(0 0 4px rgba(59,130,246,0.6))'
+                            : isHovered && clickable
+                            ? 'drop-shadow(0 0 3px rgba(255,255,255,0.3))'
+                            : undefined,
+                          pointerEvents: clickable ? 'all' : 'none',
+                          transition: animating ? 'none' : 'r 0.15s ease',
+                        }}
+                        onPointerDown={clickable ? (e) => handleSeatPointerDown(e, seat) : undefined}
+                        onPointerUp={clickable ? (e) => handleSeatPointerUp(e, seat) : undefined}
+                        onPointerEnter={clickable ? (e) => handleSeatHover(seat, e) : undefined}
+                        onPointerLeave={clickable ? handleSeatLeave : undefined}
                       />
-                    )}
-                    <circle
-                      cx={seat.cx}
-                      cy={seat.cy}
-                      r={r}
-                      fill={fillColor}
-                      fillOpacity={fillOpacity}
-                      stroke={strokeColor}
-                      strokeWidth={strokeW}
-                      className={`seat-picker-hover ${isSelected ? 'seat-picker-selected' : ''} ${isFlashing ? 'seat-status-flash' : ''}`}
-                      style={{
-                        cursor: clickable ? 'pointer' : 'default',
-                        filter: isSelected
-                          ? 'drop-shadow(0 0 4px rgba(59,130,246,0.6))'
-                          : isHovered && clickable
-                          ? 'drop-shadow(0 0 3px rgba(255,255,255,0.3))'
-                          : undefined,
-                        pointerEvents: 'all',
-                      }}
-                      onPointerDown={(e) => handleSeatPointerDown(e, seat)}
-                      onPointerUp={(e) => handleSeatPointerUp(e, seat)}
-                      onPointerEnter={(e) => clickable ? handleSeatHover(seat, e) : undefined}
-                      onPointerLeave={handleSeatLeave}
-                    />
-                  </g>
-                );
-              })}
-            </g>
-          );
+                    </g>
+                  );
+                })}
+              </g>
+            );
           })}
         </g>
       </svg>
@@ -574,40 +652,45 @@ export const SeatPickerMap = memo(function SeatPickerMap({
         />
       )}
 
+      {focusedSectionId && (
+        <button
+          onClick={handleOverview}
+          className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-2 bg-slate-800/90 backdrop-blur border border-slate-600/50 rounded-lg text-white text-sm font-medium hover:bg-slate-700 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Overzicht
+        </button>
+      )}
+
+      {!isZoomedIn && !focusedSectionId && sections.length > 0 && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+          <div className="bg-slate-800/80 backdrop-blur border border-slate-700/50 rounded-full px-4 py-1.5 text-slate-300 text-xs font-medium">
+            Klik op een sectie om stoelen te zien
+          </div>
+        </div>
+      )}
+
       <div className="absolute bottom-4 right-4 flex flex-col gap-1.5 z-10">
         <button
-          onClick={() => {
-            const container = containerRef.current;
-            if (!container) return;
-            const rect = container.getBoundingClientRect();
-            const cx = rect.width / 2;
-            const cy = rect.height / 2;
-            const newZoom = Math.min(MAX_ZOOM, zoom * 1.3);
-            const s = newZoom / zoom;
-            setPan(prev => ({ x: cx - s * (cx - prev.x), y: cy - s * (cy - prev.y) }));
-            setZoom(newZoom);
-          }}
-          className="w-9 h-9 flex items-center justify-center bg-slate-800/90 backdrop-blur border border-slate-600/50 rounded-lg text-white hover:bg-slate-700 transition-colors text-lg font-bold focus-ring"
+          onClick={handleZoomIn}
+          className="w-10 h-10 flex items-center justify-center bg-slate-800/90 backdrop-blur border border-slate-600/50 rounded-lg text-white hover:bg-slate-700 transition-colors focus-ring"
           aria-label="Zoom in"
         >
-          +
+          <ZoomIn className="w-4.5 h-4.5" />
         </button>
         <button
-          onClick={() => {
-            const container = containerRef.current;
-            if (!container) return;
-            const rect = container.getBoundingClientRect();
-            const cx = rect.width / 2;
-            const cy = rect.height / 2;
-            const newZoom = Math.max(MIN_ZOOM, zoom / 1.3);
-            const s = newZoom / zoom;
-            setPan(prev => ({ x: cx - s * (cx - prev.x), y: cy - s * (cy - prev.y) }));
-            setZoom(newZoom);
-          }}
-          className="w-9 h-9 flex items-center justify-center bg-slate-800/90 backdrop-blur border border-slate-600/50 rounded-lg text-white hover:bg-slate-700 transition-colors text-lg font-bold focus-ring"
+          onClick={handleZoomOut}
+          className="w-10 h-10 flex items-center justify-center bg-slate-800/90 backdrop-blur border border-slate-600/50 rounded-lg text-white hover:bg-slate-700 transition-colors focus-ring"
           aria-label="Zoom out"
         >
-          -
+          <ZoomOut className="w-4.5 h-4.5" />
+        </button>
+        <button
+          onClick={handleOverview}
+          className="w-10 h-10 flex items-center justify-center bg-slate-800/90 backdrop-blur border border-slate-600/50 rounded-lg text-white hover:bg-slate-700 transition-colors focus-ring"
+          aria-label="Overzicht"
+        >
+          <Maximize className="w-4.5 h-4.5" />
         </button>
       </div>
     </div>

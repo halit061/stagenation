@@ -227,6 +227,23 @@ export function subscribeToSeatUpdates(
   };
 }
 
+export async function fetchTicketTypePricesForSections(sectionIds: string[]): Promise<Map<string, { ttName: string; price: number }>> {
+  if (sectionIds.length === 0) return new Map();
+  const { data, error } = await supabase
+    .from('ticket_type_sections')
+    .select('section_id, ticket_type_id, ticket_types(id, name, price)')
+    .in('section_id', sectionIds);
+  if (error) return new Map();
+  const result = new Map<string, { ttName: string; price: number }>();
+  for (const row of (data ?? []) as any[]) {
+    const tt = row.ticket_types;
+    if (tt && tt.price && !result.has(row.section_id)) {
+      result.set(row.section_id, { ttName: tt.name, price: tt.price / 100 });
+    }
+  }
+  return result;
+}
+
 export async function fetchLinkedSectionIds(ticketTypeId: string): Promise<string[]> {
   const { data, error } = await supabase
     .from('ticket_type_sections')
