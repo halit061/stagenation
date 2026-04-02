@@ -100,6 +100,7 @@ export async function fetchFloorplanObjects(eventId: string): Promise<FloorplanO
   const { data, error } = await supabase
     .from('floorplan_objects')
     .select('id, event_id, type, object_type, name, label, x, y, width, height, rotation, color, font_color, font_size, font_weight, is_visible, is_active')
+    .eq('event_id', eventId)
     .eq('is_active', true)
     .eq('is_visible', true)
     .order('display_order', { ascending: true });

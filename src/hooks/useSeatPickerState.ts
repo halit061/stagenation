@@ -66,8 +66,8 @@ function computePickerSeats(section: SeatSection, seats: Seat[]): PickerSeat[] {
   const sw = section.width;
   const sh = section.height;
   const bodyTop = sy + HEADER_H + PAD;
-  const bodyH = sh - HEADER_H - PAD * 2;
-  const bodyW = sw - PAD * 2;
+  const bodyH = Math.max(1, sh - HEADER_H - PAD * 2);
+  const bodyW = Math.max(1, sw - PAD * 2);
   const bodyLeft = sx + PAD;
 
   const minX = Math.min(...seats.map(s => s.x_position));
@@ -86,9 +86,16 @@ function computePickerSeats(section: SeatSection, seats: Seat[]): PickerSeat[] {
   const offsetX = bodyLeft + (bodyW - fittedW) / 2;
   const offsetY = bodyTop + (bodyH - fittedH) / 2;
 
+  const clampMinX = sx + 2;
+  const clampMaxX = sx + sw - 2;
+  const clampMinY = sy + HEADER_H + 2;
+  const clampMaxY = sy + sh - 2;
+
   return seats.map(seat => {
-    const cx = offsetX + (seat.x_position - minX) * scale;
-    const cy = offsetY + (seat.y_position - minY) * scale;
+    const rawCx = offsetX + (seat.x_position - minX) * scale;
+    const rawCy = offsetY + (seat.y_position - minY) * scale;
+    const cx = Math.max(clampMinX, Math.min(clampMaxX, rawCx));
+    const cy = Math.max(clampMinY, Math.min(clampMaxY, rawCy));
     return { ...seat, cx, cy, sectionId: section.id };
   });
 }
