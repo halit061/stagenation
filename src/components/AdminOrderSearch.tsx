@@ -1,12 +1,13 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
-  Search, X, Mail, Phone, ShoppingCart, CheckCircle, XCircle, Clock,
+  Search, X, Mail, Phone, ShoppingCart, CheckCircle,
   AlertTriangle, Send, Ban, Shield, ShieldCheck, Save, Loader2, Copy,
-  ChevronDown, ChevronUp, ExternalLink,
+  ChevronDown, ChevronUp, ExternalLink, FileText, Filter,
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { callEdgeFunction } from '../lib/callEdge';
 import { useToast } from './Toast';
+import { generateTicketsPdf } from '../lib/generateTicketPdf';
 
 interface OrderRow {
   id: string;
@@ -45,14 +46,52 @@ interface TicketSeatRow {
   scans?: { scanned_at: string }[] | null;
 }
 
+interface EventOption {
+  id: string;
+  name: string;
+}
+
 interface Props {
   orders: OrderRow[];
+  events: EventOption[];
   onOrdersChange: () => void;
 }
 
-export function AdminOrderSearch({ orders, onOrdersChange }: Props) {
+const STATUS_OPTIONS = [
+  { value: '', label: 'Alle statussen' },
+  { value: 'paid', label: 'Betaald' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'failed', label: 'Mislukt' },
+  { value: 'cancelled', label: 'Geannuleerd' },
+  { value: 'refunded', label: 'Teruggestort' },
+  { value: 'comped', label: 'Comped' },
+];
+
+const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
+  paid: { bg: 'bg-green-500/20', text: 'text-green-400', label: 'Betaald' },
+  pending: { bg: 'bg-yellow-500/20', text: 'text-yellow-400', label: 'Pending' },
+  failed: { bg: 'bg-red-500/20', text: 'text-red-400', label: 'Mislukt' },
+  cancelled: { bg: 'bg-red-500/20', text: 'text-red-400', label: 'Geannuleerd' },
+  refunded: { bg: 'bg-orange-500/20', text: 'text-orange-400', label: 'Teruggestort' },
+  comped: { bg: 'bg-blue-500/20', text: 'text-blue-400', label: 'Comped' },
+};
+
+function statusBadge(status: string) {
+  const s = STATUS_BADGE[status] || { bg: 'bg-slate-600/20', text: 'text-slate-400', label: status };
+  return <span className={`px-2 py-1 rounded text-xs font-medium ${s.bg} ${s.text}`}>{s.label}</span>;
+}
+
+export function AdminOrderSearch({ orders, events, onOrdersChange }: Props) {
   const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [eventFilter, setEventFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [ticketCodeOrderIds, setTicketCodeOrderIds] = useState<Set<string> | null>(null);
+  const [ticketCodeSearching, setTicketCodeSearching] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<OrderRow | null>(null);
   const [ticketSeats, setTicketSeats] = useState<TicketSeatRow[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -66,18 +105,88 @@ export function AdminOrderSearch({ orders, onOrdersChange }: Props) {
   const [copied, setCopied] = useState(false);
   const [showTickets, setShowTickets] = useState(true);
   const searchRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const filteredOrders = searchQuery.trim().length < 2
-    ? orders.slice(0, 50)
-    : orders.filter(o => {
-        const q = searchQuery.toLowerCase();
-        return (
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedQuery(searchQuery.trim());
+    }, 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (debouncedQuery.length < 2) {
+      setTicketCodeOrderIds(null);
+      return;
+    }
+
+    const looksLikeTicketCode = /^SN-/i.test(debouncedQuery) && !debouncedQuery.includes('-2');
+    if (!looksLikeTicketCode && !debouncedQuery.includes('SN-')) {
+      setTicketCodeOrderIds(null);
+      return;
+    }
+
+    let cancelled = false;
+    setTicketCodeSearching(true);
+
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('ticket_seats')
+          .select('order_id, ticket_code')
+          .ilike('ticket_code', `%${debouncedQuery}%`)
+          .limit(100);
+        if (!cancelled && data) {
+          setTicketCodeOrderIds(new Set(data.map(d => d.order_id)));
+        }
+      } catch {
+        if (!cancelled) setTicketCodeOrderIds(null);
+      } finally {
+        if (!cancelled) setTicketCodeSearching(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [debouncedQuery]);
+
+  const filteredOrders = useMemo(() => {
+    let result = orders;
+
+    if (statusFilter) {
+      result = result.filter(o => o.status === statusFilter);
+    }
+    if (eventFilter) {
+      result = result.filter(o => o.event_id === eventFilter);
+    }
+    if (dateFrom) {
+      const from = new Date(dateFrom);
+      from.setHours(0, 0, 0, 0);
+      result = result.filter(o => new Date(o.created_at) >= from);
+    }
+    if (dateTo) {
+      const to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+      result = result.filter(o => new Date(o.created_at) <= to);
+    }
+
+    if (debouncedQuery.length >= 2) {
+      const q = debouncedQuery.toLowerCase();
+      result = result.filter(o => {
+        const matchLocal =
           o.order_number?.toLowerCase().includes(q) ||
           o.payer_email?.toLowerCase().includes(q) ||
           o.payer_name?.toLowerCase().includes(q) ||
-          o.verification_code?.toLowerCase().includes(q)
-        );
-      }).slice(0, 50);
+          o.verification_code?.toLowerCase().includes(q);
+        const matchTicketCode = ticketCodeOrderIds?.has(o.id) ?? false;
+        return matchLocal || matchTicketCode;
+      });
+    }
+
+    return result.slice(0, 100);
+  }, [orders, debouncedQuery, statusFilter, eventFilter, dateFrom, dateTo, ticketCodeOrderIds]);
+
+  const activeFilterCount = [statusFilter, eventFilter, dateFrom, dateTo].filter(Boolean).length;
 
   const loadOrderDetail = useCallback(async (order: OrderRow) => {
     setSelectedOrder(order);
@@ -221,18 +330,12 @@ export function AdminOrderSearch({ orders, onOrdersChange }: Props) {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [selectedOrder]);
 
-  const statusBadge = (status: string) => {
-    const map: Record<string, { bg: string; text: string; label: string }> = {
-      paid: { bg: 'bg-green-500/20', text: 'text-green-400', label: 'Betaald' },
-      pending: { bg: 'bg-yellow-500/20', text: 'text-yellow-400', label: 'Pending' },
-      failed: { bg: 'bg-red-500/20', text: 'text-red-400', label: 'Mislukt' },
-      cancelled: { bg: 'bg-red-500/20', text: 'text-red-400', label: 'Geannuleerd' },
-      refunded: { bg: 'bg-orange-500/20', text: 'text-orange-400', label: 'Teruggestort' },
-      comped: { bg: 'bg-blue-500/20', text: 'text-blue-400', label: 'Comped' },
-    };
-    const s = map[status] || { bg: 'bg-slate-600/20', text: 'text-slate-400', label: status };
-    return <span className={`px-2 py-1 rounded text-xs font-medium ${s.bg} ${s.text}`}>{s.label}</span>;
-  };
+  const clearFilters = useCallback(() => {
+    setStatusFilter('');
+    setEventFilter('');
+    setDateFrom('');
+    setDateTo('');
+  }, []);
 
   return (
     <div>
@@ -241,23 +344,102 @@ export function AdminOrderSearch({ orders, onOrdersChange }: Props) {
       </h2>
       <p className="text-slate-400 mb-6">Zoek en beheer bestellingen</p>
 
-      <div className="relative mb-6">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-        <input
-          ref={searchRef}
-          type="text"
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          placeholder="Zoek op bestelnummer, e-mail, naam of verificatiecode..."
-          className="w-full pl-12 pr-10 py-3.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500/30 text-sm"
-        />
-        {searchQuery && (
+      <div className="space-y-3 mb-6">
+        <div className="flex gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <input
+              ref={searchRef}
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Zoek op bestelnummer, naam, e-mail, verificatiecode of ticket code..."
+              className="w-full pl-12 pr-10 py-3.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500/30 text-sm"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => { setSearchQuery(''); searchRef.current?.focus(); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
           <button
-            onClick={() => { setSearchQuery(''); searchRef.current?.focus(); }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white"
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex items-center gap-2 px-4 py-3.5 border rounded-xl text-sm font-medium transition-colors ${
+              showFilters || activeFilterCount > 0
+                ? 'bg-red-500/10 border-red-500/50 text-red-400'
+                : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:text-white hover:border-slate-600'
+            }`}
           >
-            <X className="w-4 h-4" />
+            <Filter className="w-4 h-4" />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="w-5 h-5 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full">
+                {activeFilterCount}
+              </span>
+            )}
           </button>
+        </div>
+
+        {showFilters && (
+          <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">Status</label>
+                <select
+                  value={statusFilter}
+                  onChange={e => setStatusFilter(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:border-red-500 focus:outline-none appearance-none"
+                >
+                  {STATUS_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">Event</label>
+                <select
+                  value={eventFilter}
+                  onChange={e => setEventFilter(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:border-red-500 focus:outline-none appearance-none"
+                >
+                  <option value="">Alle events</option>
+                  {events.map(e => (
+                    <option key={e.id} value={e.id}>{e.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">Van datum</label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={e => setDateFrom(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:border-red-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">Tot datum</label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={e => setDateTo(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:border-red-500 focus:outline-none"
+                />
+              </div>
+            </div>
+            {activeFilterCount > 0 && (
+              <button
+                onClick={clearFilters}
+                className="mt-3 flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition-colors"
+              >
+                <X className="w-3 h-3" />
+                Filters wissen
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -279,7 +461,17 @@ export function AdminOrderSearch({ orders, onOrdersChange }: Props) {
                   <tr>
                     <td colSpan={5} className="px-6 py-12 text-center">
                       <ShoppingCart className="w-10 h-10 mx-auto mb-3 text-slate-600" />
-                      <p className="text-slate-400 text-sm">Geen orders gevonden</p>
+                      <p className="text-slate-400 text-sm">
+                        {debouncedQuery.length >= 2
+                          ? `Geen bestellingen gevonden voor '${debouncedQuery}'`
+                          : 'Geen orders gevonden'}
+                      </p>
+                      {ticketCodeSearching && (
+                        <p className="text-slate-500 text-xs mt-2 flex items-center justify-center gap-1.5">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Ticket codes doorzoeken...
+                        </p>
+                      )}
                     </td>
                   </tr>
                 ) : (
@@ -318,9 +510,16 @@ export function AdminOrderSearch({ orders, onOrdersChange }: Props) {
               </tbody>
             </table>
           </div>
-          {searchQuery.trim().length >= 2 && (
-            <p className="text-xs text-slate-500 mt-2">{filteredOrders.length} resultaten</p>
-          )}
+          <div className="flex items-center justify-between mt-2">
+            <p className="text-xs text-slate-500">
+              {filteredOrders.length}{filteredOrders.length === 100 ? '+' : ''} resultaten
+              {debouncedQuery.length >= 2 && ticketCodeSearching && (
+                <span className="ml-2 inline-flex items-center gap-1">
+                  <Loader2 className="w-3 h-3 animate-spin" /> ticket codes doorzoeken...
+                </span>
+              )}
+            </p>
+          </div>
         </div>
 
         {selectedOrder && (
@@ -347,7 +546,6 @@ export function AdminOrderSearch({ orders, onOrdersChange }: Props) {
             setVerifyInput={setVerifyInput}
             setShowCancelConfirm={setShowCancelConfirm}
             setShowTickets={setShowTickets}
-            statusBadge={statusBadge}
           />
         )}
       </div>
@@ -378,7 +576,6 @@ function OrderDetailPanel({
   setVerifyInput,
   setShowCancelConfirm,
   setShowTickets,
-  statusBadge,
 }: {
   order: OrderRow;
   ticketSeats: TicketSeatRow[];
@@ -402,11 +599,54 @@ function OrderDetailPanel({
   setVerifyInput: (v: string) => void;
   setShowCancelConfirm: (v: boolean) => void;
   setShowTickets: (v: boolean) => void;
-  statusBadge: (s: string) => JSX.Element;
 }) {
+  const { showToast } = useToast();
+  const [pdfGenerating, setPdfGenerating] = useState(false);
   const subtotalCents = ticketSeats.reduce((sum, ts) => sum + Number(ts.price_paid || 0), 0);
   const serviceFee = Number(order.service_fee_total_cents || 0) / 100;
   const totalEur = order.total_amount / 100;
+
+  const handleDownloadPdf = useCallback(async () => {
+    if (ticketSeats.length === 0) return;
+    setPdfGenerating(true);
+    try {
+      const { data: eventData } = await supabase
+        .from('events')
+        .select('name, start_date, location, venue_name')
+        .eq('id', order.event_id)
+        .maybeSingle();
+
+      await generateTicketsPdf(
+        {
+          order_number: order.order_number,
+          payer_name: order.payer_name,
+          payer_email: order.payer_email,
+          verification_code: order.verification_code,
+        },
+        {
+          name: eventData?.name || order.events?.name || 'Event',
+          start_date: eventData?.start_date || '',
+          location: eventData?.location || '',
+          venue_name: eventData?.venue_name || '',
+        },
+        ticketSeats.map(ts => ({
+          row_label: ts.seats?.row_label || '-',
+          seat_number: ts.seats?.seat_number || 0,
+          section_name: ts.seats?.seat_sections?.name || 'Sectie',
+          section_color: ts.seats?.seat_sections?.color || '#64748b',
+          price: Number(ts.price_paid) / 100,
+          ticket_code: ts.ticket_code,
+          qr_data: ts.qr_data,
+          seat_type: ts.seats?.seat_type,
+        })),
+      );
+      showToast('PDF gedownload', 'success');
+    } catch {
+      showToast('PDF genereren mislukt', 'error');
+    } finally {
+      setPdfGenerating(false);
+    }
+  }, [order, ticketSeats, showToast]);
 
   return (
     <div className={`${window.innerWidth < 1280 ? 'fixed inset-0 bg-black/70 z-50 flex items-start justify-end' : 'w-1/2'}`}>
@@ -450,6 +690,12 @@ function OrderDetailPanel({
                   {new Date(order.created_at).toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
+              {order.events?.name && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-500 uppercase font-semibold">Event</span>
+                  <span className="text-white text-sm">{order.events.name}</span>
+                </div>
+              )}
               {order.payment_method && (
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-slate-500 uppercase font-semibold">Betaalmethode</span>
@@ -649,6 +895,26 @@ function OrderDetailPanel({
             </div>
 
             <div className="space-y-2">
+              {ticketSeats.length > 0 && (
+                <button
+                  onClick={handleDownloadPdf}
+                  disabled={pdfGenerating}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-medium rounded-xl transition-colors text-sm"
+                >
+                  {pdfGenerating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      PDF genereren...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="w-4 h-4" />
+                      Download Tickets (PDF)
+                    </>
+                  )}
+                </button>
+              )}
+
               {order.status === 'paid' && (
                 <button
                   onClick={onResend}

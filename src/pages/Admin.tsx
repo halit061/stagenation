@@ -1796,7 +1796,7 @@ export function Admin({ onNavigate }: AdminProps = {}) {
           )}
 
           {activeTab === 'orders' && (
-            <AdminOrderSearch orders={orders} onOrdersChange={loadData} />
+            <AdminOrderSearch orders={orders} events={events.map(e => ({ id: e.id, name: e.name }))} onOrdersChange={loadData} />
           )}
 
           {activeTab === 'entrances' && (
