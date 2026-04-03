@@ -508,7 +508,7 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
         const orderIds = ordersRes.data.map(o => o.id);
         const { data: ticketsData } = await supabase
           .from('tickets')
-          .select('id, order_id, ticket_type_id, ticket_number, status, ticket_types(id, name, price)')
+          .select('id, order_id, ticket_type_id, ticket_number, status, qr_data, holder_name, event_id, ticket_types(id, name, price)')
           .in('order_id', orderIds);
 
         const enrichedOrders = ordersRes.data.map(order => {
@@ -531,6 +531,10 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
               ticket_number: t.ticket_number,
               status: t.status,
               typeName: (t as any).ticket_types?.name || 'Ticket',
+              typePrice: (t as any).ticket_types?.price || 0,
+              qr_data: t.qr_data,
+              holder_name: t.holder_name,
+              event_id: t.event_id,
             })),
           };
         });
@@ -551,6 +555,136 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
       }
     } catch (error) {
       console.error('Error loading data:', error);
+    }
+  }
+
+  const [ticketPdfLoading, setTicketPdfLoading] = useState<string | null>(null);
+
+  async function downloadSingleTicketPdf(ticket: any, order: any) {
+    setTicketPdfLoading(ticket.id);
+    try {
+      const { data: eventData } = await supabase
+        .from('events')
+        .select('name, start_date, location, venue_name')
+        .eq('id', ticket.event_id || order.event_id)
+        .maybeSingle();
+
+      const { jsPDF } = await import('jspdf');
+      const QRCode = (await import('qrcode')).default;
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pw = doc.internal.pageSize.getWidth();
+      const m = 20;
+
+      let y = 22;
+      doc.setFontSize(22);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0);
+      doc.text('STAGENATION', pw / 2, y, { align: 'center' });
+      y += 10;
+
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(120);
+      doc.text('TOEGANGSTICKET', pw / 2, y, { align: 'center' });
+      y += 8;
+
+      doc.setDrawColor(200);
+      doc.setLineWidth(0.3);
+      doc.line(m, y, pw - m, y);
+      y += 12;
+
+      doc.setTextColor(0);
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text(eventData?.name || order.events?.name || 'Event', pw / 2, y, { align: 'center' });
+      y += 10;
+
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(80);
+      if (eventData?.start_date) {
+        const d = new Date(eventData.start_date);
+        const dateStr = d.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        const timeStr = d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+        doc.text(dateStr + ' - ' + timeStr, pw / 2, y, { align: 'center' });
+        y += 7;
+      }
+      const venue = [eventData?.venue_name, eventData?.location].filter(Boolean).join(', ');
+      if (venue) {
+        doc.text(venue, pw / 2, y, { align: 'center' });
+        y += 10;
+      } else {
+        y += 4;
+      }
+
+      doc.setDrawColor(0);
+      doc.setLineWidth(0.4);
+      doc.roundedRect(m + 10, y, pw - m * 2 - 20, 30, 3, 3);
+
+      const boxLeft = m + 18;
+      const valLeft = boxLeft + 38;
+      let by = y + 10;
+
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0);
+      doc.text('Type:', boxLeft, by);
+      doc.setFont('helvetica', 'normal');
+      doc.text(ticket.typeName || 'Ticket', valLeft, by);
+      by += 8;
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('Prijs:', boxLeft, by);
+      doc.setFont('helvetica', 'normal');
+      doc.text('EUR ' + ((ticket.typePrice || 0) / 100).toFixed(2), valLeft, by);
+
+      y += 38;
+
+      const qrValue = ticket.qr_data || ticket.ticket_number || order.order_number;
+      try {
+        const qrDataUrl = await QRCode.toDataURL(qrValue, { width: 400, margin: 2 });
+        if (qrDataUrl) {
+          const qrSize = 55;
+          const qrX = (pw - qrSize) / 2;
+          doc.addImage(qrDataUrl, 'PNG', qrX, y, qrSize, qrSize);
+          y += qrSize + 6;
+        }
+      } catch {
+        y += 6;
+      }
+
+      if (ticket.ticket_number) {
+        doc.setFontSize(14);
+        doc.setFont('courier', 'bold');
+        doc.setTextColor(0);
+        doc.text(ticket.ticket_number, pw / 2, y, { align: 'center' });
+        y += 12;
+      }
+
+      doc.setDrawColor(200);
+      doc.setLineWidth(0.3);
+      doc.line(m, y, pw - m, y);
+      y += 8;
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100);
+      doc.text('Bestelnummer: ' + order.order_number, pw / 2, y, { align: 'center' });
+      y += 5;
+      doc.text('Naam: ' + (ticket.holder_name || order.payer_name || '-'), pw / 2, y, { align: 'center' });
+      y += 8;
+      doc.setFontSize(8);
+      doc.text('Dit ticket is uniek en kan slechts een keer gescand worden.', pw / 2, y, { align: 'center' });
+      y += 5;
+      doc.text('Toon dit ticket bij de ingang op je telefoon of geprint.', pw / 2, y, { align: 'center' });
+
+      doc.save('StageNation-Ticket-' + (ticket.ticket_number || ticket.id) + '.pdf');
+      showToast('Ticket PDF gedownload', 'success');
+    } catch (error) {
+      console.error('Error generating ticket PDF:', error);
+      showToast('PDF genereren mislukt', 'error');
+    } finally {
+      setTicketPdfLoading(null);
     }
   }
 
@@ -4312,23 +4446,32 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
                       {order.individual_tickets && order.individual_tickets.length > 0 && (
                         <div className="mt-2 space-y-1">
                           {order.individual_tickets.map((ticket: any) => (
-                            <button
-                              key={ticket.id}
-                              onClick={() => {
-                                setDeleteTicketModal({
-                                  step: 1,
-                                  ticketId: ticket.id,
-                                  ticketNumber: ticket.ticket_number,
-                                  orderId: order.id,
-                                });
-                                setDeleteConfirmText('');
-                              }}
-                              className="flex items-center gap-1 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg text-xs text-red-400 transition-colors"
-                              title={`Verwijder ticket ${ticket.ticket_number}`}
-                            >
-                              <Trash2 className="w-3 h-3" />
-                              {ticket.ticket_number}
-                            </button>
+                            <div key={ticket.id} className="flex items-center gap-1">
+                              <button
+                                onClick={() => downloadSingleTicketPdf(ticket, order)}
+                                disabled={ticketPdfLoading === ticket.id}
+                                className="flex items-center gap-1 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-lg text-xs text-emerald-400 transition-colors disabled:opacity-50"
+                                title={`Download PDF ${ticket.ticket_number}`}
+                              >
+                                {ticketPdfLoading === ticket.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
+                                {ticket.ticket_number}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setDeleteTicketModal({
+                                    step: 1,
+                                    ticketId: ticket.id,
+                                    ticketNumber: ticket.ticket_number,
+                                    orderId: order.id,
+                                  });
+                                  setDeleteConfirmText('');
+                                }}
+                                className="p-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 transition-colors"
+                                title={`Verwijder ticket ${ticket.ticket_number}`}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
                           ))}
                         </div>
                       )}
