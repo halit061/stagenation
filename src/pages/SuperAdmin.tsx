@@ -1,5 +1,5 @@
-import { Shield, Calendar, Users, Plus, CreditCard as Edit2, Trash2, AlertCircle, CheckCircle, XCircle, Ticket, LogOut, Download, Zap, Image as ImageIcon, Mail, ShoppingCart, Grid2x2 as Grid, MapPin, Package, DollarSign, Bug, BarChart3, Sun, Moon, Menu, X, Crop, ZoomIn, ChevronLeft, ChevronRight, Key, Eye, EyeOff, RefreshCw } from 'lucide-react';
-import { useState, useEffect, useCallback } from 'react';
+import { Shield, Calendar, Users, Plus, CreditCard as Edit2, Trash2, AlertCircle, CheckCircle, XCircle, Ticket, LogOut, Download, Zap, Image as ImageIcon, Mail, ShoppingCart, Grid2x2 as Grid, MapPin, Package, DollarSign, Bug, BarChart3, Sun, Moon, Menu, X, Crop, ZoomIn, ChevronLeft, ChevronRight, Key, Eye, EyeOff, RefreshCw, FileText, Search, Filter, Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Cropper from 'react-easy-crop';
 import type { Area } from 'react-easy-crop';
 import { supabase } from '../lib/supabaseClient';
@@ -97,6 +97,43 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
   const [ticketSales, setTicketSales] = useState<any[]>([]);
   const [salesSummary, setSalesSummary] = useState<any[]>([]);
   const [salesSearch, setSalesSearch] = useState('');
+
+  const [ordersSearch, setOrdersSearch] = useState('');
+  const [debouncedOrdersSearch, setDebouncedOrdersSearch] = useState('');
+  const [ordersStatusFilter, setOrdersStatusFilter] = useState('');
+  const [ordersEventFilter, setOrdersEventFilter] = useState('');
+  const [pdfExporting, setPdfExporting] = useState(false);
+  const ordersSearchRef = useRef<HTMLInputElement>(null);
+  const ordersDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (ordersDebounceRef.current) clearTimeout(ordersDebounceRef.current);
+    ordersDebounceRef.current = setTimeout(() => {
+      setDebouncedOrdersSearch(ordersSearch.trim());
+    }, 300);
+    return () => { if (ordersDebounceRef.current) clearTimeout(ordersDebounceRef.current); };
+  }, [ordersSearch]);
+
+  const filteredOrders = useMemo(() => {
+    let result = orders;
+    if (ordersStatusFilter) {
+      result = result.filter((o: any) => o.status === ordersStatusFilter);
+    }
+    if (ordersEventFilter) {
+      result = result.filter((o: any) => o.event_id === ordersEventFilter);
+    }
+    if (debouncedOrdersSearch.length >= 2) {
+      const q = debouncedOrdersSearch.toLowerCase();
+      result = result.filter((o: any) =>
+        o.order_number?.toLowerCase().includes(q) ||
+        o.payer_name?.toLowerCase().includes(q) ||
+        o.payer_email?.toLowerCase().includes(q) ||
+        o.events?.name?.toLowerCase().includes(q) ||
+        String(o.total_amount)?.includes(q)
+      );
+    }
+    return result;
+  }, [orders, ordersStatusFilter, ordersEventFilter, debouncedOrdersSearch]);
 
   // Gallery/Media state
   const [galleryImages, setGalleryImages] = useState<any[]>([]);
@@ -619,6 +656,163 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
     } catch (error) {
       console.error('Error exporting CSV:', error);
       showToast('Fout bij exporteren naar CSV', 'error');
+    }
+  }
+
+  async function exportOrdersToPDF() {
+    setPdfExporting(true);
+    try {
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      const pw = doc.internal.pageSize.getWidth();
+      const ph = doc.internal.pageSize.getHeight();
+      const margin = 12;
+      const rowHeight = 7;
+
+      const dataToExport = filteredOrders.length > 0 ? filteredOrders : orders;
+      if (dataToExport.length === 0) {
+        showToast('Geen orders om te exporteren', 'error');
+        setPdfExporting(false);
+        return;
+      }
+
+      const cols = [
+        { header: 'Order #', width: 32 },
+        { header: 'Event', width: 50 },
+        { header: 'Klant', width: 45 },
+        { header: 'Email', width: 55 },
+        { header: 'Bedrag', width: 22 },
+        { header: 'Status', width: 20 },
+        { header: 'Tickets', width: 16 },
+        { header: 'Datum', width: 35 },
+      ];
+
+      function drawHeader(d: InstanceType<typeof jsPDF>, pageNum: number, totalPages: number) {
+        d.setFontSize(16);
+        d.setFont('helvetica', 'bold');
+        d.setTextColor(0);
+        d.text('STAGENATION - Orders Overzicht', margin, 14);
+
+        d.setFontSize(8);
+        d.setFont('helvetica', 'normal');
+        d.setTextColor(120);
+        const dateStr = new Date().toLocaleDateString('nl-BE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        d.text(`Gegenereerd: ${dateStr}`, margin, 20);
+
+        const filterParts: string[] = [];
+        if (ordersStatusFilter) filterParts.push(`Status: ${ordersStatusFilter}`);
+        if (ordersEventFilter) {
+          const evName = events.find(e => e.id === ordersEventFilter)?.name || ordersEventFilter;
+          filterParts.push(`Event: ${evName}`);
+        }
+        if (debouncedOrdersSearch) filterParts.push(`Zoek: "${debouncedOrdersSearch}"`);
+        if (filterParts.length > 0) {
+          d.text(`Filters: ${filterParts.join(' | ')}`, margin, 24);
+        }
+
+        d.text(`${dataToExport.length} orders | Pagina ${pageNum}/${totalPages}`, pw - margin, 14, { align: 'right' });
+
+        let x = margin;
+        const headerY = 30;
+        d.setFillColor(30, 41, 59);
+        d.rect(margin, headerY - 4.5, pw - margin * 2, rowHeight, 'F');
+        d.setFontSize(7);
+        d.setFont('helvetica', 'bold');
+        d.setTextColor(255);
+        for (const col of cols) {
+          d.text(col.header, x + 1, headerY);
+          x += col.width;
+        }
+        d.setTextColor(0);
+        return headerY + rowHeight;
+      }
+
+      const rowsPerPage = Math.floor((ph - 42) / rowHeight);
+      const totalPages = Math.ceil(dataToExport.length / rowsPerPage);
+
+      let y = drawHeader(doc, 1, totalPages);
+      let page = 1;
+
+      for (let i = 0; i < dataToExport.length; i++) {
+        if (y + rowHeight > ph - 8) {
+          doc.addPage();
+          page++;
+          y = drawHeader(doc, page, totalPages);
+        }
+
+        const order = dataToExport[i];
+        if (i % 2 === 0) {
+          doc.setFillColor(241, 245, 249);
+          doc.rect(margin, y - 4, pw - margin * 2, rowHeight, 'F');
+        }
+
+        doc.setFontSize(6.5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(30);
+
+        let x = margin;
+        const truncate = (s: string, maxW: number) => {
+          if (!s) return '';
+          const maxChars = Math.floor(maxW / 1.6);
+          return s.length > maxChars ? s.substring(0, maxChars - 1) + '..' : s;
+        };
+
+        doc.setFont('helvetica', 'bold');
+        doc.text(truncate(order.order_number || '', cols[0].width), x + 1, y);
+        x += cols[0].width;
+
+        doc.setFont('helvetica', 'normal');
+        doc.text(truncate(order.events?.name || '-', cols[1].width), x + 1, y);
+        x += cols[1].width;
+
+        doc.text(truncate(order.payer_name || '-', cols[2].width), x + 1, y);
+        x += cols[2].width;
+
+        doc.text(truncate(order.payer_email || '-', cols[3].width), x + 1, y);
+        x += cols[3].width;
+
+        doc.text('\u20AC' + (order.total_amount / 100).toFixed(2), x + 1, y);
+        x += cols[4].width;
+
+        const statusLabel: Record<string, string> = { paid: 'Betaald', pending: 'Pending', failed: 'Mislukt', cancelled: 'Geannuleerd', comped: 'Comped', refunded: 'Teruggestort' };
+        doc.text(statusLabel[order.status] || order.status, x + 1, y);
+        x += cols[5].width;
+
+        const ticketCount = order.ticket_items?.reduce((s: number, t: any) => s + (t.quantity || 0), 0) || 0;
+        doc.text(String(ticketCount), x + 1, y);
+        x += cols[6].width;
+
+        doc.text(new Date(order.created_at).toLocaleDateString('nl-BE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }), x + 1, y);
+
+        y += rowHeight;
+      }
+
+      const totalRevenue = dataToExport
+        .filter((o: any) => o.status === 'paid' || o.status === 'comped')
+        .reduce((s: number, o: any) => s + (o.total_amount || 0), 0);
+      const paidCount = dataToExport.filter((o: any) => o.status === 'paid').length;
+
+      if (y + 16 > ph - 8) {
+        doc.addPage();
+        y = 20;
+      }
+      y += 4;
+      doc.setDrawColor(200);
+      doc.setLineWidth(0.3);
+      doc.line(margin, y, pw - margin, y);
+      y += 6;
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0);
+      doc.text(`Totaal: ${dataToExport.length} orders | ${paidCount} betaald | Omzet: \u20AC${(totalRevenue / 100).toFixed(2)}`, margin, y);
+
+      doc.save(`StageNation_Orders_${new Date().toISOString().split('T')[0]}.pdf`);
+      showToast('PDF gedownload', 'success');
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      showToast('Fout bij exporteren naar PDF', 'error');
+    } finally {
+      setPdfExporting(false);
     }
   }
 
@@ -3901,24 +4095,93 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
 
         {activeTab === 'orders' && role === 'super_admin' && (
           <div>
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-3xl font-bold mb-2 text-white">
                   Order<span className="text-red-400">beheer</span>
                 </h2>
                 <p className="text-white">Beheer alle orders en verstuur ticket emails opnieuw</p>
               </div>
-              <button
-                onClick={exportOrdersToCSV}
-                className="flex items-center gap-2 px-6 py-3 bg-green-500 hover:bg-green-400 rounded-xl font-semibold transition-colors text-white shadow-lg"
-              >
-                <Download className="w-5 h-5" />
-                Export CSV
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={exportOrdersToPDF}
+                  disabled={pdfExporting}
+                  className="flex items-center gap-2 px-5 py-3 bg-red-600 hover:bg-red-500 disabled:opacity-60 rounded-xl font-semibold transition-colors text-white shadow-lg"
+                >
+                  {pdfExporting ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileText className="w-5 h-5" />}
+                  {pdfExporting ? 'PDF genereren...' : 'Export PDF'}
+                </button>
+                <button
+                  onClick={exportOrdersToCSV}
+                  className="flex items-center gap-2 px-5 py-3 bg-green-500 hover:bg-green-400 rounded-xl font-semibold transition-colors text-white shadow-lg"
+                >
+                  <Download className="w-5 h-5" />
+                  Export CSV
+                </button>
+              </div>
+            </div>
+
+            <div className="mb-6 space-y-3">
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <input
+                  ref={ordersSearchRef}
+                  type="text"
+                  value={ordersSearch}
+                  onChange={e => setOrdersSearch(e.target.value)}
+                  placeholder="Zoek op bestelnummer, naam, e-mail of event..."
+                  className="w-full pl-12 pr-10 py-3.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500/30 text-sm"
+                />
+                {ordersSearch && (
+                  <button
+                    onClick={() => { setOrdersSearch(''); ordersSearchRef.current?.focus(); }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <select
+                  value={ordersStatusFilter}
+                  onChange={e => setOrdersStatusFilter(e.target.value)}
+                  className="px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:border-red-500 focus:outline-none appearance-none min-w-[160px]"
+                >
+                  <option value="">Alle statussen</option>
+                  <option value="paid">Betaald</option>
+                  <option value="pending">Pending</option>
+                  <option value="failed">Mislukt</option>
+                  <option value="cancelled">Geannuleerd</option>
+                  <option value="refunded">Teruggestort</option>
+                  <option value="comped">Comped</option>
+                </select>
+                <select
+                  value={ordersEventFilter}
+                  onChange={e => setOrdersEventFilter(e.target.value)}
+                  className="px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:border-red-500 focus:outline-none appearance-none min-w-[200px]"
+                >
+                  <option value="">Alle events</option>
+                  {events.map(e => (
+                    <option key={e.id} value={e.id}>{e.name}</option>
+                  ))}
+                </select>
+                {(ordersStatusFilter || ordersEventFilter || ordersSearch) && (
+                  <button
+                    onClick={() => { setOrdersSearch(''); setOrdersStatusFilter(''); setOrdersEventFilter(''); }}
+                    className="flex items-center gap-1.5 px-4 py-2.5 text-red-400 hover:text-red-300 border border-red-500/30 rounded-xl text-sm transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    Filters wissen
+                  </button>
+                )}
+                <div className="ml-auto text-sm text-slate-400 self-center">
+                  {filteredOrders.length} van {orders.length} orders
+                </div>
+              </div>
             </div>
 
             <div className="space-y-4">
-              {orders.map((order) => (
+              {filteredOrders.map((order) => (
                 <div
                   key={order.id}
                   className="bg-slate-800/80 backdrop-blur border-2 border-slate-600 rounded-2xl p-6"
@@ -4073,10 +4336,22 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
                   </div>
                 </div>
               ))}
-              {orders.length === 0 && (
+              {filteredOrders.length === 0 && (
                 <div className="text-center py-12 bg-slate-800/50 rounded-2xl border-2 border-slate-700">
                   <ShoppingCart className="w-16 h-16 mx-auto mb-4" style={{ color: 'rgba(255, 255, 255, 0.45)' }} />
-                  <p className="text-white text-lg">Geen orders gevonden</p>
+                  <p className="text-white text-lg">
+                    {debouncedOrdersSearch || ordersStatusFilter || ordersEventFilter
+                      ? 'Geen bestellingen gevonden'
+                      : 'Geen orders gevonden'}
+                  </p>
+                  {(debouncedOrdersSearch || ordersStatusFilter || ordersEventFilter) && (
+                    <button
+                      onClick={() => { setOrdersSearch(''); setOrdersStatusFilter(''); setOrdersEventFilter(''); }}
+                      className="mt-3 text-sm text-red-400 hover:text-red-300 transition-colors"
+                    >
+                      Filters wissen
+                    </button>
+                  )}
                 </div>
               )}
             </div>
