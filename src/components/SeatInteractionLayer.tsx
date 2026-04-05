@@ -1,10 +1,12 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { SeatSection, Seat, SeatStatus, SeatType } from '../types/seats';
+import { SvgSeatChair } from './SeatIcon';
 
 const HEADER_H = 24;
 const PAD = 10;
-const SEAT_R = 5;
-const SEAT_R_HOVER = 6.5;
+const SEAT_SIZE = 12;
+const SEAT_SIZE_HOVER = 15;
+const SEAT_HIT_R = 7;
 const TOOLTIP_DELAY = 200;
 
 const STATUS_COLOR: Record<SeatStatus, string> = {
@@ -105,7 +107,7 @@ function computeSeatPositions(section: SeatSection, seats: Seat[]): ComputedSeat
   });
 }
 
-function SeatIcon({ seat, r }: { seat: ComputedSeat; r: number }) {
+function SeatOverlayIcon({ seat, r }: { seat: ComputedSeat; r: number }) {
   const st = seat.seat_type as SeatType;
   const tiny = r * 0.45;
 
@@ -232,7 +234,7 @@ export function SeatInteractionLayer({
   }
 
   function findSeatAt(svgX: number, svgY: number): ComputedSeat | null {
-    const hitR = Math.max(SEAT_R + 2, (SEAT_R + 2) / zoom);
+    const hitR = Math.max(SEAT_HIT_R + 2, (SEAT_HIT_R + 2) / zoom);
     let closest: ComputedSeat | null = null;
     let closestDist = Infinity;
     for (const s of allComputedSeats) {
@@ -482,20 +484,20 @@ export function SeatInteractionLayer({
     };
   }, []);
 
-  const seatRadius = useMemo(() => {
-    if (allComputedSeats.length === 0) return SEAT_R;
-    let maxR = SEAT_R;
+  const seatSizeComputed = useMemo(() => {
+    if (allComputedSeats.length === 0) return SEAT_SIZE;
+    let minSize = SEAT_SIZE;
     for (const section of sections) {
       const spacingX = section.width / (section.seats_per_row || 1);
       const spacingY = (section.height - HEADER_H - PAD * 2) / (section.rows_count || 1);
       const minSpacing = Math.min(spacingX, spacingY);
-      const r = Math.max(2.5, Math.min(SEAT_R, minSpacing * 0.35));
-      if (r < maxR || maxR === SEAT_R) maxR = r;
+      const s = Math.max(6, Math.min(SEAT_SIZE, minSpacing * 0.7));
+      if (s < minSize || minSize === SEAT_SIZE) minSize = s;
     }
-    return maxR;
+    return minSize;
   }, [allComputedSeats.length, sections]);
 
-  const hoverRadius = seatRadius * (SEAT_R_HOVER / SEAT_R);
+  const hoverSize = seatSizeComputed * (SEAT_SIZE_HOVER / SEAT_SIZE);
 
   const marqueePreviewIds = useMemo(() => {
     if (!marqueeRect) return new Set<string>();
@@ -615,7 +617,7 @@ export function SeatInteractionLayer({
               const isReserved = seat.status === 'reserved';
               const isVip = seat.seat_type === 'vip' && seat.status === 'available';
               const baseColor = isCollisionFlash ? '#ef4444' : isVip ? '#eab308' : STATUS_COLOR[seat.status as SeatStatus] || '#22c55e';
-              const r = isHovered ? hoverRadius : seatRadius;
+              const currentSize = isHovered ? hoverSize : seatSizeComputed;
 
               const manyDragging = dragState?.active && dragState.seatIds.size > 50;
               const renderCx = isDragTarget ? seat.cx + (dragState?.dx ?? 0) : seat.cx;
@@ -624,26 +626,27 @@ export function SeatInteractionLayer({
               return (
                 <g key={seat.id} style={{ pointerEvents: (isSelectTool && !dragState?.active) ? 'all' : 'none' }}>
                   {isDragTarget && (
-                    <circle
+                    <SvgSeatChair
                       cx={seat.cx}
                       cy={seat.cy}
-                      r={seatRadius}
-                      fill={baseColor}
-                      fillOpacity={0.25}
-                      stroke="rgba(255,255,255,0.15)"
+                      size={seatSizeComputed}
+                      color={baseColor}
+                      opacity={0.25}
+                      strokeColor="rgba(255,255,255,0.15)"
                       strokeWidth={0.5}
                       className="pointer-events-none"
                     />
                   )}
-                  <circle
+                  <SvgSeatChair
                     cx={renderCx}
                     cy={renderCy}
-                    r={r}
-                    fill={baseColor}
-                    fillOpacity={isReserved ? undefined : isDragTarget ? 0.95 : 0.9}
-                    stroke={isSelected ? '#ffffff' : isMarqueePreview ? '#93c5fd' : isVip ? '#fbbf24' : 'rgba(0,0,0,0.3)'}
-                    strokeWidth={isSelected ? 2 : isMarqueePreview ? 1.5 : isVip ? 1.5 : 0.5}
-                    className={`seat-hover-grow ${isReserved && !isDragTarget ? 'seat-reserved-pulse' : ''} ${isCollisionFlash ? 'seat-collision-flash' : ''}`}
+                    size={currentSize}
+                    color={baseColor}
+                    opacity={isReserved ? 0.7 : isDragTarget ? 0.95 : 0.9}
+                    selected={isSelected || isMarqueePreview}
+                    strokeColor={isSelected ? '#ffffff' : isMarqueePreview ? '#93c5fd' : isVip ? '#fbbf24' : undefined}
+                    strokeWidth={isSelected ? 2 : isMarqueePreview ? 1.5 : isVip ? 1.5 : 0}
+                    className={`seat-chair-transition ${isReserved && !isDragTarget ? 'seat-reserved-pulse' : ''} ${isCollisionFlash ? 'seat-collision-flash' : ''}`}
                     style={{
                       cursor: isDragTarget ? 'grabbing' : isSelectTool ? 'pointer' : 'default',
                       filter: isDragTarget
@@ -666,7 +669,7 @@ export function SeatInteractionLayer({
                   />
                   {(!manyDragging || !isDragTarget) && (
                     <g transform={isDragTarget ? `translate(${dragState?.dx ?? 0}, ${dragState?.dy ?? 0})` : undefined}>
-                      <SeatIcon seat={seat} r={r} />
+                      <SeatOverlayIcon seat={seat} r={currentSize / 2} />
                     </g>
                   )}
                 </g>

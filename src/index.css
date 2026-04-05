@@ -673,6 +673,10 @@ select {
   transition: r 150ms ease, stroke-width 150ms ease, filter 150ms ease;
 }
 
+.seat-chair-transition {
+  transition: transform 150ms ease, filter 150ms ease, opacity 150ms ease;
+}
+
 .seat-tooltip-enter {
   animation: tooltip-fade-in 120ms ease-out forwards;
 }
@@ -721,22 +725,23 @@ select {
    ============================================ */
 
 .seat-picker-hover {
-  transition: r 120ms ease, fill-opacity 120ms ease, filter 120ms ease;
+  transition: transform 120ms ease, filter 120ms ease, opacity 120ms ease;
 }
 
 @keyframes seat-picker-pop {
-  0% { r: 5; }
-  50% { r: 7; }
-  100% { r: 5; }
+  0% { transform: scale(1); }
+  50% { transform: scale(1.25); }
+  100% { transform: scale(1); }
 }
 
 .seat-picker-selected {
   animation: seat-picker-pop 200ms ease-out;
+  transform-origin: center;
 }
 
 @keyframes seat-best-ring {
-  0% { r: 6; opacity: 1; }
-  100% { r: 14; opacity: 0; }
+  0% { r: 8; opacity: 1; }
+  100% { r: 20; opacity: 0; }
 }
 
 .seat-best-pulse {

@@ -10,6 +10,7 @@ import {
   validatePrice,
   validatePriceCategory,
 } from '../lib/validation';
+import { SvgSeatDotChair } from './SeatIcon';
 
 const PRESET_COLORS = [
   '#3b82f6', '#ef4444', '#22c55e', '#f59e0b',
@@ -499,12 +500,12 @@ function OrientationIcon({ direction, color, active }: { direction: SeatOrientat
                 ? 12 + r * 8
                 : 28 - r * 8;
               return (
-                <circle
+                <SvgSeatDotChair
                   key={`${r}-${c}`}
                   cx={10 + c * 7}
                   cy={rowY}
-                  r={2.2}
-                  fill={seatColor}
+                  size={4.4}
+                  color={seatColor}
                   opacity={0.8}
                 />
               );
@@ -514,16 +515,6 @@ function OrientationIcon({ direction, color, active }: { direction: SeatOrientat
             points={direction === 'top' ? '24,2 20,8 28,8' : '24,38 20,32 28,32'}
             fill={arrowColor}
           />
-          <text
-            x="24"
-            y={direction === 'top' ? 8 : 32}
-            textAnchor="middle"
-            fontSize="4"
-            fill={arrowColor}
-            fontWeight="bold"
-          >
-            {direction === 'top' ? '' : ''}
-          </text>
         </>
       ) : (
         <>
@@ -533,12 +524,12 @@ function OrientationIcon({ direction, color, active }: { direction: SeatOrientat
                 ? 32 - r * 8
                 : 16 + r * 8;
               return (
-                <circle
+                <SvgSeatDotChair
                   key={`${r}-${c}`}
                   cx={rowX}
                   cy={8 + c * 6}
-                  r={2.2}
-                  fill={seatColor}
+                  size={4.4}
+                  color={seatColor}
                   opacity={0.8}
                 />
               );
@@ -635,8 +626,9 @@ function SeatPreview({ form }: { form: SectionFormData }) {
       <svg viewBox={`${minX} ${minY} ${vw} ${vh}`} className="w-full h-full" preserveAspectRatio="xMidYMid meet">
         <g style={{ transform: `rotate(${form.rotation}deg)`, transformOrigin: `${cx}px ${cy}px` }}>
           {seats.map((s, i) => (
-            <circle key={i} cx={s.x} cy={s.y} r={Math.min(form.seat_spacing, form.row_spacing) * 0.3}
-              fill={form.color} opacity={0.85} />
+            <SvgSeatDotChair key={i} cx={s.x} cy={s.y}
+              size={Math.min(form.seat_spacing, form.row_spacing) * 0.55}
+              color={form.color} opacity={0.85} />
           ))}
           {(() => {
             const rowLabels = new Map<string, { x: number; y: number }>();

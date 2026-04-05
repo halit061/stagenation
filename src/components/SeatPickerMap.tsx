@@ -5,10 +5,11 @@ import type { PickerSeat } from '../hooks/useSeatPickerState';
 import type { FloorplanObject } from '../services/seatPickerService';
 import { useLanguage } from '../contexts/LanguageContext';
 import { st } from '../lib/seatTranslations';
+import { SvgSeatChair, SvgSeatDotChair } from './SeatIcon';
 
 const HEADER_H = 24;
-const SEAT_DOT_R = 3;
-const SEAT_CIRCLE_R = 7;
+const SEAT_DOT_SIZE = 8;
+const SEAT_CHAIR_SIZE = 16;
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 5;
 const ZOOM_STEP_FACTOR = 1.4;
@@ -238,7 +239,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
 
   const isZoomedIn = zoom > 1.5;
 
-  const seatRadius = isZoomedIn ? SEAT_CIRCLE_R : SEAT_DOT_R;
+  const seatSize = isZoomedIn ? SEAT_CHAIR_SIZE : SEAT_DOT_SIZE;
 
   const handleSeatPointerDown = useCallback((e: React.PointerEvent, seat: PickerSeat) => {
     if (seat.status === 'blocked' || seat.status === 'sold') return;
@@ -540,7 +541,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                 {showBigSeats && !isRestricted && rowLabels.map(rl => (
                   <text
                     key={rl.label}
-                    x={rl.minX - seatRadius - 6}
+                    x={rl.minX - seatSize / 2 - 6}
                     y={rl.y}
                     textAnchor="end"
                     dominantBaseline="central"
@@ -565,25 +566,25 @@ export const SeatPickerMap = memo(function SeatPickerMap({
 
                   if (isBlocked && !showBigSeats) return null;
 
-                  let fillColor = '#22c55e';
+                  let fillColor = '#3b82f6';
                   let fillOpacity = showBigSeats ? 0.9 : 0.7;
-                  let strokeColor = 'transparent';
+                  let strokeColor = '';
                   let strokeW = 0;
 
                   if (isRestricted) {
                     fillColor = '#374151';
                     fillOpacity = 0.2;
                   } else if (isSelected) {
-                    fillColor = '#3b82f6';
+                    fillColor = '#22c55e';
                     fillOpacity = 1;
                     strokeColor = '#ffffff';
                     strokeW = showBigSeats ? 2 : 1;
                   } else if (isSold || isReservedSeat) {
-                    fillColor = '#4b5563';
-                    fillOpacity = showBigSeats ? 0.4 : 0.3;
+                    fillColor = '#ef4444';
+                    fillOpacity = showBigSeats ? 0.5 : 0.35;
                   } else if (isBlocked) {
-                    fillColor = '#374151';
-                    fillOpacity = 0.2;
+                    fillColor = '#6b7280';
+                    fillOpacity = 0.3;
                   } else if (seat.seat_type === 'vip' && isAvailable) {
                     fillColor = '#eab308';
                     fillOpacity = 0.9;
@@ -591,9 +592,9 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                     strokeW = showBigSeats ? 1 : 0;
                   }
 
-                  const r = showBigSeats
-                    ? (isHovered && !isRestricted ? SEAT_CIRCLE_R * 1.2 : SEAT_CIRCLE_R)
-                    : SEAT_DOT_R;
+                  const currentSize = showBigSeats
+                    ? (isHovered && !isRestricted ? SEAT_CHAIR_SIZE * 1.15 : SEAT_CHAIR_SIZE)
+                    : SEAT_DOT_SIZE;
                   const clickable = !isRestricted && (isAvailable || isSelected) && showBigSeats;
 
                   return (
@@ -602,7 +603,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                         <circle
                           cx={seat.cx}
                           cy={seat.cy}
-                          r={SEAT_CIRCLE_R * 2.5}
+                          r={SEAT_CHAIR_SIZE * 1.2}
                           fill="none"
                           stroke="#3b82f6"
                           strokeWidth={1.5}
@@ -610,30 +611,40 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                           style={{ pointerEvents: 'none' }}
                         />
                       )}
-                      <circle
-                        cx={seat.cx}
-                        cy={seat.cy}
-                        r={r}
-                        fill={fillColor}
-                        fillOpacity={fillOpacity}
-                        stroke={strokeColor}
-                        strokeWidth={strokeW}
-                        className={`${isSelected ? 'seat-picker-selected' : ''} ${isFlashing ? 'seat-status-flash' : ''}`}
-                        style={{
-                          cursor: clickable ? 'pointer' : 'default',
-                          filter: isSelected && showBigSeats
-                            ? 'drop-shadow(0 0 4px rgba(59,130,246,0.6))'
-                            : isHovered && clickable
-                            ? 'drop-shadow(0 0 3px rgba(255,255,255,0.3))'
-                            : undefined,
-                          pointerEvents: clickable ? 'all' : 'none',
-                          transition: animating ? 'none' : 'r 0.15s ease',
-                        }}
-                        onPointerDown={clickable ? (e) => handleSeatPointerDown(e, seat) : undefined}
-                        onPointerUp={clickable ? (e) => handleSeatPointerUp(e, seat) : undefined}
-                        onPointerEnter={clickable ? (e) => handleSeatHover(seat, e) : undefined}
-                        onPointerLeave={clickable ? handleSeatLeave : undefined}
-                      />
+                      {showBigSeats ? (
+                        <SvgSeatChair
+                          cx={seat.cx}
+                          cy={seat.cy}
+                          size={currentSize}
+                          color={fillColor}
+                          opacity={fillOpacity}
+                          selected={isSelected}
+                          strokeColor={strokeColor || undefined}
+                          strokeWidth={strokeW}
+                          className={`seat-chair-transition ${isSelected ? 'seat-picker-selected' : ''} ${isFlashing ? 'seat-status-flash' : ''}`}
+                          style={{
+                            cursor: clickable ? 'pointer' : 'default',
+                            filter: isSelected
+                              ? 'drop-shadow(0 0 4px rgba(34,197,94,0.6))'
+                              : isHovered && clickable
+                              ? 'drop-shadow(0 0 4px rgba(255,255,255,0.35))'
+                              : undefined,
+                            pointerEvents: clickable ? 'all' : 'none',
+                          }}
+                          onPointerDown={clickable ? (e) => handleSeatPointerDown(e, seat) : undefined}
+                          onPointerUp={clickable ? (e) => handleSeatPointerUp(e, seat) : undefined}
+                          onPointerEnter={clickable ? (e) => handleSeatHover(seat, e) : undefined}
+                          onPointerLeave={clickable ? handleSeatLeave : undefined}
+                        />
+                      ) : (
+                        <SvgSeatDotChair
+                          cx={seat.cx}
+                          cy={seat.cy}
+                          size={currentSize}
+                          color={fillColor}
+                          opacity={fillOpacity}
+                        />
+                      )}
                     </g>
                   );
                 })}

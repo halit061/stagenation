@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { Seat, SeatSection, SeatStatus } from '../types/seats';
+import { SeatChair } from './SeatIcon';
 
 interface Props {
   sectionSeats: Record<string, Seat[]>;
@@ -43,13 +44,13 @@ export function SeatLegend({ sectionSeats, sections, selectedSectionId }: Props)
         <p className="text-xs font-semibold text-slate-400 mb-2.5 uppercase tracking-wider">Legenda</p>
         <div className="space-y-1.5">
           <LegendItem color="#22c55e" label="Beschikbaar" />
-          <LegendItem color="#eab308" label="VIP" symbol="star" />
+          <LegendItem color="#eab308" label="VIP" />
           <LegendItem color="#22c55e" label="Rolstoel" symbol="wheelchair" />
           <LegendItem color="#22c55e" label="Beperkt Zicht" symbol="slash" />
-          <LegendItem color="#4b5563" label="Geblokkeerd" symbol="x" />
-          <LegendItem color="#f59e0b" label="Gereserveerd" pulse />
+          <LegendItem color="#4b5563" label="Geblokkeerd" />
+          <LegendItem color="#f59e0b" label="Gereserveerd" />
           <LegendItem color="#ef4444" label="Verkocht" />
-          <LegendItem color="#22c55e" label="Geselecteerd" glow />
+          <LegendItem color="#22c55e" label="Geselecteerd" selected />
         </div>
       </div>
 
@@ -109,58 +110,34 @@ function LegendItem({
   color,
   label,
   symbol,
-  pulse,
-  glow,
+  selected,
 }: {
   color: string;
   label: string;
-  symbol?: 'star' | 'wheelchair' | 'slash' | 'x';
-  pulse?: boolean;
-  glow?: boolean;
+  symbol?: 'wheelchair' | 'slash';
+  selected?: boolean;
 }) {
   return (
     <div className="flex items-center gap-2">
       <div className="relative flex-shrink-0">
-        <svg width="14" height="14" viewBox="0 0 14 14">
-          <circle
-            cx="7"
-            cy="7"
-            r="5"
-            fill={color}
-            fillOpacity={pulse ? 0.7 : 0.9}
-            stroke={glow ? '#ffffff' : 'none'}
-            strokeWidth={glow ? 1.5 : 0}
-            className={pulse ? 'seat-reserved-pulse' : ''}
-          />
-          {glow && (
-            <circle
-              cx="7" cy="7" r="6.5"
-              fill="none"
-              stroke="rgba(255,255,255,0.3)"
-              strokeWidth="1"
-            />
-          )}
-          {symbol === 'star' && (
-            <text x="7" y="9.5" textAnchor="middle" fill="white" fontSize="6" fontWeight="bold">
-              *
-            </text>
-          )}
-          {symbol === 'wheelchair' && (
-            <g>
-              <circle cx="7" cy="8" r="2" fill="none" stroke="white" strokeWidth="0.6" />
-              <line x1="7" y1="4.5" x2="7" y2="7.5" stroke="white" strokeWidth="0.6" />
-            </g>
-          )}
-          {symbol === 'slash' && (
+        <SeatChair
+          color={color}
+          size={14}
+          selected={selected}
+          opacity={color === '#4b5563' ? 0.5 : 0.9}
+          glowColor={selected ? '#ffffff' : undefined}
+        />
+        {symbol === 'wheelchair' && (
+          <svg width="14" height="14" viewBox="0 0 14 14" className="absolute inset-0">
+            <circle cx="7" cy="8" r="2" fill="none" stroke="white" strokeWidth="0.6" />
+            <line x1="7" y1="4.5" x2="7" y2="7.5" stroke="white" strokeWidth="0.6" />
+          </svg>
+        )}
+        {symbol === 'slash' && (
+          <svg width="14" height="14" viewBox="0 0 14 14" className="absolute inset-0">
             <line x1="4.5" y1="9.5" x2="9.5" y2="4.5" stroke="white" strokeWidth="0.8" />
-          )}
-          {symbol === 'x' && (
-            <g>
-              <line x1="5" y1="5" x2="9" y2="9" stroke="white" strokeWidth="0.7" strokeOpacity="0.7" />
-              <line x1="9" y1="5" x2="5" y2="9" stroke="white" strokeWidth="0.7" strokeOpacity="0.7" />
-            </g>
-          )}
-        </svg>
+          </svg>
+        )}
       </div>
       <span className="text-xs text-slate-300">{label}</span>
     </div>
