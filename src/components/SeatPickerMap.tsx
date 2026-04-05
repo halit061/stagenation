@@ -489,27 +489,6 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                   fill={isRestricted ? 'rgba(100,116,139,0.15)' : hexToRgba(color, 0.2)}
                   style={{ pointerEvents: 'none' }}
                 />
-                <rect
-                  x={section.position_x}
-                  y={section.position_y + HEADER_H - 3}
-                  width={section.width}
-                  height={3}
-                  fill={isRestricted ? 'rgba(100,116,139,0.15)' : hexToRgba(color, 0.2)}
-                  style={{ pointerEvents: 'none' }}
-                />
-
-                <text
-                  x={section.position_x + section.width / 2}
-                  y={section.position_y + HEADER_H / 2}
-                  textAnchor="middle"
-                  dominantBaseline="central"
-                  fill={isRestricted ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.85)'}
-                  fontSize={11}
-                  fontWeight={700}
-                  style={{ pointerEvents: 'none' }}
-                >
-                  {section.name}
-                </text>
 
                 {isRestricted && (
                   <text
