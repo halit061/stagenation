@@ -278,6 +278,11 @@ export async function duplicateLayout(
         row_curve: sec.row_curve,
         sort_order: sec.sort_order,
         is_active: true,
+        start_row_label: sec.start_row_label || 'A',
+        numbering_direction: sec.numbering_direction || 'left-to-right',
+        row_label_direction: sec.row_label_direction || 'top-to-bottom',
+        row_spacing: sec.row_spacing || 35,
+        seat_spacing: sec.seat_spacing || 25,
       })
       .select()
       .single();
@@ -428,6 +433,7 @@ export async function generateSeats(config: GenerateSeatsConfig): Promise<Seat[]
     seats_per_row,
     start_row_label,
     numbering_direction,
+    row_label_direction = 'top-to-bottom',
     row_spacing,
     seat_spacing,
     curve,
@@ -452,7 +458,15 @@ export async function generateSeats(config: GenerateSeatsConfig): Promise<Seat[]
     seat_type: string;
   }> = [];
 
-  let rowLabel = start_row_label;
+  const rowLabels: string[] = [];
+  let rl = start_row_label;
+  for (let r = 0; r < rows; r++) {
+    rowLabels.push(rl);
+    rl = nextRowLabel(rl);
+  }
+  if (row_label_direction === 'bottom-to-top') {
+    rowLabels.reverse();
+  }
 
   for (let r = 0; r < rows; r++) {
     for (let s = 0; s < seats_per_row; s++) {
@@ -489,7 +503,7 @@ export async function generateSeats(config: GenerateSeatsConfig): Promise<Seat[]
 
       newSeats.push({
         section_id,
-        row_label: rowLabel,
+        row_label: rowLabels[r],
         seat_number: seatNum,
         x_position: xPos,
         y_position: yPos,
@@ -497,8 +511,6 @@ export async function generateSeats(config: GenerateSeatsConfig): Promise<Seat[]
         seat_type: 'regular',
       });
     }
-
-    rowLabel = nextRowLabel(rowLabel);
   }
 
   const BATCH_SIZE = 500;

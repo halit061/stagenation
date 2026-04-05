@@ -88,6 +88,11 @@ export interface SeatSection {
   row_curve: number;
   sort_order: number;
   is_active: boolean;
+  start_row_label: string;
+  numbering_direction: NumberingDirection;
+  row_label_direction: RowLabelDirection;
+  row_spacing: number;
+  seat_spacing: number;
   created_at: string;
   updated_at: string;
 }
@@ -143,6 +148,7 @@ export interface SectionWithSeats extends SeatSection {
 }
 
 export type NumberingDirection = 'left-to-right' | 'right-to-left' | 'center-out';
+export type RowLabelDirection = 'top-to-bottom' | 'bottom-to-top';
 
 export interface GenerateSeatsConfig {
   section_id: string;
@@ -150,6 +156,7 @@ export interface GenerateSeatsConfig {
   seats_per_row: number;
   start_row_label: string;
   numbering_direction: NumberingDirection;
+  row_label_direction?: RowLabelDirection;
   row_spacing: number;
   seat_spacing: number;
   curve: number;

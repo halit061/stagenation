@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect, useMemo, memo } from 'react';
-import { ArrowLeft, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
+import { ArrowLeft, ZoomIn, ZoomOut, Maximize, Minus, Plus } from 'lucide-react';
 import type { SeatSection } from '../types/seats';
 import type { PickerSeat } from '../hooks/useSeatPickerState';
 import type { FloorplanObject } from '../services/seatPickerService';
@@ -8,8 +8,12 @@ import { st } from '../lib/seatTranslations';
 import { SvgSeatChair, SvgSeatDotChair } from './SeatIcon';
 
 const HEADER_H = 24;
-const SEAT_DOT_SIZE = 8;
-const SEAT_CHAIR_SIZE = 16;
+const SEAT_SIZE_PRESETS = [
+  { dot: 6, chair: 12, label: 'S' },
+  { dot: 8, chair: 16, label: 'M' },
+  { dot: 11, chair: 20, label: 'L' },
+  { dot: 14, chair: 24, label: 'XL' },
+];
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 5;
 const ZOOM_STEP_FACTOR = 1.4;
@@ -57,10 +61,15 @@ export const SeatPickerMap = memo(function SeatPickerMap({
   const [hoveredSeat, setHoveredSeat] = useState<PickerSeat | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
   const [animating, setAnimating] = useState(false);
+  const [seatSizeIdx, setSeatSizeIdx] = useState(1);
   const animRef = useRef<number | null>(null);
   const lastPinchDist = useRef<number | null>(null);
   const didPan = useRef(false);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isDragging = useRef(false);
+  const dragStart = useRef({ x: 0, y: 0 });
+  const panStart = useRef({ x: 0, y: 0 });
+  const lastTouchPos = useRef<{ x: number; y: number } | null>(null);
 
   const bounds = useMemo(() => {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -122,9 +131,40 @@ export const SeatPickerMap = memo(function SeatPickerMap({
     if (!el) return;
     const handler = (e: WheelEvent) => {
       e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      const direction = e.deltaY < 0 ? 1 : -1;
+      const factor = direction > 0 ? 1.15 : 1 / 1.15;
+      setZoom(prev => {
+        const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, prev * factor));
+        const s = newZoom / prev;
+        setPan(p => ({ x: cx - s * (cx - p.x), y: cy - s * (cy - p.y) }));
+        return newZoom;
+      });
     };
     el.addEventListener('wheel', handler, { passive: false });
     return () => el.removeEventListener('wheel', handler);
+  }, []);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    isDragging.current = true;
+    didPan.current = false;
+    dragStart.current = { x: e.clientX, y: e.clientY };
+    panStart.current = { x: pan.x, y: pan.y };
+  }, [pan]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging.current) return;
+    const dx = e.clientX - dragStart.current.x;
+    const dy = e.clientY - dragStart.current.y;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) didPan.current = true;
+    setPan({ x: panStart.current.x + dx, y: panStart.current.y + dy });
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    isDragging.current = false;
   }, []);
 
   const animateTo = useCallback((targetZoom: number, targetPanX: number, targetPanY: number) => {
@@ -209,6 +249,10 @@ export const SeatPickerMap = memo(function SeatPickerMap({
         e.touches[0].clientY - e.touches[1].clientY,
       );
       lastPinchDist.current = d;
+      lastTouchPos.current = null;
+    } else if (e.touches.length === 1) {
+      lastTouchPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      didPan.current = false;
     }
   }, []);
 
@@ -230,13 +274,24 @@ export const SeatPickerMap = memo(function SeatPickerMap({
       const s = newZoom / zoom;
       setPan(prev => ({ x: cx - s * (cx - prev.x), y: cy - s * (cy - prev.y) }));
       setZoom(newZoom);
+      lastTouchPos.current = null;
+    } else if (e.touches.length === 1 && lastTouchPos.current) {
+      const dx = e.touches[0].clientX - lastTouchPos.current.x;
+      const dy = e.touches[0].clientY - lastTouchPos.current.y;
+      if (Math.abs(dx) > 2 || Math.abs(dy) > 2) didPan.current = true;
+      lastTouchPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      setPan(prev => ({ x: prev.x + dx, y: prev.y + dy }));
     }
   }, [zoom]);
 
   const handleTouchEnd = useCallback(() => {
     lastPinchDist.current = null;
+    lastTouchPos.current = null;
   }, []);
 
+  const sizePreset = SEAT_SIZE_PRESETS[seatSizeIdx];
+  const SEAT_DOT_SIZE = sizePreset.dot;
+  const SEAT_CHAIR_SIZE = sizePreset.chair;
   const isZoomedIn = zoom > 1.5;
 
   const seatSize = isZoomedIn ? SEAT_CHAIR_SIZE : SEAT_DOT_SIZE;
@@ -338,6 +393,10 @@ export const SeatPickerMap = memo(function SeatPickerMap({
       ref={containerRef}
       className="relative w-full h-full overflow-hidden bg-slate-950 rounded-xl select-none"
       style={{ touchAction: 'none' }}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -348,7 +407,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
         height="100%"
         role="img"
         aria-label={st(language, 'picker.title')}
-        style={{ cursor: 'default' }}
+        style={{ cursor: isDragging.current ? 'grabbing' : 'grab' }}
       >
         <defs>
           <pattern id="seatPickerGrid" width="50" height="50" patternUnits="userSpaceOnUse">
@@ -661,6 +720,25 @@ export const SeatPickerMap = memo(function SeatPickerMap({
       )}
 
       <div className="absolute bottom-4 right-4 flex flex-col gap-1.5 z-10">
+        <div className="flex items-center bg-slate-800/90 backdrop-blur border border-slate-600/50 rounded-lg overflow-hidden">
+          <button
+            onClick={() => setSeatSizeIdx(i => Math.max(0, i - 1))}
+            disabled={seatSizeIdx === 0}
+            className="w-8 h-8 flex items-center justify-center text-white hover:bg-slate-700 disabled:opacity-30 transition-colors"
+            aria-label="Stoelen kleiner"
+          >
+            <Minus className="w-3.5 h-3.5" />
+          </button>
+          <span className="text-[10px] font-bold text-slate-300 w-6 text-center">{sizePreset.label}</span>
+          <button
+            onClick={() => setSeatSizeIdx(i => Math.min(SEAT_SIZE_PRESETS.length - 1, i + 1))}
+            disabled={seatSizeIdx === SEAT_SIZE_PRESETS.length - 1}
+            className="w-8 h-8 flex items-center justify-center text-white hover:bg-slate-700 disabled:opacity-30 transition-colors"
+            aria-label="Stoelen groter"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+        </div>
         <button
           onClick={handleZoomIn}
           className="w-10 h-10 flex items-center justify-center bg-slate-800/90 backdrop-blur border border-slate-600/50 rounded-lg text-white hover:bg-slate-700 transition-colors focus-ring"

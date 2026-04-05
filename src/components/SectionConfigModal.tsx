@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { X, Rows3, Grid3x3, Plus, Ticket, Loader2 } from 'lucide-react';
-import type { NumberingDirection, SeatOrientation, TicketType } from '../types/seats';
+import type { NumberingDirection, RowLabelDirection, SeatOrientation, TicketType } from '../types/seats';
 import { linkTicketTypeToSections, createTicketType } from '../services/seatService';
 import {
   sanitizeText,
@@ -30,6 +30,7 @@ export interface SectionFormData {
   row_spacing: number;
   seat_spacing: number;
   row_curve: number;
+  row_label_direction: RowLabelDirection;
   orientation: SeatOrientation;
   rotation: number;
 }
@@ -62,6 +63,7 @@ function defaultForm(type: 'tribune' | 'plein'): SectionFormData {
     row_spacing: 35,
     seat_spacing: 25,
     row_curve: 0,
+    row_label_direction: 'top-to-bottom',
     orientation: 'top',
     rotation: 0,
   };
@@ -418,6 +420,13 @@ export function SectionConfigModal({
               </Field>
             </div>
 
+            <Field label="Rij Label Richting">
+              <select value={form.row_label_direction} onChange={(e) => update('row_label_direction', e.target.value as RowLabelDirection)} className={inputCls}>
+                <option value="top-to-bottom">A bovenaan (A, B, C... naar beneden)</option>
+                <option value="bottom-to-top">A onderaan (A, B, C... naar boven)</option>
+              </select>
+            </Field>
+
             <Field label={`Rij Afstand: ${form.row_spacing}px`}>
               <input type="range" min="20" max="60" value={form.row_spacing}
                 onChange={(e) => update('row_spacing', parseInt(e.target.value))}
@@ -562,10 +571,24 @@ function OrientationIcon({ direction, color, active }: { direction: SeatOrientat
 function SeatPreview({ form }: { form: SectionFormData }) {
   const seats = useMemo(() => {
     const result: { x: number; y: number; row: string; num: number }[] = [];
-    let rowLabel = form.start_row_label;
     const rows = Math.min(form.rows, 50);
     const perRow = Math.min(form.seats_per_row, 100);
     const isVertical = form.orientation === 'left' || form.orientation === 'right';
+
+    const rowLabels: string[] = [];
+    let rl = form.start_row_label;
+    for (let r = 0; r < rows; r++) {
+      rowLabels.push(rl);
+      if (/^\d+$/.test(rl)) {
+        rl = String(Number(rl) + 1);
+      } else {
+        const code = rl.charCodeAt(0);
+        rl = code < 90 ? String.fromCharCode(code + 1) : 'AA';
+      }
+    }
+    if (form.row_label_direction === 'bottom-to-top') {
+      rowLabels.reverse();
+    }
 
     for (let r = 0; r < rows; r++) {
       for (let s = 0; s < perRow; s++) {
@@ -599,17 +622,11 @@ function SeatPreview({ form }: { form: SectionFormData }) {
         let seatNum = s + 1;
         if (form.numbering_direction === 'right-to-left') seatNum = perRow - s;
 
-        result.push({ x: xPos, y: yPos, row: rowLabel, num: seatNum });
-      }
-      if (/^\d+$/.test(rowLabel)) {
-        rowLabel = String(Number(rowLabel) + 1);
-      } else {
-        const code = rowLabel.charCodeAt(0);
-        rowLabel = code < 90 ? String.fromCharCode(code + 1) : 'AA';
+        result.push({ x: xPos, y: yPos, row: rowLabels[r], num: seatNum });
       }
     }
     return result;
-  }, [form.rows, form.seats_per_row, form.row_spacing, form.seat_spacing, form.row_curve, form.numbering_direction, form.start_row_label, form.orientation]);
+  }, [form.rows, form.seats_per_row, form.row_spacing, form.seat_spacing, form.row_curve, form.numbering_direction, form.start_row_label, form.row_label_direction, form.orientation]);
 
   if (seats.length === 0) return <div className="bg-slate-900 rounded-lg h-80 flex items-center justify-center text-slate-500">Geen stoelen</div>;
 
