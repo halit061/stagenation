@@ -9,10 +9,10 @@ import { SvgSeatChair, SvgSeatDotChair } from './SeatIcon';
 
 const HEADER_H = 24;
 const SEAT_SIZE_PRESETS = [
-  { dot: 6, chair: 12, label: 'S' },
-  { dot: 8, chair: 16, label: 'M' },
-  { dot: 11, chair: 20, label: 'L' },
-  { dot: 14, chair: 24, label: 'XL' },
+  { dot: 12, chair: 24, label: 'S' },
+  { dot: 16, chair: 32, label: 'M' },
+  { dot: 22, chair: 40, label: 'L' },
+  { dot: 28, chair: 48, label: 'XL' },
 ];
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 5;
