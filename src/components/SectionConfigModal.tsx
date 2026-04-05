@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { X, Rows3, Grid3x3, Plus, Ticket, Loader2 } from 'lucide-react';
 import type { NumberingDirection, SeatOrientation, TicketType } from '../types/seats';
 import { linkTicketTypeToSections, createTicketType } from '../services/seatService';
@@ -99,6 +99,20 @@ export function SectionConfigModal({
   const [creatingTt, setCreatingTt] = useState(false);
 
   const isEventMode = !!eventId;
+
+  useEffect(() => {
+    if (isOpen) {
+      setForm({
+        ...defaultForm(initialData?.section_type ?? 'tribune'),
+        ...initialData,
+      });
+      setErrors({});
+      setSelectedTtIds(new Set(linkedTicketTypeIds));
+      setShowNewTt(false);
+      setNewTtName('');
+      setNewTtPrice('');
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

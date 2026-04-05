@@ -85,8 +85,8 @@ type EditorTool = 'select' | 'add_seated' | 'add_standing' | 'add_decor' | 'add_
 type ObjectType = 'BAR' | 'STAGE' | 'DANCEFLOOR' | 'DECOR_TABLE' | 'DJ_BOOTH' | 'ENTRANCE' | 'EXIT' | 'RESTROOM' | 'TRIBUNE';
 type SelectedItemType = { type: 'table' | 'object' | 'section'; data: FloorplanTable | FloorplanObject | SeatSection };
 
-const CANVAS_W = 4000;
-const CANVAS_H = 3000;
+const CANVAS_W = 9000;
+const CANVAS_H = 4500;
 const DRAG_THRESHOLD = 5;
 const SNAP_GRID = 10;
 const SNAP_PROXIMITY = 10;
@@ -107,6 +107,8 @@ export function FloorPlanEditor() {
   const resizeOrigSection = useRef<{ width: number; height: number } | null>(null);
   const [zoom, setZoom] = useState(0.35);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const editorWrapRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
   const [snapLines, setSnapLines] = useState<{ x?: number; y?: number }[]>([]);
   const dragIntent = useRef<{
@@ -442,7 +444,38 @@ export function FloorPlanEditor() {
     const cw = container.clientWidth - 20;
     const ch = container.clientHeight - 20;
     const fitZoom = Math.min(cw / CANVAS_W, ch / CANVAS_H);
-    setZoom(Math.max(0.15, Math.min(fitZoom, 1)));
+    setZoom(Math.max(0.05, Math.min(fitZoom, 1)));
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    const el = editorWrapRef.current;
+    if (!el) return;
+    if (!document.fullscreenElement) {
+      el.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
+    function onFsChange() {
+      setIsFullscreen(!!document.fullscreenElement);
+    }
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
+
+  const zoomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    const delta = -e.deltaY;
+    setZoom(z => {
+      const factor = delta > 0 ? 1.08 : 1 / 1.08;
+      return Math.max(0.05, Math.min(4, z * factor));
+    });
+    if (zoomTimerRef.current) clearTimeout(zoomTimerRef.current);
+    zoomTimerRef.current = setTimeout(() => { zoomTimerRef.current = null; }, 150);
   }, []);
 
   function fitBgToCanvas() {
@@ -599,6 +632,10 @@ export function FloorPlanEditor() {
           price_amount: formData.price_amount,
           rows_count: formData.rows,
           seats_per_row: formData.seats_per_row,
+          start_row_label: formData.start_row_label,
+          numbering_direction: formData.numbering_direction,
+          row_spacing: formData.row_spacing,
+          seat_spacing: formData.seat_spacing,
           row_curve: formData.row_curve,
           orientation: formData.orientation,
           rotation: formData.rotation,
@@ -1348,9 +1385,19 @@ export function FloorPlanEditor() {
     setSelectedItem({ ...selectedItem!, data: updated });
   }
 
-  const handleMouseUp = async () => {
+  const handleMouseUp = useCallback(async () => {
+    const intent = dragIntent.current;
     const wasDragging = isDragging;
     const wasResizing = isResizing;
+
+    dragIntent.current = null;
+    dragGhostPos.current = null;
+    setIsDragging(false);
+    setIsResizing(false);
+    setResizeHandle(null);
+    setSnapLines([]);
+
+    if (!intent?.thresholdMet) return;
 
     if ((wasDragging || wasResizing) && selectedItem) {
       if (selectedItem.type === 'section') {
@@ -1396,13 +1443,21 @@ export function FloorPlanEditor() {
         saveObject(selectedItem.data as FloorplanObject);
       }
     }
-    setIsDragging(false);
-    setIsResizing(false);
-    setResizeHandle(null);
-    setSnapLines([]);
-    dragIntent.current = null;
-    dragGhostPos.current = null;
-  };
+  }, [isDragging, isResizing, selectedItem, sectionSeats, showToast]);
+
+  useEffect(() => {
+    function onPointerUp() {
+      if (dragIntent.current) {
+        handleMouseUp();
+      }
+    }
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('mouseup', onPointerUp);
+    return () => {
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('mouseup', onPointerUp);
+    };
+  }, [handleMouseUp]);
 
   const handleToolClick = (tool: EditorTool) => {
     if (tool === 'add_seated') addTable('SEATED');
@@ -1457,7 +1512,7 @@ export function FloorPlanEditor() {
   };
 
   return (
-    <div className="bg-slate-900 rounded-xl overflow-hidden border border-slate-700">
+    <div ref={editorWrapRef} className={`bg-slate-900 rounded-xl overflow-hidden border border-slate-700 ${isFullscreen ? 'fixed inset-0 z-[100] rounded-none border-0' : ''}`}>
       <div className="p-3 pb-0">
         <LayoutToolbar
           currentLayout={currentLayout}
@@ -1506,6 +1561,7 @@ export function FloorPlanEditor() {
             <button onClick={() => setZoom(z => Math.min(z + 0.1, 4))} className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors" title="Zoom In"><ZoomIn className="w-5 h-5" /></button>
             <button onClick={() => setZoom(z => Math.max(z - 0.1, 0.15))} className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors" title="Zoom Out"><ZoomOut className="w-5 h-5" /></button>
             <button onClick={handleFitToScreen} className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors" title="Passend in scherm"><Maximize2 className="w-5 h-5" /></button>
+            <button onClick={toggleFullscreen} className={`p-2 rounded-lg transition-colors ${isFullscreen ? 'bg-blue-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-white'}`} title={isFullscreen ? 'Volledig scherm verlaten (Esc)' : 'Volledig scherm'}><Maximize2 className="w-5 h-5" /></button>
             <div className="h-6 w-px bg-slate-600" />
             <button
               onClick={() => setShowShortcutsModal(true)}
@@ -1580,10 +1636,10 @@ export function FloorPlanEditor() {
             <div
               ref={canvasContainerRef}
               className="bg-slate-950 rounded-lg overflow-auto relative"
-              style={{ height: 'calc(100vh - 200px)', minHeight: '500px', paddingBottom: selectedSeatIds.size > 0 ? 60 : 0 }}
+              style={{ height: isFullscreen ? 'calc(100vh - 140px)' : 'calc(100vh - 200px)', minHeight: '500px', paddingBottom: selectedSeatIds.size > 0 ? 60 : 0 }}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
+              onWheel={handleWheel}
               onClick={() => {
                 if (!isDragging && !isResizing && !dragIntent.current?.thresholdMet) {
                   setSelectedItem(null); setContextMenu(null); setSeatContextMenu(null);
@@ -2139,6 +2195,10 @@ export function FloorPlanEditor() {
           price_amount: editingSection.price_amount,
           rows: editingSection.rows_count,
           seats_per_row: editingSection.seats_per_row,
+          start_row_label: editingSection.start_row_label || 'A',
+          numbering_direction: editingSection.numbering_direction || 'left-to-right',
+          row_spacing: editingSection.row_spacing || 35,
+          seat_spacing: editingSection.seat_spacing || 25,
           row_curve: editingSection.row_curve,
           orientation: editingSection.orientation || 'top',
           rotation: editingSection.rotation || 0,
