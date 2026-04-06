@@ -9,10 +9,9 @@ import { SvgSeatChair } from './SeatIcon';
 
 const HEADER_H = 24;
 const SEAT_SIZE_PRESETS = [
-  { size: 18, label: 'S' },
-  { size: 24, label: 'M' },
-  { size: 32, label: 'L' },
-  { size: 40, label: 'XL' },
+  { size: 40, label: 'XXL' },
+  { size: 52, label: 'XXXL' },
+  { size: 64, label: 'XXXXL' },
 ];
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 5;
@@ -61,7 +60,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
   const [hoveredSeat, setHoveredSeat] = useState<PickerSeat | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
   const [animating, setAnimating] = useState(false);
-  const [seatSizeIdx, setSeatSizeIdx] = useState(1);
+  const [seatSizeIdx, setSeatSizeIdx] = useState(0);
   const animRef = useRef<number | null>(null);
   const lastPinchDist = useRef<number | null>(null);
   const didPan = useRef(false);
