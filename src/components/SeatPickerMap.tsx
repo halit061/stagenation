@@ -9,9 +9,9 @@ import { SvgSeatChair } from './SeatIcon';
 
 const HEADER_H = 24;
 const SEAT_SIZE_PRESETS = [
-  { size: 40, label: 'XXL' },
-  { size: 52, label: 'XXXL' },
-  { size: 64, label: 'XXXXL' },
+  { size: 64, label: 'M' },
+  { size: 76, label: 'L' },
+  { size: 88, label: 'XL' },
 ];
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 5;
