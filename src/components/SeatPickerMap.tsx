@@ -5,14 +5,14 @@ import type { PickerSeat } from '../hooks/useSeatPickerState';
 import type { FloorplanObject } from '../services/seatPickerService';
 import { useLanguage } from '../contexts/LanguageContext';
 import { st } from '../lib/seatTranslations';
-import { SvgSeatChair, SvgSeatDotChair } from './SeatIcon';
+import { SvgSeatChair } from './SeatIcon';
 
 const HEADER_H = 24;
 const SEAT_SIZE_PRESETS = [
-  { dot: 12, chair: 24, label: 'S' },
-  { dot: 16, chair: 32, label: 'M' },
-  { dot: 22, chair: 40, label: 'L' },
-  { dot: 28, chair: 48, label: 'XL' },
+  { size: 18, label: 'S' },
+  { size: 24, label: 'M' },
+  { size: 32, label: 'L' },
+  { size: 40, label: 'XL' },
 ];
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 5;
@@ -290,11 +290,9 @@ export const SeatPickerMap = memo(function SeatPickerMap({
   }, []);
 
   const sizePreset = SEAT_SIZE_PRESETS[seatSizeIdx];
-  const SEAT_DOT_SIZE = sizePreset.dot;
-  const SEAT_CHAIR_SIZE = sizePreset.chair;
-  const isZoomedIn = zoom > 1.5;
+  const SEAT_CHAIR_SIZE = sizePreset.size;
 
-  const seatSize = isZoomedIn ? SEAT_CHAIR_SIZE : SEAT_DOT_SIZE;
+  const seatSize = SEAT_CHAIR_SIZE;
 
   const handleSeatPointerDown = useCallback((e: React.PointerEvent, seat: PickerSeat) => {
     if (seat.status === 'blocked' || seat.status === 'sold') return;
@@ -516,7 +514,6 @@ export const SeatPickerMap = memo(function SeatPickerMap({
             const rowLabels = rowLabelsBySection.get(section.id) || [];
             const color = section.color || '#3b82f6';
             const isFocused = focusedSectionId === section.id;
-            const showBigSeats = isZoomedIn;
 
             return (
               <g key={section.id} style={getSectionTransform(section.id)}>
@@ -576,7 +573,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                   />
                 )}
 
-                {showBigSeats && !isRestricted && rowLabels.map(rl => (
+                {!isRestricted && rowLabels.map(rl => (
                   <text
                     key={rl.label}
                     x={rl.minX - seatSize / 2 - 6}
@@ -602,10 +599,8 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                   const isReservedSeat = seat.status === 'reserved' && !isSelected;
                   const isAvailable = seat.status === 'available';
 
-                  if (isBlocked && !showBigSeats) return null;
-
                   let fillColor = '#3b82f6';
-                  let fillOpacity = showBigSeats ? 0.9 : 0.7;
+                  let fillOpacity = 0.9;
                   let strokeColor = '';
                   let strokeW = 0;
 
@@ -616,10 +611,10 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                     fillColor = '#22c55e';
                     fillOpacity = 1;
                     strokeColor = '#ffffff';
-                    strokeW = showBigSeats ? 2 : 1;
+                    strokeW = 2;
                   } else if (isSold || isReservedSeat) {
                     fillColor = '#ef4444';
-                    fillOpacity = showBigSeats ? 0.5 : 0.35;
+                    fillOpacity = 0.5;
                   } else if (isBlocked) {
                     fillColor = '#6b7280';
                     fillOpacity = 0.3;
@@ -627,17 +622,15 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                     fillColor = '#eab308';
                     fillOpacity = 0.9;
                     strokeColor = '#fbbf24';
-                    strokeW = showBigSeats ? 1 : 0;
+                    strokeW = 1;
                   }
 
-                  const currentSize = showBigSeats
-                    ? (isHovered && !isRestricted ? SEAT_CHAIR_SIZE * 1.15 : SEAT_CHAIR_SIZE)
-                    : SEAT_DOT_SIZE;
-                  const clickable = !isRestricted && (isAvailable || isSelected) && showBigSeats;
+                  const currentSize = isHovered && !isRestricted ? SEAT_CHAIR_SIZE * 1.15 : SEAT_CHAIR_SIZE;
+                  const clickable = !isRestricted && (isAvailable || isSelected);
 
                   return (
                     <g key={seat.id}>
-                      {isHighlighted && showBigSeats && (
+                      {isHighlighted && (
                         <circle
                           cx={seat.cx}
                           cy={seat.cy}
@@ -649,40 +642,30 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                           style={{ pointerEvents: 'none' }}
                         />
                       )}
-                      {showBigSeats ? (
-                        <SvgSeatChair
-                          cx={seat.cx}
-                          cy={seat.cy}
-                          size={currentSize}
-                          color={fillColor}
-                          opacity={fillOpacity}
-                          selected={isSelected}
-                          strokeColor={strokeColor || undefined}
-                          strokeWidth={strokeW}
-                          className={`seat-chair-transition ${isSelected ? 'seat-picker-selected' : ''} ${isFlashing ? 'seat-status-flash' : ''}`}
-                          style={{
-                            cursor: clickable ? 'pointer' : 'default',
-                            filter: isSelected
-                              ? 'drop-shadow(0 0 4px rgba(34,197,94,0.6))'
-                              : isHovered && clickable
-                              ? 'drop-shadow(0 0 4px rgba(255,255,255,0.35))'
-                              : undefined,
-                            pointerEvents: clickable ? 'all' : 'none',
-                          }}
-                          onPointerDown={clickable ? (e) => handleSeatPointerDown(e, seat) : undefined}
-                          onPointerUp={clickable ? (e) => handleSeatPointerUp(e, seat) : undefined}
-                          onPointerEnter={clickable ? (e) => handleSeatHover(seat, e) : undefined}
-                          onPointerLeave={clickable ? handleSeatLeave : undefined}
-                        />
-                      ) : (
-                        <SvgSeatDotChair
-                          cx={seat.cx}
-                          cy={seat.cy}
-                          size={currentSize}
-                          color={fillColor}
-                          opacity={fillOpacity}
-                        />
-                      )}
+                      <SvgSeatChair
+                        cx={seat.cx}
+                        cy={seat.cy}
+                        size={currentSize}
+                        color={fillColor}
+                        opacity={fillOpacity}
+                        selected={isSelected}
+                        strokeColor={strokeColor || undefined}
+                        strokeWidth={strokeW}
+                        className={`seat-chair-transition ${isSelected ? 'seat-picker-selected' : ''} ${isFlashing ? 'seat-status-flash' : ''}`}
+                        style={{
+                          cursor: clickable ? 'pointer' : 'default',
+                          filter: isSelected
+                            ? 'drop-shadow(0 0 4px rgba(34,197,94,0.6))'
+                            : isHovered && clickable
+                            ? 'drop-shadow(0 0 4px rgba(255,255,255,0.35))'
+                            : undefined,
+                          pointerEvents: clickable ? 'all' : 'none',
+                        }}
+                        onPointerDown={clickable ? (e) => handleSeatPointerDown(e, seat) : undefined}
+                        onPointerUp={clickable ? (e) => handleSeatPointerUp(e, seat) : undefined}
+                        onPointerEnter={clickable ? (e) => handleSeatHover(seat, e) : undefined}
+                        onPointerLeave={clickable ? handleSeatLeave : undefined}
+                      />
                     </g>
                   );
                 })}
@@ -709,14 +692,6 @@ export const SeatPickerMap = memo(function SeatPickerMap({
           <ArrowLeft className="w-4 h-4" />
           Overzicht
         </button>
-      )}
-
-      {!isZoomedIn && !focusedSectionId && sections.length > 0 && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
-          <div className="bg-slate-800/80 backdrop-blur border border-slate-700/50 rounded-full px-4 py-1.5 text-slate-300 text-xs font-medium">
-            Klik op een sectie om stoelen te zien
-          </div>
-        </div>
       )}
 
       <div className="absolute bottom-4 right-4 flex flex-col gap-1.5 z-10">
