@@ -428,24 +428,40 @@ export const SeatPickerMap = memo(function SeatPickerMap({
       const color = sec.color || '#3b82f6';
       const tier = getSectionTier(color);
       let topColor: string;
+      let midColor: string;
       let bottomColor: string;
-      let bodyAlpha: number;
+      let topAlpha: number;
+      let midAlpha: number;
+      let bottomAlpha: number;
+      let borderAlpha: number;
 
       if (tier === 'vip') {
-        topColor = darken(color, 0.35);
-        bottomColor = lighten(color, 0.15);
-        bodyAlpha = 0.32;
+        topColor = darken(color, 0.15);
+        midColor = lighten(color, 0.1);
+        bottomColor = lighten(color, 0.25);
+        topAlpha = 0.7;
+        midAlpha = 0.55;
+        bottomAlpha = 0.45;
+        borderAlpha = 0.85;
       } else if (tier === 'premium') {
-        topColor = darken(color, 0.3);
-        bottomColor = lighten(color, 0.1);
-        bodyAlpha = 0.25;
+        topColor = darken(color, 0.1);
+        midColor = lighten(color, 0.08);
+        bottomColor = lighten(color, 0.2);
+        topAlpha = 0.6;
+        midAlpha = 0.45;
+        bottomAlpha = 0.35;
+        borderAlpha = 0.75;
       } else {
-        topColor = darken(color, 0.2);
-        bottomColor = lighten(color, 0.08);
-        bodyAlpha = 0.18;
+        topColor = darken(color, 0.05);
+        midColor = lighten(color, 0.15);
+        bottomColor = lighten(color, 0.25);
+        topAlpha = 0.5;
+        midAlpha = 0.35;
+        bottomAlpha = 0.28;
+        borderAlpha = 0.6;
       }
 
-      return { id: sec.id, topColor, bottomColor, bodyAlpha, tier, color };
+      return { id: sec.id, topColor, midColor, bottomColor, topAlpha, midAlpha, bottomAlpha, borderAlpha, tier, color };
     });
   }, [sections]);
 
@@ -475,26 +491,26 @@ export const SeatPickerMap = memo(function SeatPickerMap({
             <path d="M 50 0 L 0 0 0 50" fill="none" stroke="rgba(51,65,85,0.08)" strokeWidth="0.5" />
           </pattern>
 
-          <filter id="sectionShadow" x="-10%" y="-10%" width="130%" height="140%">
-            <feDropShadow dx="0" dy="4" stdDeviation="8" floodColor="rgba(0,0,0,0.4)" floodOpacity="0.4" />
+          <filter id="sectionShadow" x="-12%" y="-12%" width="135%" height="145%">
+            <feDropShadow dx="0" dy="6" stdDeviation="10" floodColor="rgba(0,0,0,0.55)" floodOpacity="0.55" />
           </filter>
 
-          <filter id="sectionShadowHover" x="-10%" y="-10%" width="130%" height="140%">
-            <feDropShadow dx="0" dy="6" stdDeviation="12" floodColor="rgba(0,0,0,0.5)" floodOpacity="0.5" />
+          <filter id="sectionShadowHover" x="-15%" y="-15%" width="140%" height="150%">
+            <feDropShadow dx="0" dy="8" stdDeviation="16" floodColor="rgba(0,0,0,0.65)" floodOpacity="0.65" />
           </filter>
 
-          <filter id="vipGlow" x="-25%" y="-25%" width="150%" height="150%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur" />
-            <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.83  0 0 0 0 0.68  0 0 0 0 0.22  0 0 0 0.35 0" result="glow" />
+          <filter id="vipGlow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="12" result="blur" />
+            <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.85  0 0 0 0 0.7  0 0 0 0 0.15  0 0 0 0.55 0" result="glow" />
             <feMerge>
               <feMergeNode in="glow" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
 
-          <filter id="premiumGlow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur" />
-            <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.15  0 0 0 0 0.35  0 0 0 0 0.85  0 0 0 0.25 0" result="glow" />
+          <filter id="premiumGlow" x="-25%" y="-25%" width="150%" height="150%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur" />
+            <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.18  0 0 0 0 0.4  0 0 0 0 0.92  0 0 0 0.4 0" result="glow" />
             <feMerge>
               <feMergeNode in="glow" />
               <feMergeNode in="SourceGraphic" />
@@ -522,15 +538,16 @@ export const SeatPickerMap = memo(function SeatPickerMap({
 
           {gradientDefs.map(g => (
             <linearGradient key={g.id} id={`secGrad-${g.id}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={g.topColor} stopOpacity={g.bodyAlpha + 0.08} />
-              <stop offset="100%" stopColor={g.bottomColor} stopOpacity={g.bodyAlpha} />
+              <stop offset="0%" stopColor={g.topColor} stopOpacity={g.topAlpha} />
+              <stop offset="50%" stopColor={g.midColor} stopOpacity={g.midAlpha} />
+              <stop offset="100%" stopColor={g.bottomColor} stopOpacity={g.bottomAlpha} />
             </linearGradient>
           ))}
 
           {gradientDefs.map(g => (
             <linearGradient key={`h-${g.id}`} id={`secHeaderGrad-${g.id}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={g.topColor} stopOpacity={0.6} />
-              <stop offset="100%" stopColor={g.bottomColor} stopOpacity={0.4} />
+              <stop offset="0%" stopColor={lighten(g.color, 0.35)} stopOpacity={0.85} />
+              <stop offset="100%" stopColor={g.topColor} stopOpacity={0.55} />
             </linearGradient>
           ))}
         </defs>
@@ -657,6 +674,8 @@ export const SeatPickerMap = memo(function SeatPickerMap({
             const isHovered = hoveredSectionId === section.id;
             const tier = getSectionTier(color);
 
+            const gradDef = gradientDefs.find(g => g.id === section.id);
+
             const glowFilter = isRestricted ? undefined
               : tier === 'vip' ? 'url(#vipGlow)'
               : tier === 'premium' ? 'url(#premiumGlow)'
@@ -668,12 +687,15 @@ export const SeatPickerMap = memo(function SeatPickerMap({
             const borderColor = isRestricted
               ? 'rgba(100,116,139,0.2)'
               : isFocused
-                ? lighten(color, 0.4)
+                ? lighten(color, 0.5)
                 : isHovered
-                  ? lighten(color, 0.3)
-                  : lighten(color, 0.15);
+                  ? lighten(color, 0.45)
+                  : lighten(color, 0.3);
 
-            const borderWidth = isFocused ? 2.5 : isHovered ? 2 : 1.5;
+            const borderOpacity = isRestricted ? 0.2
+              : gradDef ? gradDef.borderAlpha : 0.6;
+
+            const borderWidth = isFocused ? 3 : isHovered ? 2.5 : 2;
 
             return (
               <g
@@ -681,7 +703,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                 style={{
                   ...getSectionTransform(section.id),
                   transition: 'opacity 200ms ease',
-                  opacity: isRestricted ? 0.5 : isHovered ? 1 : 0.92,
+                  opacity: isRestricted ? 0.45 : isHovered ? 1 : 0.95,
                 }}
                 onPointerEnter={() => !isRestricted && setHoveredSectionId(section.id)}
                 onPointerLeave={() => setHoveredSectionId(null)}
@@ -692,10 +714,11 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                     y={section.position_y}
                     width={section.width}
                     height={section.height}
-                    rx={10}
+                    rx={12}
                     fill={isRestricted ? 'rgba(30,41,59,0.5)' : `url(#secGrad-${section.id})`}
                     stroke={borderColor}
                     strokeWidth={borderWidth}
+                    strokeOpacity={borderOpacity}
                     style={{
                       cursor: isRestricted ? 'not-allowed' : 'pointer',
                       pointerEvents: 'all',
@@ -707,12 +730,24 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                   />
                 </g>
 
+                {!isRestricted && (
+                  <rect
+                    x={section.position_x + 1}
+                    y={section.position_y + 1}
+                    width={section.width - 2}
+                    height={Math.min(section.height * 0.08, 8)}
+                    rx={11}
+                    fill="rgba(255,255,255,0.12)"
+                    style={{ pointerEvents: 'none' }}
+                  />
+                )}
+
                 <rect
                   x={section.position_x}
                   y={section.position_y}
                   width={section.width}
                   height={HEADER_H}
-                  rx={10}
+                  rx={12}
                   fill={isRestricted ? 'rgba(100,116,139,0.12)' : `url(#secHeaderGrad-${section.id})`}
                   style={{ pointerEvents: 'none' }}
                 />
@@ -724,6 +759,16 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                   fill={isRestricted ? 'rgba(100,116,139,0.12)' : `url(#secHeaderGrad-${section.id})`}
                   style={{ pointerEvents: 'none' }}
                 />
+                {!isRestricted && (
+                  <line
+                    x1={section.position_x + 6}
+                    y1={section.position_y + HEADER_H}
+                    x2={section.position_x + section.width - 6}
+                    y2={section.position_y + HEADER_H}
+                    stroke={hexToRgba(color, 0.25)}
+                    strokeWidth={0.5}
+                  />
+                )}
 
                 {tier === 'vip' && !isRestricted && (
                   <text
@@ -772,8 +817,8 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                       y={section.position_y}
                       width={section.width}
                       height={section.height}
-                      rx={10}
-                      fill="rgba(15,23,42,0.55)"
+                      rx={12}
+                      fill="rgba(15,23,42,0.6)"
                       style={{ pointerEvents: 'none' }}
                     />
                     <text
@@ -867,31 +912,33 @@ export const SeatPickerMap = memo(function SeatPickerMap({
 
                   if (isRestricted) {
                     fillColor = '#374151';
-                    fillOpacity = 0.15;
+                    fillOpacity = 0.12;
                   } else if (isSelected) {
                     fillColor = '#3b82f6';
                     fillOpacity = 1;
-                    strokeColor = '#1d4ed8';
+                    strokeColor = '#93c5fd';
                     strokeW = 2;
                   } else if (isSold) {
-                    fillColor = '#334155';
-                    fillOpacity = 0.5;
+                    fillColor = '#1e293b';
+                    fillOpacity = 0.45;
                   } else if (isReservedSeat) {
                     fillColor = '#f59e0b';
-                    fillOpacity = 0.7;
+                    fillOpacity = 0.75;
+                    strokeColor = '#fbbf24';
+                    strokeW = 0.6;
                   } else if (isBlocked) {
                     fillColor = '#475569';
-                    fillOpacity = 0.25;
+                    fillOpacity = 0.2;
                   } else if (isAvailable) {
-                    fillColor = isHoveredSeat ? '#e2e8f0' : '#f8fafc';
-                    fillOpacity = 0.95;
-                    strokeColor = '#cbd5e1';
-                    strokeW = 0.8;
+                    fillColor = isHoveredSeat ? '#e2e8f0' : '#e2e8f0';
+                    fillOpacity = isHoveredSeat ? 0.85 : 0.65;
+                    strokeColor = '#94a3b8';
+                    strokeW = 0.5;
                   } else {
-                    fillColor = '#f8fafc';
-                    fillOpacity = 0.9;
-                    strokeColor = '#cbd5e1';
-                    strokeW = 0.8;
+                    fillColor = '#e2e8f0';
+                    fillOpacity = 0.6;
+                    strokeColor = '#94a3b8';
+                    strokeW = 0.5;
                   }
 
                   const currentSize = isHoveredSeat && !isRestricted ? SEAT_CHAIR_SIZE * 1.08 : SEAT_CHAIR_SIZE;
