@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabaseClient';
 import { saveLayout, createSection, generateSeats } from './seatService';
-import type { VenueLayout, SeatSection } from '../types/seats';
+import type { VenueLayout } from '../types/seats';
 
 interface PresetTemplate {
   id: string;
@@ -161,10 +161,10 @@ const STUDIO_100_TEMPLATE: PresetTemplate = {
       position_y: 350,
       width: 300,
       height: 700,
-      rows_count: 30,
-      seats_per_row: 26,
+      rows_count: 60,
+      seats_per_row: 13,
       color: '#f59e0b',
-      rotation: 0,
+      rotation: 45,
       row_curve: 0,
       start_row_label: '1',
       numbering_direction: 'left-to-right',
@@ -180,10 +180,10 @@ const STUDIO_100_TEMPLATE: PresetTemplate = {
       position_y: 350,
       width: 300,
       height: 700,
-      rows_count: 30,
-      seats_per_row: 26,
+      rows_count: 60,
+      seats_per_row: 13,
       color: '#f59e0b',
-      rotation: 0,
+      rotation: 315,
       row_curve: 0,
       start_row_label: '1',
       numbering_direction: 'left-to-right',
@@ -250,8 +250,6 @@ export async function applyPresetTemplate(
     if (error) throw new Error(`Object "${obj.name}" aanmaken mislukt: ${error.message}`);
   }
 
-  const createdSections: SeatSection[] = [];
-
   for (let i = 0; i < preset.sections.length; i++) {
     const sec = preset.sections[i];
 
@@ -281,8 +279,6 @@ export async function applyPresetTemplate(
       row_spacing: sec.row_spacing,
       seat_spacing: sec.seat_spacing,
     });
-
-    createdSections.push(section);
 
     report(`Stoelen voor "${sec.name}" genereren...`);
     await generateSeats({
