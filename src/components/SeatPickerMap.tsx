@@ -18,6 +18,20 @@ const MAX_ZOOM = 5;
 const ZOOM_STEP_FACTOR = 1.4;
 const ZOOM_SECTION_FILL = 0.7;
 
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace('#', '');
+  return [
+    parseInt(h.substring(0, 2), 16) || 0,
+    parseInt(h.substring(2, 4), 16) || 0,
+    parseInt(h.substring(4, 6), 16) || 0,
+  ];
+}
+
+function tintColor(hex: string, amount: number): string {
+  const [r, g, b] = hexToRgb(hex);
+  return `rgb(${Math.round(r + (255 - r) * amount)},${Math.round(g + (255 - g) * amount)},${Math.round(b + (255 - b) * amount)})`;
+}
+
 function getSectionTier(color: string): 'vip' | 'premium' | 'regular' {
   const cat = getColorCategory(color);
   if (cat === 'premium') {
@@ -299,37 +313,49 @@ export const SeatPickerMap = memo(function SeatPickerMap({
   const handleSeatPointerDown = useCallback((e: React.PointerEvent, seat: PickerSeat) => {
     if (seat.status === 'blocked' || seat.status === 'sold') return;
     if (seat.status === 'reserved' && !selectedIds.has(seat.id)) return;
-    if (e.pointerType === 'touch') {
-      didPan.current = false;
-      longPressTimer.current = setTimeout(() => {
-        setHoveredSeat(seat);
-        if (containerRef.current) {
-          setTooltipPos({
-            x: pan.x + seat.cx * zoom,
-            y: pan.y + seat.cy * zoom - 10,
-          });
-        }
-      }, 400);
-    }
-  }, [selectedIds, zoom, pan]);
 
-  const handleSeatPointerUp = useCallback((_e: React.PointerEvent, seat: PickerSeat) => {
+    if (e.pointerType !== 'touch') {
+      e.stopPropagation();
+      onSeatClick(seat.id);
+      return;
+    }
+
+    didPan.current = false;
+    longPressTimer.current = setTimeout(() => {
+      setHoveredSeat(seat);
+      const container = containerRef.current;
+      if (container) {
+        const rect = container.getBoundingClientRect();
+        setTooltipPos({
+          x: e.clientX - rect.left + 16,
+          y: e.clientY - rect.top - 12,
+        });
+      }
+    }, 400);
+  }, [selectedIds, onSeatClick]);
+
+  const handleSeatPointerUp = useCallback((e: React.PointerEvent, seat: PickerSeat) => {
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
     if (hoveredSeat) { setHoveredSeat(null); setTooltipPos(null); return; }
-    onSeatClick(seat.id);
+    if (e.pointerType === 'touch' && !didPan.current) {
+      onSeatClick(seat.id);
+    }
   }, [onSeatClick, hoveredSeat]);
 
   const handleSeatHover = useCallback((seat: PickerSeat, ev: React.PointerEvent) => {
     if (ev.pointerType === 'touch') return;
+    const container = containerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
     setHoveredSeat(seat);
     setTooltipPos({
-      x: pan.x + seat.cx * zoom,
-      y: pan.y + seat.cy * zoom - 10,
+      x: ev.clientX - rect.left + 16,
+      y: ev.clientY - rect.top - 12,
     });
-  }, [zoom, pan]);
+  }, []);
 
   const handleSeatLeave = useCallback(() => {
     setHoveredSeat(null);
@@ -634,14 +660,14 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                     fillColor = '#cbd5e1';
                     fillOpacity = 0.35;
                   } else if (isAvailable) {
-                    fillColor = isHoveredSeat ? '#e2e8f0' : '#ffffff';
+                    fillColor = isHoveredSeat ? tintColor(color, 0.65) : tintColor(color, 0.82);
                     fillOpacity = 1;
-                    strokeColor = isHoveredSeat ? '#64748b' : color;
+                    strokeColor = isHoveredSeat ? color : tintColor(color, 0.35);
                     strokeW = isHoveredSeat ? 1.2 : 0.8;
                   } else {
-                    fillColor = '#ffffff';
+                    fillColor = tintColor(color, 0.82);
                     fillOpacity = 1;
-                    strokeColor = color;
+                    strokeColor = tintColor(color, 0.35);
                     strokeW = 0.8;
                   }
 
@@ -775,7 +801,7 @@ function SeatTooltip({
       style={{
         left: pos.x,
         top: pos.y,
-        transform: 'translate(-50%, -100%)',
+        transform: 'translate(0, -100%)',
       }}
       role="tooltip"
     >
@@ -794,10 +820,6 @@ function SeatTooltip({
         {isSelected && (
           <div className="text-blue-600 text-xs mt-0.5">{st(language, 'picker.selected')}</div>
         )}
-        <div
-          className="absolute left-1/2 -bottom-1.5 w-3 h-3 bg-white border-r border-b border-slate-200 rotate-45"
-          style={{ transform: 'translateX(-50%) rotate(45deg)' }}
-        />
       </div>
     </div>
   );
