@@ -18,25 +18,6 @@ const MAX_ZOOM = 5;
 const ZOOM_STEP_FACTOR = 1.4;
 const ZOOM_SECTION_FILL = 0.7;
 
-function hexToRgb(hex: string): [number, number, number] {
-  const h = hex.replace('#', '');
-  return [
-    parseInt(h.substring(0, 2), 16) || 0,
-    parseInt(h.substring(2, 4), 16) || 0,
-    parseInt(h.substring(4, 6), 16) || 0,
-  ];
-}
-
-function tintColor(hex: string, amount: number): string {
-  const [r, g, b] = hexToRgb(hex);
-  return `rgb(${Math.round(r + (255 - r) * amount)},${Math.round(g + (255 - g) * amount)},${Math.round(b + (255 - b) * amount)})`;
-}
-
-function shadeColor(hex: string, amount: number): string {
-  const [r, g, b] = hexToRgb(hex);
-  return `rgb(${Math.round(r * (1 - amount))},${Math.round(g * (1 - amount))},${Math.round(b * (1 - amount))})`;
-}
-
 function getSectionTier(color: string): 'vip' | 'premium' | 'regular' {
   const cat = getColorCategory(color);
   if (cat === 'premium') {
@@ -441,11 +422,11 @@ export const SeatPickerMap = memo(function SeatPickerMap({
         style={{ cursor: isDragging.current ? 'grabbing' : 'grab' }}
       >
         <defs>
-          <filter id="seatSelectedGlow" x="-30%" y="-30%" width="160%" height="160%">
-            <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="rgba(59,130,246,0.5)" floodOpacity="0.5" />
+          <filter id="seatSelectedGlow" x="-40%" y="-40%" width="180%" height="180%">
+            <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#3b82f6" floodOpacity="0.6" />
           </filter>
-          <filter id="seatSubtleShadow" x="-10%" y="-10%" width="120%" height="130%">
-            <feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="rgba(0,0,0,0.08)" floodOpacity="1" />
+          <filter id="seatHoverGlow" x="-30%" y="-30%" width="160%" height="160%">
+            <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="rgba(255,255,255,0.4)" floodOpacity="0.5" />
           </filter>
         </defs>
 
@@ -468,22 +449,59 @@ export const SeatPickerMap = memo(function SeatPickerMap({
             const objType = (obj.type || '').toUpperCase();
             const isDancefloor = objType === 'DANCEFLOOR';
             const isTribune = objType === 'TRIBUNE';
-            const isStage = objType === 'STAGE';
+            const isStage = objType === 'STAGE' || objType === 'PODIUM';
+            const isBar = objType === 'BAR';
             const displayName = obj.name || obj.type || 'Object';
 
             return (
               <g key={obj.id} style={{ pointerEvents: 'none' }}>
-                {isTribune ? (
+                {isStage ? (
                   <>
                     <rect
                       x={ox} y={oy} width={ow} height={oh}
-                      fill="#f1f5f9"
-                      stroke="#cbd5e1" strokeWidth={1} rx={6}
+                      fill="#1e293b"
+                      stroke="#475569" strokeWidth={2} rx={10}
                     />
                     <text
                       x={ox + ow / 2} y={oy + oh / 2}
                       textAnchor="middle" dominantBaseline="central"
-                      fill="#64748b"
+                      fill="#94a3b8"
+                      fontSize={obj.font_size || Math.min(28, ow * 0.12)}
+                      fontWeight="700"
+                      letterSpacing="0.3em"
+                    >
+                      {displayName.toUpperCase()}
+                    </text>
+                  </>
+                ) : isBar ? (
+                  <>
+                    <rect
+                      x={ox} y={oy} width={ow} height={oh}
+                      fill="#1e293b"
+                      stroke="#475569" strokeWidth={1.5} rx={6}
+                    />
+                    <text
+                      x={ox + ow / 2} y={oy + oh / 2}
+                      textAnchor="middle" dominantBaseline="central"
+                      fill="#94a3b8"
+                      fontSize={obj.font_size || 14}
+                      fontWeight="600"
+                      letterSpacing="0.15em"
+                    >
+                      {displayName.toUpperCase()}
+                    </text>
+                  </>
+                ) : isTribune ? (
+                  <>
+                    <rect
+                      x={ox} y={oy} width={ow} height={oh}
+                      fill="#e2e8f0"
+                      stroke="#94a3b8" strokeWidth={1} rx={6}
+                    />
+                    <text
+                      x={ox + ow / 2} y={oy + oh / 2}
+                      textAnchor="middle" dominantBaseline="central"
+                      fill="#475569"
                       fontSize={obj.font_size || 13}
                       fontWeight="600"
                       letterSpacing="0.08em"
@@ -491,20 +509,21 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                       {displayName.toUpperCase()}
                     </text>
                   </>
-                ) : isStage ? (
+                ) : isDancefloor ? (
                   <>
                     <rect
                       x={ox} y={oy} width={ow} height={oh}
-                      fill="#e2e8f0"
-                      stroke="#94a3b8" strokeWidth={1.5} rx={10}
+                      fill="#1e293b"
+                      stroke="#475569" strokeWidth={1.5} rx={8}
+                      opacity={0.85}
                     />
                     <text
                       x={ox + ow / 2} y={oy + oh / 2}
                       textAnchor="middle" dominantBaseline="central"
-                      fill="#64748b"
-                      fontSize={obj.font_size || 22}
+                      fill="#94a3b8"
+                      fontSize={obj.font_size || 14}
                       fontWeight="600"
-                      letterSpacing="0.25em"
+                      letterSpacing="0.12em"
                     >
                       {displayName.toUpperCase()}
                     </text>
@@ -513,15 +532,15 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                   <>
                     <rect
                       x={ox} y={oy} width={ow} height={oh}
-                      fill={isDancefloor ? '#f1f5f9' : '#e2e8f0'}
-                      stroke="#cbd5e1" strokeWidth={1} rx={6}
-                      opacity={isDancefloor ? 0.7 : 0.9}
+                      fill="#1e293b"
+                      stroke="#475569" strokeWidth={1} rx={6}
+                      opacity={0.9}
                     />
                     <text
                       x={ox + ow / 2} y={oy + oh / 2}
                       textAnchor="middle" dominantBaseline="central"
-                      fill="#64748b"
-                      fontSize={obj.font_size || (isDancefloor ? 13 : 14)}
+                      fill="#94a3b8"
+                      fontSize={obj.font_size || 13}
                       fontWeight="600"
                       letterSpacing="0.05em"
                     >
@@ -559,10 +578,11 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                   width={section.width}
                   height={section.height}
                   rx={8}
-                  fill={isRestricted ? '#f1f5f9' : (isHovered ? '#f8fafc' : 'transparent')}
-                  stroke={isFocused ? '#94a3b8' : (isHovered ? '#cbd5e1' : 'transparent')}
+                  fill={color}
+                  fillOpacity={isRestricted ? 0.05 : (isHovered ? 0.08 : 0.05)}
+                  stroke={color}
                   strokeWidth={isFocused ? 1.5 : 1}
-                  strokeDasharray={isFocused ? 'none' : '4 3'}
+                  strokeOpacity={isFocused ? 0.4 : (isHovered ? 0.3 : 0.15)}
                   style={{
                     cursor: isRestricted ? 'not-allowed' : 'pointer',
                     pointerEvents: 'all',
@@ -577,7 +597,8 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                   x={section.position_x + section.width / 2}
                   y={section.position_y + 14}
                   textAnchor="middle"
-                  fill="#64748b"
+                  fill={color}
+                  fillOpacity={0.6}
                   fontSize="11"
                   fontWeight="600"
                   letterSpacing="0.04em"
@@ -618,13 +639,13 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                 {!isRestricted && rowLabels.map(rl => (
                   <text
                     key={rl.label}
-                    x={rl.minX - seatSize / 2 - 5}
+                    x={rl.minX - seatSize / 2 - 8}
                     y={rl.y}
                     textAnchor="end"
                     dominantBaseline="central"
                     fill="#94a3b8"
-                    fontSize={8}
-                    fontWeight={500}
+                    fontSize={9}
+                    fontWeight={600}
                     style={{ pointerEvents: 'none' }}
                   >
                     {rl.label}
@@ -642,50 +663,48 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                   const isAvailable = seat.status === 'available';
 
                   let fillColor: string;
-                  let fillOpacity: number;
-                  let strokeColor = '';
-                  let strokeW = 0;
+                  let borderColor: string;
+                  let fillOpacity = 1;
 
                   if (isRestricted) {
-                    fillColor = '#e2e8f0';
+                    fillColor = '#d1d5db';
+                    borderColor = '#9ca3af';
                     fillOpacity = 0.4;
                   } else if (isSelected) {
-                    fillColor = '#2563eb';
-                    fillOpacity = 1;
-                    strokeColor = '#1e40af';
-                    strokeW = 1.8;
+                    fillColor = '#3b82f6';
+                    borderColor = '#1d4ed8';
                   } else if (isSold) {
-                    fillColor = '#334155';
-                    fillOpacity = 0.7;
-                    strokeColor = '#475569';
-                    strokeW = 0.5;
-                  } else if (isReservedSeat) {
-                    fillColor = '#f59e0b';
+                    fillColor = '#f87171';
+                    borderColor = '#dc2626';
                     fillOpacity = 0.85;
-                    strokeColor = '#d97706';
-                    strokeW = 1;
+                  } else if (isReservedSeat) {
+                    fillColor = '#fb923c';
+                    borderColor = '#ea580c';
+                    fillOpacity = 0.9;
                   } else if (isBlocked) {
-                    fillColor = '#cbd5e1';
-                    fillOpacity = 0.35;
+                    fillColor = '#d1d5db';
+                    borderColor = '#9ca3af';
+                    fillOpacity = 0.5;
                   } else if (isAvailable) {
-                    fillColor = isHoveredSeat ? tintColor(color, 0.7) : tintColor(color, 0.78);
-                    fillOpacity = 1;
-                    strokeColor = isHoveredSeat ? shadeColor(color, 0.1) : shadeColor(color, 0.0);
-                    strokeW = 1.2;
+                    if (tier === 'vip') {
+                      fillColor = '#fbbf24';
+                      borderColor = '#d97706';
+                    } else {
+                      fillColor = '#4ade80';
+                      borderColor = '#16a34a';
+                    }
                   } else {
-                    fillColor = tintColor(color, 0.78);
-                    fillOpacity = 1;
-                    strokeColor = color;
-                    strokeW = 1.2;
+                    fillColor = '#4ade80';
+                    borderColor = '#16a34a';
                   }
 
-                  const currentSize = isHoveredSeat && !isRestricted ? SEAT_CHAIR_SIZE * 1.05 : SEAT_CHAIR_SIZE;
+                  const currentSize = isHoveredSeat && !isRestricted ? SEAT_CHAIR_SIZE * 1.2 : SEAT_CHAIR_SIZE;
                   const clickable = !isRestricted && (isAvailable || isSelected);
 
                   const seatFilter = isSelected
                     ? 'url(#seatSelectedGlow)'
-                    : (isAvailable || isReservedSeat || isSold) && !isRestricted
-                      ? 'url(#seatSubtleShadow)'
+                    : isHoveredSeat && !isRestricted
+                      ? 'url(#seatHoverGlow)'
                       : undefined;
 
                   return (
@@ -709,18 +728,17 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                         color={fillColor}
                         opacity={fillOpacity}
                         selected={isSelected}
-                        strokeColor={strokeColor || undefined}
-                        strokeWidth={strokeW}
-                        strokeOpacity={isAvailable ? (isHoveredSeat ? 0.85 : 0.7) : 0.8}
-                        className={`seat-chair-transition ${isSelected ? 'seat-picker-selected' : ''} ${isFlashing ? 'seat-status-flash' : ''}`}
+                        strokeColor={borderColor}
+                        strokeWidth={isSelected ? 2.5 : 2}
+                        className={`seat-round-transition ${isSelected ? 'seat-picker-selected' : ''} ${isFlashing ? 'seat-status-flash' : ''}`}
                         style={{
-                          cursor: clickable ? 'pointer' : 'default',
-                          pointerEvents: clickable ? 'all' : 'none',
+                          cursor: clickable ? 'pointer' : (isSold || isBlocked) ? 'not-allowed' : 'default',
+                          pointerEvents: clickable ? 'all' : (isSold || isBlocked) ? 'all' : 'none',
                         }}
                         onPointerDown={clickable ? (e) => handleSeatPointerDown(e, seat) : undefined}
                         onPointerUp={clickable ? (e) => handleSeatPointerUp(e, seat) : undefined}
-                        onPointerEnter={clickable ? (e) => handleSeatHover(seat, e) : undefined}
-                        onPointerLeave={clickable ? handleSeatLeave : undefined}
+                        onPointerEnter={(e) => handleSeatHover(seat, e)}
+                        onPointerLeave={handleSeatLeave}
                       />
                     </g>
                   );
@@ -820,20 +838,20 @@ function SeatTooltip({
       }}
       role="tooltip"
     >
-      <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-lg text-sm whitespace-nowrap">
+      <div className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 shadow-xl text-sm whitespace-nowrap">
         {section && (
-          <div className="text-slate-500 text-xs font-semibold mb-0.5">
+          <div className="text-slate-400 text-xs font-semibold mb-0.5">
             {section.name}
           </div>
         )}
-        <div className="font-semibold text-slate-800">
+        <div className="font-semibold text-white">
           {st(language, 'picker.row')} {seat.row_label} &mdash; {st(language, 'picker.seatLabel')} {seat.seat_number}
         </div>
-        <div className="text-emerald-600 font-bold mt-0.5">
+        <div className="text-emerald-400 font-bold mt-0.5">
           EUR {price.toFixed(2)}
         </div>
         {isSelected && (
-          <div className="text-blue-600 text-xs mt-0.5">{st(language, 'picker.selected')}</div>
+          <div className="text-blue-400 text-xs mt-0.5">{st(language, 'picker.selected')}</div>
         )}
       </div>
     </div>

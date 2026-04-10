@@ -6,27 +6,37 @@ interface SeatChairProps {
   selected?: boolean;
   opacity?: number;
   glowColor?: string;
+  borderColor?: string;
 }
 
 export const SeatChair = memo(function SeatChair({
   color,
   size = 18,
   selected = false,
-  opacity = 0.9,
+  opacity = 1,
   glowColor,
+  borderColor,
 }: SeatChairProps) {
+  const r = size / 2;
+  const border = borderColor || darkenHex(color, 0.25);
   return (
-    <svg width={size} height={size} viewBox="0 0 20 20" style={{ display: 'block' }}>
-      <rect x="4" y="1" width="12" height="9" rx="2.5" fill={color} opacity={opacity} />
-      <rect x="2" y="10" width="16" height="5" rx="2" fill={color} opacity={Math.min(1, opacity + 0.1)} />
-      <rect x="4" y="15" width="2.5" height="3.5" rx="1" fill={color} opacity={opacity * 0.7} />
-      <rect x="13.5" y="15" width="2.5" height="3.5" rx="1" fill={color} opacity={opacity * 0.7} />
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ display: 'block' }}>
+      <circle cx={r} cy={r} r={r - 1} fill={color} opacity={opacity} stroke={border} strokeWidth={1.5} />
+      <circle cx={r - r * 0.15} cy={r - r * 0.22} r={r * 0.35} fill="rgba(255,255,255,0.2)" />
       {selected && (
-        <rect x="0.5" y="0.5" width="19" height="19" rx="3.5" stroke={glowColor || '#ffffff'} strokeWidth="1.8" fill="none" />
+        <circle cx={r} cy={r} r={r - 0.5} stroke={glowColor || '#ffffff'} strokeWidth={2} fill="none" />
       )}
     </svg>
   );
 });
+
+function darkenHex(hex: string, amount: number): string {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.substring(0, 2), 16) || 0;
+  const g = parseInt(h.substring(2, 4), 16) || 0;
+  const b = parseInt(h.substring(4, 6), 16) || 0;
+  return `rgb(${Math.round(r * (1 - amount))},${Math.round(g * (1 - amount))},${Math.round(b * (1 - amount))})`;
+}
 
 interface SvgSeatChairProps {
   cx: number;
@@ -55,11 +65,11 @@ export const SvgSeatChair = memo(function SvgSeatChair({
   cy,
   size,
   color,
-  opacity = 0.9,
+  opacity = 1,
   selected = false,
   strokeColor,
-  strokeWidth = 0,
-  strokeOpacity = 0.8,
+  strokeWidth = 2,
+  strokeOpacity = 1,
   className,
   style,
   onPointerDown,
@@ -71,13 +81,14 @@ export const SvgSeatChair = memo(function SvgSeatChair({
   onMouseMove,
   onContextMenu,
 }: SvgSeatChairProps) {
-  const half = size / 2;
-  const s = size / 20;
-  const hasBodyStroke = !selected && strokeColor && strokeWidth > 0;
+  const r = size / 2;
+  const borderW = strokeWidth;
+  const hlR = r * 0.35;
+  const hlCx = cx - r * 0.15;
+  const hlCy = cy - r * 0.22;
 
   return (
     <g
-      transform={`translate(${cx - half}, ${cy - half})`}
       className={className}
       style={style}
       onPointerDown={onPointerDown}
@@ -89,37 +100,37 @@ export const SvgSeatChair = memo(function SvgSeatChair({
       onMouseMove={onMouseMove}
       onContextMenu={onContextMenu}
     >
-      <rect
-        x={0} y={0}
-        width={size} height={size}
-        fill="transparent"
+      <circle
+        cx={cx} cy={cy + 1} r={r}
+        fill="rgba(0,0,0,0.08)"
+        style={{ pointerEvents: 'none' }}
       />
-      <rect
-        x={4 * s} y={1 * s} width={12 * s} height={9 * s} rx={2.5 * s}
-        fill={color} opacity={opacity}
-        stroke={hasBodyStroke ? strokeColor : undefined}
-        strokeWidth={hasBodyStroke ? strokeWidth * 0.8 : undefined}
-        strokeOpacity={hasBodyStroke ? strokeOpacity : undefined}
+      <circle
+        cx={cx} cy={cy} r={r - borderW / 2}
+        fill={color}
+        opacity={opacity}
+        stroke={strokeColor || color}
+        strokeWidth={borderW}
+        strokeOpacity={strokeOpacity}
       />
-      <rect
-        x={2 * s} y={10 * s} width={16 * s} height={5 * s} rx={2 * s}
-        fill={color} opacity={Math.min(1, opacity + 0.1)}
-        stroke={hasBodyStroke ? strokeColor : undefined}
-        strokeWidth={hasBodyStroke ? strokeWidth * 0.8 : undefined}
-        strokeOpacity={hasBodyStroke ? strokeOpacity : undefined}
+      <circle
+        cx={hlCx} cy={hlCy} r={hlR}
+        fill="rgba(255,255,255,0.18)"
+        style={{ pointerEvents: 'none' }}
       />
-      <rect x={4 * s} y={15 * s} width={2.5 * s} height={3.5 * s} rx={1 * s} fill={color} opacity={opacity * 0.7} />
-      <rect x={13.5 * s} y={15 * s} width={2.5 * s} height={3.5 * s} rx={1 * s} fill={color} opacity={opacity * 0.7} />
       {selected && (
-        <rect
-          x={0.5 * s} y={0.5 * s}
-          width={19 * s} height={19 * s}
-          rx={3.5 * s}
-          stroke={strokeColor || '#ffffff'}
-          strokeWidth={strokeWidth || 1.8 * s}
+        <circle
+          cx={cx} cy={cy} r={r + 1}
+          stroke="#ffffff"
+          strokeWidth={2.5}
           fill="none"
+          style={{ pointerEvents: 'none' }}
         />
       )}
+      <circle
+        cx={cx} cy={cy} r={r + 2}
+        fill="transparent"
+      />
     </g>
   );
 });
@@ -139,15 +150,10 @@ export const SvgSeatDotChair = memo(function SvgSeatDotChair({
   color,
   opacity = 0.7,
 }: SvgSeatDotChairProps) {
-  const half = size / 2;
-  const s = size / 20;
-
+  const r = size / 2;
   return (
-    <g transform={`translate(${cx - half}, ${cy - half})`} style={{ pointerEvents: 'none' }}>
-      <rect x={4 * s} y={2 * s} width={12 * s} height={8 * s} rx={2 * s} fill={color} opacity={opacity} />
-      <rect x={2 * s} y={10 * s} width={16 * s} height={5 * s} rx={1.5 * s} fill={color} opacity={opacity} />
-      <rect x={4.5 * s} y={15 * s} width={2 * s} height={3 * s} rx={0.8 * s} fill={color} opacity={opacity * 0.6} />
-      <rect x={13.5 * s} y={15 * s} width={2 * s} height={3 * s} rx={0.8 * s} fill={color} opacity={opacity * 0.6} />
+    <g style={{ pointerEvents: 'none' }}>
+      <circle cx={cx} cy={cy} r={r} fill={color} opacity={opacity} />
     </g>
   );
 });

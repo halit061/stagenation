@@ -616,7 +616,8 @@ export function SeatInteractionLayer({
               const isMarqueePreview = marqueePreviewIds.has(seat.id);
               const isReserved = seat.status === 'reserved';
               const isVip = seat.seat_type === 'vip' && seat.status === 'available';
-              const baseColor = isCollisionFlash ? '#ef4444' : isVip ? '#eab308' : STATUS_COLOR[seat.status as SeatStatus] || '#22c55e';
+              const baseColor = isCollisionFlash ? '#ef4444' : isVip ? '#fbbf24' : STATUS_COLOR[seat.status as SeatStatus] || '#22c55e';
+              const borderColor = isCollisionFlash ? '#dc2626' : isVip ? '#d97706' : (seat.status === 'sold' ? '#dc2626' : seat.status === 'blocked' ? '#6b7280' : seat.status === 'reserved' ? '#d97706' : '#15803d');
               const currentSize = isHovered ? hoverSize : seatSizeComputed;
 
               const manyDragging = dragState?.active && dragState.seatIds.size > 50;
@@ -633,7 +634,7 @@ export function SeatInteractionLayer({
                       color={baseColor}
                       opacity={0.25}
                       strokeColor="rgba(255,255,255,0.15)"
-                      strokeWidth={0.5}
+                      strokeWidth={1}
                       className="pointer-events-none"
                     />
                   )}
@@ -644,9 +645,9 @@ export function SeatInteractionLayer({
                     color={baseColor}
                     opacity={isReserved ? 0.7 : isDragTarget ? 0.95 : 0.9}
                     selected={isSelected || isMarqueePreview}
-                    strokeColor={isSelected ? '#ffffff' : isMarqueePreview ? '#93c5fd' : isVip ? '#fbbf24' : undefined}
-                    strokeWidth={isSelected ? 2 : isMarqueePreview ? 1.5 : isVip ? 1.5 : 0}
-                    className={`seat-chair-transition ${isReserved && !isDragTarget ? 'seat-reserved-pulse' : ''} ${isCollisionFlash ? 'seat-collision-flash' : ''}`}
+                    strokeColor={isSelected ? '#ffffff' : isMarqueePreview ? '#93c5fd' : borderColor}
+                    strokeWidth={isSelected ? 2.5 : isMarqueePreview ? 2 : 1.5}
+                    className={`seat-round-transition ${isReserved && !isDragTarget ? 'seat-reserved-pulse' : ''} ${isCollisionFlash ? 'seat-collision-flash' : ''}`}
                     style={{
                       cursor: isDragTarget ? 'grabbing' : isSelectTool ? 'pointer' : 'default',
                       filter: isDragTarget
