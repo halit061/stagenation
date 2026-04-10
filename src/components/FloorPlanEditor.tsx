@@ -19,6 +19,7 @@ import { AdminSalesWidget } from './AdminSalesWidget';
 import { OrderToast } from './AdminNotifications';
 import { FloatingToolbar } from './FloatingToolbar';
 import { BackgroundUploadModal } from './BackgroundUploadModal';
+import { DimensionsPanel } from './DimensionsPanel';
 import { useAdminSeatRealtime } from '../hooks/useAdminSeatRealtime';
 import type { BackgroundSettings } from '../lib/backgroundUpload';
 import type { SectionFormData } from './SectionConfigModal';
@@ -773,6 +774,55 @@ export function FloorPlanEditor() {
       await updateSection(section.id, { color });
     } catch {
       showToast('Kleur wijzigen mislukt', 'error');
+    }
+  }
+
+  async function handleSectionDimensionsChange(changes: { x?: number; y?: number; width?: number; height?: number; rotation?: number }) {
+    if (!selectedItem || selectedItem.type !== 'section') return;
+    const section = selectedItem.data as SeatSection;
+
+    const dbUpdate: Record<string, number> = {};
+    const updated = { ...section };
+
+    if (changes.x !== undefined) { updated.position_x = changes.x; dbUpdate.position_x = changes.x; }
+    if (changes.y !== undefined) { updated.position_y = changes.y; dbUpdate.position_y = changes.y; }
+    if (changes.width !== undefined) { updated.width = changes.width; dbUpdate.width = changes.width; }
+    if (changes.height !== undefined) { updated.height = changes.height; dbUpdate.height = changes.height; }
+    if (changes.rotation !== undefined) { updated.rotation = changes.rotation; dbUpdate.rotation = changes.rotation; }
+
+    setSeatSections(prev => prev.map(s => s.id === section.id ? updated : s));
+    setSelectedItem({ type: 'section', data: updated });
+
+    try {
+      await updateSection(section.id, dbUpdate);
+
+      const widthChanged = changes.width !== undefined && changes.width !== section.width;
+      const heightChanged = changes.height !== undefined && changes.height !== section.height;
+      if (widthChanged || heightChanged) {
+        const scaleX = (changes.width ?? section.width) / section.width;
+        const scaleY = (changes.height ?? section.height) / section.height;
+        if (Math.abs(scaleX - 1) > 0.001 || Math.abs(scaleY - 1) > 0.001) {
+          const seats = sectionSeats[section.id] || [];
+          if (seats.length > 0) {
+            const posUpdates = seats.map(s => ({
+              id: s.id,
+              x_position: s.x_position * scaleX,
+              y_position: s.y_position * scaleY,
+            }));
+            await updateSeatPositions(posUpdates);
+            setSectionSeats(prev => ({
+              ...prev,
+              [section.id]: seats.map(s => ({
+                ...s,
+                x_position: s.x_position * scaleX,
+                y_position: s.y_position * scaleY,
+              })),
+            }));
+          }
+        }
+      }
+    } catch {
+      showToast('Fout bij opslaan afmetingen', 'error');
     }
   }
 
@@ -2005,6 +2055,7 @@ export function FloorPlanEditor() {
                   onAutoFit={autoFitSectionToSeats}
                   onRotate={handleRotateItem}
                   onColorChange={handleSectionColorChange}
+                  onDimensionsChange={handleSectionDimensionsChange}
                   linkedTicketTypes={
                     selectedEventId
                       ? eventTicketTypes.filter(tt => (sectionTicketLinks[(selectedItem.data as SeatSection).id] || []).includes(tt.id))
@@ -2503,18 +2554,28 @@ function TableProperties({ table, packages, onUpdate, onSave }: {
 
       <div>
         <label className={labelCls}>Positie & Grootte</label>
-        <div className="grid grid-cols-2 gap-1.5">
-          {([['X', 'x'], ['Y', 'y'], ['Breedte', 'width'], ['Hoogte', 'height']] as const).map(([ph, key]) => (
-            <input key={key} type="number" placeholder={ph} value={Math.round((table as any)[key])}
-              onChange={(e) => onUpdate({ [key]: parseInt(e.target.value) || 0 } as any)}
-              onBlur={onSave} className={inputCls} />
-          ))}
-        </div>
+        <DimensionsPanel
+          values={{
+            x: table.x,
+            y: table.y,
+            width: table.width,
+            height: table.height,
+            rotation: table.rotation || 0,
+          }}
+          onChange={(diff) => {
+            const updates: Partial<FloorplanTable> = {};
+            if (diff.x !== undefined) updates.x = diff.x;
+            if (diff.y !== undefined) updates.y = diff.y;
+            if (diff.width !== undefined) updates.width = diff.width;
+            if (diff.height !== undefined) updates.height = diff.height;
+            if (diff.rotation !== undefined) updates.rotation = diff.rotation;
+            onUpdate(updates);
+            onSave();
+          }}
+          minWidth={30}
+          minHeight={20}
+        />
       </div>
-
-      <button onClick={onSave} className={saveBtnCls}>
-        <Save className="w-3.5 h-3.5" /> Opslaan
-      </button>
     </div>
   );
 }
@@ -2583,21 +2644,27 @@ function ObjectProperties({ object, onUpdate, onSave }: {
 
       <div>
         <label className={labelCls}>Positie & Afmetingen</label>
-        <div className="grid grid-cols-2 gap-1.5">
-          {([
-            ['X', 'x'],
-            ['Y', 'y'],
-            [isStageType ? 'Breedte (podium)' : 'Breedte', 'width'],
-            [isStageType ? 'Diepte (podium)' : 'Hoogte', 'height'],
-          ] as [string, string][]).map(([ph, key]) => (
-            <div key={key}>
-              <span className="text-[10px] text-slate-500">{ph}</span>
-              <input type="number" placeholder={ph} value={Math.round((object as any)[key])}
-                onChange={(e) => onUpdate({ [key]: parseInt(e.target.value) || 0 } as any)}
-                onBlur={onSave} className={inputCls} />
-            </div>
-          ))}
-        </div>
+        <DimensionsPanel
+          values={{
+            x: object.x,
+            y: object.y,
+            width: object.width,
+            height: object.height,
+            rotation: object.rotation || 0,
+          }}
+          onChange={(diff) => {
+            const updates: Partial<FloorplanObject> = {};
+            if (diff.x !== undefined) updates.x = diff.x;
+            if (diff.y !== undefined) updates.y = diff.y;
+            if (diff.width !== undefined) updates.width = diff.width;
+            if (diff.height !== undefined) updates.height = diff.height;
+            if (diff.rotation !== undefined) updates.rotation = diff.rotation;
+            onUpdate(updates);
+            onSave();
+          }}
+          minWidth={30}
+          minHeight={20}
+        />
       </div>
 
       <div className="flex items-center gap-2">

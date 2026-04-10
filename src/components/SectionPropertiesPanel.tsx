@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
-import { Copy, Trash2, RefreshCw, Pencil, Maximize, Ticket, RotateCw, Palette } from 'lucide-react';
+import { Copy, Trash2, RefreshCw, Pencil, Maximize, Ticket, Palette, Ruler } from 'lucide-react';
 import type { SeatSection, Seat, SeatStatus, TicketType } from '../types/seats';
 import { SECTION_COLORS, COLOR_CATEGORIES, getColorName } from '../config/sectionColors';
+import { DimensionsPanel } from './DimensionsPanel';
 
 const labelCls = 'block text-slate-400 text-xs font-medium mb-1';
 
@@ -22,10 +23,11 @@ interface Props {
   onAutoFit?: (section: SeatSection) => void;
   onRotate?: (angle: number) => void;
   onColorChange?: (color: string) => void;
+  onDimensionsChange?: (changes: { x?: number; y?: number; width?: number; height?: number; rotation?: number }) => void;
   linkedTicketTypes?: TicketType[];
 }
 
-export function SectionPropertiesPanel({ section, seats, onEdit, onRegenerate, onDuplicate, onDelete, onAutoFit, onRotate, onColorChange, linkedTicketTypes = [] }: Props) {
+export function SectionPropertiesPanel({ section, seats, onEdit, onRegenerate, onDuplicate, onDelete, onAutoFit, onRotate, onColorChange, onDimensionsChange, linkedTicketTypes = [] }: Props) {
   const stats = useMemo(() => {
     const total = seats.length;
     const available = seats.filter((s) => s.status === 'available').length;
@@ -145,56 +147,40 @@ export function SectionPropertiesPanel({ section, seats, onEdit, onRegenerate, o
           )}
         </div>
         <div>
-          <label className={labelCls}>Positie</label>
-          <p className="text-slate-400 text-xs">
-            X: {Math.round(section.position_x)}, Y: {Math.round(section.position_y)} | {Math.round(section.width)} x {Math.round(section.height)}
-          </p>
+          <label className={labelCls}>
+            <span className="flex items-center gap-1">
+              <Ruler className="w-3 h-3" />
+              Positie & Afmetingen
+            </span>
+          </label>
+          {onDimensionsChange ? (
+            <DimensionsPanel
+              values={{
+                x: section.position_x,
+                y: section.position_y,
+                width: section.width,
+                height: section.height,
+                rotation: section.rotation || 0,
+              }}
+              onChange={(diff) => {
+                const mapped: Parameters<NonNullable<Props['onDimensionsChange']>>[0] = {};
+                if (diff.x !== undefined) mapped.x = diff.x;
+                if (diff.y !== undefined) mapped.y = diff.y;
+                if (diff.width !== undefined) mapped.width = diff.width;
+                if (diff.height !== undefined) mapped.height = diff.height;
+                if (diff.rotation !== undefined) mapped.rotation = diff.rotation;
+                onDimensionsChange(mapped);
+              }}
+              minWidth={80}
+              minHeight={60}
+              showRotation={!!onRotate}
+            />
+          ) : (
+            <p className="text-slate-400 text-xs">
+              X: {Math.round(section.position_x)}, Y: {Math.round(section.position_y)} | {Math.round(section.width)} x {Math.round(section.height)}
+            </p>
+          )}
         </div>
-
-        {onRotate && (
-          <div>
-            <label className={labelCls}>
-              <span className="flex items-center gap-1">
-                <RotateCw className="w-3 h-3" />
-                Rotatie
-              </span>
-            </label>
-            <div className="flex items-center gap-2 mb-1.5">
-              <input
-                type="range"
-                min="0"
-                max="360"
-                value={section.rotation || 0}
-                onChange={(e) => onRotate(parseInt(e.target.value))}
-                className="flex-1 accent-blue-500 h-1.5"
-              />
-              <input
-                type="number"
-                min="0"
-                max="360"
-                value={section.rotation || 0}
-                onChange={(e) => onRotate(Math.max(0, Math.min(360, parseInt(e.target.value) || 0)))}
-                className="w-14 px-1.5 py-0.5 bg-slate-700 border border-slate-600 rounded text-white text-xs text-center focus:border-blue-500 focus:outline-none"
-              />
-              <span className="text-slate-500 text-xs">deg</span>
-            </div>
-            <div className="flex gap-1">
-              {[0, 90, 180, 270].map((a) => (
-                <button
-                  key={a}
-                  onClick={() => onRotate(a)}
-                  className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
-                    (section.rotation || 0) === a
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                  }`}
-                >
-                  {a}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
 
         <div className="border-t border-slate-700 pt-3 mt-3">
           <label className={labelCls}>Beschikbaarheid</label>
