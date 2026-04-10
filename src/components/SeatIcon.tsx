@@ -37,6 +37,7 @@ interface SvgSeatChairProps {
   selected?: boolean;
   strokeColor?: string;
   strokeWidth?: number;
+  strokeOpacity?: number;
   className?: string;
   style?: React.CSSProperties;
   onPointerDown?: (e: React.PointerEvent) => void;
@@ -58,6 +59,7 @@ export const SvgSeatChair = memo(function SvgSeatChair({
   selected = false,
   strokeColor,
   strokeWidth = 0,
+  strokeOpacity = 0.8,
   className,
   style,
   onPointerDown,
@@ -71,6 +73,7 @@ export const SvgSeatChair = memo(function SvgSeatChair({
 }: SvgSeatChairProps) {
   const half = size / 2;
   const s = size / 20;
+  const hasBodyStroke = !selected && strokeColor && strokeWidth > 0;
 
   return (
     <g
@@ -91,11 +94,23 @@ export const SvgSeatChair = memo(function SvgSeatChair({
         width={size} height={size}
         fill="transparent"
       />
-      <rect x={4 * s} y={1 * s} width={12 * s} height={9 * s} rx={2.5 * s} fill={color} opacity={opacity} />
-      <rect x={2 * s} y={10 * s} width={16 * s} height={5 * s} rx={2 * s} fill={color} opacity={Math.min(1, opacity + 0.1)} />
+      <rect
+        x={4 * s} y={1 * s} width={12 * s} height={9 * s} rx={2.5 * s}
+        fill={color} opacity={opacity}
+        stroke={hasBodyStroke ? strokeColor : undefined}
+        strokeWidth={hasBodyStroke ? strokeWidth * 0.8 : undefined}
+        strokeOpacity={hasBodyStroke ? strokeOpacity : undefined}
+      />
+      <rect
+        x={2 * s} y={10 * s} width={16 * s} height={5 * s} rx={2 * s}
+        fill={color} opacity={Math.min(1, opacity + 0.1)}
+        stroke={hasBodyStroke ? strokeColor : undefined}
+        strokeWidth={hasBodyStroke ? strokeWidth * 0.8 : undefined}
+        strokeOpacity={hasBodyStroke ? strokeOpacity : undefined}
+      />
       <rect x={4 * s} y={15 * s} width={2.5 * s} height={3.5 * s} rx={1 * s} fill={color} opacity={opacity * 0.7} />
       <rect x={13.5 * s} y={15 * s} width={2.5 * s} height={3.5 * s} rx={1 * s} fill={color} opacity={opacity * 0.7} />
-      {(selected || (strokeColor && strokeWidth > 0)) && (
+      {selected && (
         <rect
           x={0.5 * s} y={0.5 * s}
           width={19 * s} height={19 * s}

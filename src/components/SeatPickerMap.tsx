@@ -32,6 +32,11 @@ function tintColor(hex: string, amount: number): string {
   return `rgb(${Math.round(r + (255 - r) * amount)},${Math.round(g + (255 - g) * amount)},${Math.round(b + (255 - b) * amount)})`;
 }
 
+function shadeColor(hex: string, amount: number): string {
+  const [r, g, b] = hexToRgb(hex);
+  return `rgb(${Math.round(r * (1 - amount))},${Math.round(g * (1 - amount))},${Math.round(b * (1 - amount))})`;
+}
+
 function getSectionTier(color: string): 'vip' | 'premium' | 'regular' {
   const cat = getColorCategory(color);
   if (cat === 'premium') {
@@ -439,6 +444,9 @@ export const SeatPickerMap = memo(function SeatPickerMap({
           <filter id="seatSelectedGlow" x="-30%" y="-30%" width="160%" height="160%">
             <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="rgba(59,130,246,0.5)" floodOpacity="0.5" />
           </filter>
+          <filter id="seatSubtleShadow" x="-10%" y="-10%" width="120%" height="130%">
+            <feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="rgba(0,0,0,0.08)" floodOpacity="1" />
+          </filter>
         </defs>
 
         <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
@@ -642,10 +650,10 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                     fillColor = '#e2e8f0';
                     fillOpacity = 0.4;
                   } else if (isSelected) {
-                    fillColor = '#3b82f6';
+                    fillColor = '#2563eb';
                     fillOpacity = 1;
-                    strokeColor = '#2563eb';
-                    strokeW = 1.5;
+                    strokeColor = '#1e40af';
+                    strokeW = 1.8;
                   } else if (isSold) {
                     fillColor = '#334155';
                     fillOpacity = 0.7;
@@ -655,27 +663,33 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                     fillColor = '#f59e0b';
                     fillOpacity = 0.85;
                     strokeColor = '#d97706';
-                    strokeW = 0.8;
+                    strokeW = 1;
                   } else if (isBlocked) {
                     fillColor = '#cbd5e1';
                     fillOpacity = 0.35;
                   } else if (isAvailable) {
-                    fillColor = isHoveredSeat ? tintColor(color, 0.65) : tintColor(color, 0.82);
+                    fillColor = isHoveredSeat ? tintColor(color, 0.7) : tintColor(color, 0.78);
                     fillOpacity = 1;
-                    strokeColor = isHoveredSeat ? color : tintColor(color, 0.35);
-                    strokeW = isHoveredSeat ? 1.2 : 0.8;
+                    strokeColor = isHoveredSeat ? shadeColor(color, 0.1) : shadeColor(color, 0.0);
+                    strokeW = 1.2;
                   } else {
-                    fillColor = tintColor(color, 0.82);
+                    fillColor = tintColor(color, 0.78);
                     fillOpacity = 1;
-                    strokeColor = tintColor(color, 0.35);
-                    strokeW = 0.8;
+                    strokeColor = color;
+                    strokeW = 1.2;
                   }
 
                   const currentSize = isHoveredSeat && !isRestricted ? SEAT_CHAIR_SIZE * 1.05 : SEAT_CHAIR_SIZE;
                   const clickable = !isRestricted && (isAvailable || isSelected);
 
+                  const seatFilter = isSelected
+                    ? 'url(#seatSelectedGlow)'
+                    : (isAvailable || isReservedSeat || isSold) && !isRestricted
+                      ? 'url(#seatSubtleShadow)'
+                      : undefined;
+
                   return (
-                    <g key={seat.id} filter={isSelected ? 'url(#seatSelectedGlow)' : undefined}>
+                    <g key={seat.id} filter={seatFilter}>
                       {isHighlighted && (
                         <circle
                           cx={seat.cx}
@@ -697,6 +711,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                         selected={isSelected}
                         strokeColor={strokeColor || undefined}
                         strokeWidth={strokeW}
+                        strokeOpacity={isAvailable ? (isHoveredSeat ? 0.85 : 0.7) : 0.8}
                         className={`seat-chair-transition ${isSelected ? 'seat-picker-selected' : ''} ${isFlashing ? 'seat-status-flash' : ''}`}
                         style={{
                           cursor: clickable ? 'pointer' : 'default',
