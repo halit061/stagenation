@@ -86,7 +86,7 @@ export function LiveSalesCounter({ eventId, eventName }: LiveSalesCounterProps) 
         const serviceFee = breakdownOrders.reduce((sum, o) => sum + (o.service_fee_total_cents || 0), 0);
         const netRevenue = breakdownOrders.reduce((sum, o) => sum + (o.net_revenue_cents || 0), 0);
         setBreakdown({
-          ticketIncomeCents: netRevenue + serviceFee,
+          ticketIncomeCents: totalAmount - serviceFee,
           serviceFeeCents: serviceFee,
           netRevenueCents: netRevenue,
         });
