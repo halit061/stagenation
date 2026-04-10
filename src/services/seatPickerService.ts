@@ -135,15 +135,37 @@ export async function fetchSections(layoutId: string): Promise<SeatSection[]> {
 
 export async function fetchSeats(sectionIds: string[]): Promise<Seat[]> {
   if (sectionIds.length === 0) return [];
-  const { data, error } = await supabase
-    .from('seats')
-    .select('*')
-    .in('section_id', sectionIds)
-    .eq('is_active', true)
-    .order('row_label', { ascending: true })
-    .order('seat_number', { ascending: true });
-  if (error) throw error;
-  return data ?? [];
+  const results: Seat[] = [];
+  const BATCH = 5;
+  for (let i = 0; i < sectionIds.length; i += BATCH) {
+    const batch = sectionIds.slice(i, i + BATCH);
+    const promises = batch.map(async (secId) => {
+      let allRows: Seat[] = [];
+      let from = 0;
+      const PAGE = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from('seats')
+          .select('*')
+          .eq('section_id', secId)
+          .eq('is_active', true)
+          .order('row_label', { ascending: true })
+          .order('seat_number', { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        const rows = data ?? [];
+        allRows = allRows.concat(rows);
+        if (rows.length < PAGE) break;
+        from += PAGE;
+      }
+      return allRows;
+    });
+    const batchResults = await Promise.all(promises);
+    for (const rows of batchResults) {
+      results.push(...rows);
+    }
+  }
+  return results;
 }
 
 export async function fetchEventInfo(eventId: string) {

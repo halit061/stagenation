@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Search, X, Mail, Phone, ShoppingCart, CheckCircle,
   AlertTriangle, Send, Ban, Shield, ShieldCheck, Save, Loader2, Copy,
-  ChevronDown, ChevronUp, ExternalLink, FileText, Filter,
+  ChevronDown, ChevronUp, ExternalLink, FileText, Filter, Download,
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { callEdgeFunction } from '../lib/callEdge';
@@ -606,39 +606,37 @@ function OrderDetailPanel({
   const serviceFee = Number(order.service_fee_total_cents || 0) / 100;
   const totalEur = order.total_amount / 100;
 
+  const getEventData = useCallback(async () => {
+    const { data } = await supabase
+      .from('events')
+      .select('name, start_date, location, venue_name')
+      .eq('id', order.event_id)
+      .maybeSingle();
+    return data;
+  }, [order.event_id]);
+
+  const mapSeatsForPdf = useCallback((seats: typeof ticketSeats) => {
+    return seats.map(ts => ({
+      row_label: ts.seats?.row_label || '-',
+      seat_number: ts.seats?.seat_number || 0,
+      section_name: ts.seats?.seat_sections?.name || 'Sectie',
+      section_color: ts.seats?.seat_sections?.color || '#64748b',
+      price: Number(ts.price_paid) / 100,
+      ticket_code: ts.ticket_code,
+      qr_data: ts.qr_data,
+      seat_type: ts.seats?.seat_type,
+    }));
+  }, []);
+
   const handleDownloadPdf = useCallback(async () => {
     if (ticketSeats.length === 0) return;
     setPdfGenerating(true);
     try {
-      const { data: eventData } = await supabase
-        .from('events')
-        .select('name, start_date, location, venue_name')
-        .eq('id', order.event_id)
-        .maybeSingle();
-
+      const eventData = await getEventData();
       await generateTicketsPdf(
-        {
-          order_number: order.order_number,
-          payer_name: order.payer_name,
-          payer_email: order.payer_email,
-          verification_code: order.verification_code,
-        },
-        {
-          name: eventData?.name || order.events?.name || 'Event',
-          start_date: eventData?.start_date || '',
-          location: eventData?.location || '',
-          venue_name: eventData?.venue_name || '',
-        },
-        ticketSeats.map(ts => ({
-          row_label: ts.seats?.row_label || '-',
-          seat_number: ts.seats?.seat_number || 0,
-          section_name: ts.seats?.seat_sections?.name || 'Sectie',
-          section_color: ts.seats?.seat_sections?.color || '#64748b',
-          price: Number(ts.price_paid) / 100,
-          ticket_code: ts.ticket_code,
-          qr_data: ts.qr_data,
-          seat_type: ts.seats?.seat_type,
-        })),
+        { order_number: order.order_number, payer_name: order.payer_name, payer_email: order.payer_email, verification_code: order.verification_code },
+        { name: eventData?.name || order.events?.name || 'Event', start_date: eventData?.start_date || '', location: eventData?.location || '', venue_name: eventData?.venue_name || '' },
+        mapSeatsForPdf(ticketSeats),
       );
       showToast('PDF gedownload', 'success');
     } catch {
@@ -646,7 +644,20 @@ function OrderDetailPanel({
     } finally {
       setPdfGenerating(false);
     }
-  }, [order, ticketSeats, showToast]);
+  }, [order, ticketSeats, showToast, getEventData, mapSeatsForPdf]);
+
+  const handleDownloadSinglePdf = useCallback(async (ts: typeof ticketSeats[0]) => {
+    try {
+      const eventData = await getEventData();
+      await generateTicketsPdf(
+        { order_number: order.order_number, payer_name: order.payer_name, payer_email: order.payer_email, verification_code: order.verification_code },
+        { name: eventData?.name || order.events?.name || 'Event', start_date: eventData?.start_date || '', location: eventData?.location || '', venue_name: eventData?.venue_name || '' },
+        mapSeatsForPdf([ts]),
+      );
+    } catch {
+      showToast('PDF genereren mislukt', 'error');
+    }
+  }, [order, showToast, getEventData, mapSeatsForPdf]);
 
   return (
     <div className={`${window.innerWidth < 1280 ? 'fixed inset-0 bg-black/70 z-50 flex items-start justify-end' : 'w-1/2'}`}>
@@ -808,6 +819,7 @@ function OrderDetailPanel({
                         <th className="px-2 py-2 text-right font-medium">Prijs</th>
                         <th className="px-2 py-2 text-left font-medium">Code</th>
                         <th className="px-3 py-2 text-left font-medium">Gescand</th>
+                        <th className="px-2 py-2 text-center font-medium w-8"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-700/30">
@@ -847,6 +859,15 @@ function OrderDetailPanel({
                               ) : (
                                 <span className="text-slate-500">Nee</span>
                               )}
+                            </td>
+                            <td className="px-2 py-2 text-center">
+                              <button
+                                onClick={() => handleDownloadSinglePdf(ts)}
+                                title="Download dit ticket als PDF"
+                                className="p-1 text-slate-500 hover:text-emerald-400 transition-colors"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                              </button>
                             </td>
                           </tr>
                         );

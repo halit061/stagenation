@@ -183,6 +183,143 @@ async function buildTicketPdf(order: any, event: any, tickets: any[]): Promise<s
   return pdfBase64;
 }
 
+async function buildSeatTicketPdf(order: any, event: any, seatTickets: any[]): Promise<string> {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pw = doc.internal.pageSize.getWidth();
+  const margin = 20;
+
+  for (let i = 0; i < seatTickets.length; i++) {
+    if (i > 0) doc.addPage();
+    const ts = seatTickets[i];
+    const sectionName = ts.seats?.seat_sections?.name || '';
+    const rowLabel = ts.seats?.row_label || '-';
+    const seatNumber = String(ts.seats?.seat_number ?? '-');
+    const pricePaid = parseFloat(ts.price_paid || 0).toFixed(2);
+    const ticketCode = ts.ticket_code || '';
+    const seatType = ts.seats?.seat_type || 'regular';
+    let y = 22;
+
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0);
+    doc.text('STAGENATION', pw / 2, y, { align: 'center' });
+    y += 10;
+
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(120);
+    doc.text('TOEGANGSTICKET', pw / 2, y, { align: 'center' });
+    y += 8;
+
+    doc.setDrawColor(200);
+    doc.setLineWidth(0.3);
+    doc.line(margin, y, pw - margin, y);
+    y += 12;
+
+    doc.setTextColor(0);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text(event.name || 'Event', pw / 2, y, { align: 'center' });
+    y += 10;
+
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(80);
+    if (event.start_date) {
+      doc.text(formatDate(event.start_date) + ' - ' + formatTime(event.start_date), pw / 2, y, { align: 'center' });
+      y += 7;
+    }
+    const venue = [event.venue_name, event.location].filter(Boolean).join(', ');
+    if (venue) {
+      doc.text(venue, pw / 2, y, { align: 'center' });
+      y += 10;
+    } else {
+      y += 4;
+    }
+
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(margin + 10, y, pw - margin * 2 - 20, 46, 3, 3);
+
+    const boxLeft = margin + 18;
+    const valLeft = boxLeft + 38;
+    let by = y + 12;
+
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0);
+    doc.text('Sectie:', boxLeft, by);
+    doc.setFont('helvetica', 'normal');
+    doc.text(sectionName, valLeft, by);
+    by += 8;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Rij:', boxLeft, by);
+    doc.setFont('helvetica', 'normal');
+    doc.text(rowLabel, valLeft, by);
+    by += 8;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Stoel:', boxLeft, by);
+    doc.setFont('helvetica', 'normal');
+    doc.text(seatNumber, valLeft, by);
+    by += 8;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Prijs:', boxLeft, by);
+    doc.setFont('helvetica', 'normal');
+    doc.text('EUR ' + pricePaid, valLeft, by);
+
+    if (seatType === 'vip') {
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(180, 120, 0);
+      doc.text('VIP', pw - margin - 18, y + 12);
+      doc.setTextColor(0);
+    }
+
+    y += 54;
+
+    const qrValue = ts.qr_data || ticketCode || ts.id;
+    const qrDataUrl = await QRCode.toDataURL(qrValue, { width: 400, margin: 2 });
+    const qrBase64 = qrDataUrl.split(',')[1];
+    if (qrBase64) {
+      const qrSize = 55;
+      const qrX = (pw - qrSize) / 2;
+      doc.addImage(`data:image/png;base64,${qrBase64}`, 'PNG', qrX, y, qrSize, qrSize);
+      y += qrSize + 6;
+    }
+
+    if (ticketCode) {
+      doc.setFontSize(14);
+      doc.setFont('courier', 'bold');
+      doc.setTextColor(0);
+      doc.text(ticketCode, pw / 2, y, { align: 'center' });
+      y += 12;
+    }
+
+    doc.setDrawColor(200);
+    doc.setLineWidth(0.3);
+    doc.line(margin, y, pw - margin, y);
+    y += 8;
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100);
+    doc.text('Bestelnummer: ' + (order.order_number || ''), pw / 2, y, { align: 'center' });
+    y += 5;
+    doc.text('Naam: ' + (order.payer_name || ''), pw / 2, y, { align: 'center' });
+    y += 8;
+    doc.setFontSize(8);
+    doc.text('Dit ticket is uniek en kan slechts een keer gescand worden.', pw / 2, y, { align: 'center' });
+    y += 5;
+    doc.text('Toon dit ticket bij de ingang op je telefoon of geprint.', pw / 2, y, { align: 'center' });
+  }
+
+  const pdfBase64 = doc.output('datauristring').split(',')[1];
+  return pdfBase64;
+}
+
 async function buildTableReservationEmail(order: any, event: any, tableBookings: any[], brand: any): Promise<string> {
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const logoUrl = event.logo_url
@@ -984,10 +1121,19 @@ Deno.serve(async (req: Request) => {
     }
 
     let pdfAttachments: { filename: string; content: string }[] = [];
-    if (hasTickets && tickets.length > 0) {
+    if (hasSeatTickets && seatTickets.length > 0) {
+      try {
+        const pdfBase64 = await buildSeatTicketPdf(order, event, seatTickets);
+        const filename = `StageNation-Tickets-${order.order_number || 'tickets'}.pdf`;
+        pdfAttachments = [{ filename, content: pdfBase64 }];
+      } catch (pdfErr: any) {
+        console.error('PDF: Seat ticket generation failed, sending without attachment:', pdfErr.message);
+      }
+    } else if (hasTickets && tickets.length > 0) {
       try {
         const pdfBase64 = await buildTicketPdf(order, event, tickets);
-        pdfAttachments = [{ filename: 'tickets.pdf', content: pdfBase64 }];
+        const filename = `StageNation-Tickets-${order.order_number || 'tickets'}.pdf`;
+        pdfAttachments = [{ filename, content: pdfBase64 }];
       } catch (pdfErr: any) {
         console.error('PDF: Generation failed, sending without attachment:', pdfErr.message);
       }
