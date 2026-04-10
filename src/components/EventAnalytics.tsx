@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ArrowLeft, BarChart3 } from 'lucide-react';
 import { LiveSalesCounter } from './LiveSalesCounter';
 import { HourlySalesChart } from './HourlySalesChart';
+import { SalesByCountry } from './SalesByCountry';
 
 interface EventAnalyticsProps {
   events: Array<{ id: string; name: string; start_date: string }>;
@@ -76,6 +77,10 @@ export function EventAnalytics({ events }: EventAnalyticsProps) {
 
         <div className="bg-slate-800/80 backdrop-blur border-2 border-slate-600 rounded-2xl p-6">
           <HourlySalesChart eventId={selectedEventId} />
+        </div>
+
+        <div className="bg-slate-800/80 backdrop-blur border-2 border-slate-600 rounded-2xl p-6">
+          <SalesByCountry eventId={selectedEventId} />
         </div>
       </div>
     </div>
