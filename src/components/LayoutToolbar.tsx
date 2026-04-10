@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Save, Copy, Trash2, FolderOpen, Loader2, AlertTriangle, X, LayoutGrid as Layout, Calendar, ChevronDown } from 'lucide-react';
+import { Save, Copy, Trash2, FolderOpen, Loader2, AlertTriangle, X, LayoutGrid as Layout, Calendar, ChevronDown, Sparkles } from 'lucide-react';
 import type { VenueLayout } from '../types/seats';
 import { getAllLayouts, saveLayout, deleteLayout, duplicateLayout, getEventsList, getLayoutByEvent, getTemplates, copyTemplateForEvent, getLayoutById } from '../services/seatService';
+import { PRESET_TEMPLATES, applyPresetTemplate, type PresetProgress } from '../services/presetTemplates';
 import { sanitizeText, validateLayoutName } from '../lib/validation';
 import { useToast } from './Toast';
 
@@ -45,6 +46,9 @@ export function LayoutToolbar({
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [templateOptions, setTemplateOptions] = useState<VenueLayout[]>([]);
   const [copyingTemplate, setCopyingTemplate] = useState(false);
+  const [showPresetPicker, setShowPresetPicker] = useState(false);
+  const [applyingPreset, setApplyingPreset] = useState(false);
+  const [presetProgress, setPresetProgress] = useState<PresetProgress | null>(null);
 
   const templates = useMemo(() => layouts.filter(l => l.is_template), [layouts]);
   const eventLayouts = useMemo(() => layouts.filter(l => !l.is_template), [layouts]);
@@ -215,6 +219,28 @@ export function LayoutToolbar({
     showToast('Zaalplan gereset', 'info');
   }
 
+  async function handleApplyPreset(presetId: string) {
+    setApplyingPreset(true);
+    setPresetProgress(null);
+    try {
+      const layout = await applyPresetTemplate(
+        presetId,
+        selectedEventId,
+        (p) => setPresetProgress(p),
+      );
+      onLayoutChange(layout);
+      onLayoutNameChange(layout.name);
+      await loadLayouts();
+      setShowPresetPicker(false);
+      const preset = PRESET_TEMPLATES.find(t => t.id === presetId);
+      showToast(`Preset "${preset?.name ?? ''}" aangemaakt met ${preset?.totalSeats ?? 0} stoelen!`, 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Fout bij aanmaken preset', 'error');
+    }
+    setApplyingPreset(false);
+    setPresetProgress(null);
+  }
+
   async function handleLayoutSelect(e: React.ChangeEvent<HTMLSelectElement>) {
     const id = e.target.value;
     if (!id) {
@@ -276,6 +302,17 @@ export function LayoutToolbar({
             >
               {copyingTemplate ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Layout className="w-3.5 h-3.5" />}
               Kies Template
+            </button>
+          )}
+
+          {!currentLayout && PRESET_TEMPLATES.length > 0 && (
+            <button
+              onClick={() => setShowPresetPicker(true)}
+              disabled={applyingPreset}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition-all"
+            >
+              {applyingPreset ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              Preset Zaalplan
             </button>
           )}
         </div>
@@ -386,6 +423,57 @@ export function LayoutToolbar({
               </button>
             ))}
           </div>
+        </ConfirmModal>
+      )}
+
+      {showPresetPicker && (
+        <ConfirmModal
+          title="Preset Zaalplan Laden"
+          onClose={() => { if (!applyingPreset) setShowPresetPicker(false); }}
+          onConfirm={() => {}}
+          confirmLabel=""
+          confirmColor=""
+          hideConfirm
+        >
+          {applyingPreset ? (
+            <div className="py-6 text-center space-y-3">
+              <Loader2 className="w-8 h-8 text-amber-400 animate-spin mx-auto" />
+              <p className="text-white text-sm font-medium">
+                {presetProgress?.step || 'Bezig met aanmaken...'}
+              </p>
+              {presetProgress && (
+                <div className="w-full bg-slate-700 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="bg-amber-500 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${(presetProgress.current / presetProgress.total) * 100}%` }}
+                  />
+                </div>
+              )}
+              <p className="text-slate-400 text-xs">
+                Dit kan even duren vanwege het grote aantal stoelen...
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {PRESET_TEMPLATES.map(preset => (
+                <button
+                  key={preset.id}
+                  onClick={() => handleApplyPreset(preset.id)}
+                  className="w-full flex items-center gap-3 p-4 bg-slate-700/50 hover:bg-slate-700 rounded-lg transition-all text-left group"
+                >
+                  <Sparkles className="w-6 h-6 text-amber-400 flex-shrink-0 group-hover:text-amber-300" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm font-semibold truncate">{preset.name}</p>
+                    <p className="text-slate-400 text-xs mt-0.5">{preset.description}</p>
+                    <p className="text-amber-400/80 text-xs mt-1 font-medium">
+                      {preset.totalSeats.toLocaleString()} stoelen -- {preset.sections.length} secties
+                    </p>
+                  </div>
+                  <ChevronDown className="w-4 h-4 text-slate-400 rotate-[-90deg] group-hover:text-white" />
+                </button>
+              ))}
+            </div>
+          )}
         </ConfirmModal>
       )}
 
