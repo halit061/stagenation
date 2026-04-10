@@ -12,10 +12,7 @@ import {
 } from '../lib/validation';
 import { SvgSeatDotChair } from './SeatIcon';
 
-const PRESET_COLORS = [
-  '#3b82f6', '#ef4444', '#22c55e', '#f59e0b',
-  '#8b5cf6', '#ec4899', '#14b8a6', '#f97316',
-];
+import { SECTION_COLORS, COLOR_CATEGORIES, getColorName } from '../config/sectionColors';
 
 export interface SectionFormData {
   name: string;
@@ -247,24 +244,39 @@ export function SectionConfigModal({
 
             <div>
               <label className={labelCls}>Kleur</label>
-              <div className="flex items-center gap-2 flex-wrap">
-                {PRESET_COLORS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => update('color', c)}
-                    className={`w-8 h-8 rounded-full border-2 transition-all ${
-                      form.color === c ? 'border-white scale-110' : 'border-transparent hover:scale-105'
-                    }`}
-                    style={{ backgroundColor: c }}
-                  />
-                ))}
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-8 h-8 rounded-lg border-2 border-white/30" style={{ backgroundColor: form.color }} />
+                <span className="text-sm text-slate-300">{getColorName(form.color)}</span>
                 <input
                   type="color"
                   value={form.color}
                   onChange={(e) => update('color', e.target.value)}
-                  className="w-8 h-8 rounded-full cursor-pointer bg-transparent border-0"
+                  className="w-7 h-7 rounded cursor-pointer bg-transparent border-0 ml-auto"
+                  title="Kies een eigen kleur"
                 />
+              </div>
+              <div className="space-y-2">
+                {COLOR_CATEGORIES.map((cat) => (
+                  <div key={cat.key}>
+                    <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">{cat.label}</span>
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      {SECTION_COLORS.filter(c => c.category === cat.key).map((c) => (
+                        <button
+                          key={c.hex}
+                          type="button"
+                          onClick={() => update('color', c.hex)}
+                          title={c.name}
+                          className={`w-7 h-7 rounded-md border-2 transition-all ${
+                            form.color.toLowerCase() === c.hex.toLowerCase()
+                              ? 'border-white scale-110 ring-1 ring-white/40'
+                              : 'border-transparent hover:scale-105 hover:border-white/30'
+                          }`}
+                          style={{ backgroundColor: c.hex }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 

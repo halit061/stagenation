@@ -410,6 +410,14 @@ export const SeatPickerMap = memo(function SeatPickerMap({
           <pattern id="seatPickerGrid" width="50" height="50" patternUnits="userSpaceOnUse">
             <path d="M 50 0 L 0 0 0 50" fill="none" stroke="rgba(51,65,85,0.15)" strokeWidth="0.5" />
           </pattern>
+          <filter id="stageGlow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur" />
+            <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.23  0 0 0 0 0.51  0 0 0 0 0.93  0 0 0 0.4 0" result="glow" />
+            <feMerge>
+              <feMergeNode in="glow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
         </defs>
 
         <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
@@ -462,25 +470,30 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                     </text>
                   </>
                 ) : isStage ? (
-                  <>
+                  <g filter="url(#stageGlow)">
                     <rect
                       x={ox} y={oy} width={ow} height={oh}
                       fill={obj.color || '#1e40af'}
-                      stroke="rgba(59,130,246,0.5)"
-                      strokeWidth={2} rx={6}
-                      opacity={0.9}
+                      stroke="rgba(59,130,246,0.7)"
+                      strokeWidth={2.5} rx={8}
+                      opacity={0.95}
+                    />
+                    <line
+                      x1={ox + 12} y1={oy + oh - 1}
+                      x2={ox + ow - 12} y2={oy + oh - 1}
+                      stroke="rgba(59,130,246,0.5)" strokeWidth={3} strokeLinecap="round"
                     />
                     <text
                       x={ox + ow / 2} y={oy + oh / 2}
                       textAnchor="middle" dominantBaseline="central"
                       fill={obj.font_color || '#fff'}
-                      fontSize={obj.font_size || 18}
+                      fontSize={obj.font_size || 20}
                       fontWeight={obj.font_weight || 'bold'}
-                      letterSpacing="0.15em"
+                      letterSpacing="0.2em"
                     >
                       {displayName.toUpperCase()}
                     </text>
-                  </>
+                  </g>
                 ) : (
                   <>
                     <rect
@@ -513,6 +526,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
             const rowLabels = rowLabelsBySection.get(section.id) || [];
             const color = section.color || '#3b82f6';
             const isFocused = focusedSectionId === section.id;
+            const isTribune = section.section_type === 'tribune';
 
             return (
               <g key={section.id} style={getSectionTransform(section.id)}>
@@ -522,9 +536,10 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                   width={section.width}
                   height={section.height}
                   rx={6}
-                  fill={isRestricted ? 'rgba(30,41,59,0.6)' : hexToRgba(color, 0.1)}
-                  stroke={isRestricted ? 'rgba(100,116,139,0.2)' : isFocused ? hexToRgba(color, 0.6) : hexToRgba(color, 0.3)}
-                  strokeWidth={isFocused ? 2 : 1}
+                  fill={isRestricted ? 'rgba(30,41,59,0.6)' : hexToRgba(color, 0.18)}
+                  stroke={isRestricted ? 'rgba(100,116,139,0.2)' : isFocused ? hexToRgba(color, 0.8) : hexToRgba(color, 0.5)}
+                  strokeWidth={isFocused ? 2.5 : 1.5}
+                  strokeDasharray={isTribune ? 'none' : '8 4'}
                   style={{
                     cursor: isRestricted ? 'not-allowed' : 'pointer',
                     pointerEvents: 'all',
@@ -541,7 +556,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                   width={section.width}
                   height={HEADER_H}
                   rx={6}
-                  fill={isRestricted ? 'rgba(100,116,139,0.15)' : hexToRgba(color, 0.2)}
+                  fill={isRestricted ? 'rgba(100,116,139,0.15)' : hexToRgba(color, 0.35)}
                   style={{ pointerEvents: 'none' }}
                 />
                 <rect
@@ -549,25 +564,25 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                   y={section.position_y + HEADER_H - 6}
                   width={section.width}
                   height={6}
-                  fill={isRestricted ? 'rgba(100,116,139,0.15)' : hexToRgba(color, 0.2)}
+                  fill={isRestricted ? 'rgba(100,116,139,0.15)' : hexToRgba(color, 0.35)}
                   style={{ pointerEvents: 'none' }}
                 />
 
                 <text
                   x={section.position_x + 8}
                   y={section.position_y + 16}
-                  fill="rgba(255,255,255,0.7)"
+                  fill="rgba(255,255,255,0.95)"
                   fontSize="12"
                   fontWeight="bold"
                   style={{ pointerEvents: 'none' }}
                 >
-                  {section.name}
+                  {section.section_type === 'tribune' ? 'T' : 'P'} {section.name}
                 </text>
                 <text
                   x={section.position_x + section.width - 8}
                   y={section.position_y + 16}
                   textAnchor="end"
-                  fill="rgba(255,255,255,0.45)"
+                  fill="rgba(255,255,255,0.65)"
                   fontSize="10"
                   style={{ pointerEvents: 'none' }}
                 >
@@ -605,18 +620,19 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                   <>
                     <rect
                       x={section.position_x}
-                      y={section.position_y + section.height - 20}
+                      y={section.position_y + section.height - 22}
                       width={section.width}
-                      height={20}
-                      fill={hexToRgba(color, 0.15)}
+                      height={22}
+                      fill={hexToRgba(color, 0.25)}
                       rx={0}
                       style={{ pointerEvents: 'none' }}
                     />
                     <text
                       x={section.position_x + 8}
-                      y={section.position_y + section.height - 6}
-                      fill="rgba(255,255,255,0.5)"
+                      y={section.position_y + section.height - 7}
+                      fill="rgba(255,255,255,0.75)"
                       fontSize="10"
+                      fontWeight="600"
                       style={{ pointerEvents: 'none' }}
                     >
                       {section.price_category} — EUR {Number(section.price_amount).toFixed(2)}
@@ -631,7 +647,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                     y={rl.y}
                     textAnchor="end"
                     dominantBaseline="central"
-                    fill="rgba(255,255,255,0.4)"
+                    fill="rgba(255,255,255,0.6)"
                     fontSize={9}
                     fontWeight={600}
                     style={{ pointerEvents: 'none' }}

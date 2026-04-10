@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
-import { Copy, Trash2, RefreshCw, Pencil, Maximize, Ticket, RotateCw } from 'lucide-react';
+import { Copy, Trash2, RefreshCw, Pencil, Maximize, Ticket, RotateCw, Palette } from 'lucide-react';
 import type { SeatSection, Seat, SeatStatus, TicketType } from '../types/seats';
+import { SECTION_COLORS, COLOR_CATEGORIES, getColorName } from '../config/sectionColors';
 
 const labelCls = 'block text-slate-400 text-xs font-medium mb-1';
 
@@ -20,10 +21,11 @@ interface Props {
   onDelete: (section: SeatSection) => void;
   onAutoFit?: (section: SeatSection) => void;
   onRotate?: (angle: number) => void;
+  onColorChange?: (color: string) => void;
   linkedTicketTypes?: TicketType[];
 }
 
-export function SectionPropertiesPanel({ section, seats, onEdit, onRegenerate, onDuplicate, onDelete, onAutoFit, onRotate, linkedTicketTypes = [] }: Props) {
+export function SectionPropertiesPanel({ section, seats, onEdit, onRegenerate, onDuplicate, onDelete, onAutoFit, onRotate, onColorChange, linkedTicketTypes = [] }: Props) {
   const stats = useMemo(() => {
     const total = seats.length;
     const available = seats.filter((s) => s.status === 'available').length;
@@ -114,11 +116,33 @@ export function SectionPropertiesPanel({ section, seats, onEdit, onRegenerate, o
           </div>
         )}
         <div>
-          <label className={labelCls}>Kleur</label>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded" style={{ backgroundColor: section.color }} />
-            <span className="text-slate-400 text-xs">{section.color}</span>
+          <label className={labelCls}>
+            <span className="flex items-center gap-1">
+              <Palette className="w-3 h-3" />
+              Kleur
+            </span>
+          </label>
+          <div className="flex items-center gap-2 mb-1.5">
+            <div className="w-6 h-6 rounded-md border border-white/20" style={{ backgroundColor: section.color }} />
+            <span className="text-white text-xs font-medium">{getColorName(section.color)}</span>
           </div>
+          {onColorChange && (
+            <div className="flex items-center gap-1 flex-wrap">
+              {SECTION_COLORS.slice(0, 10).map((c) => (
+                <button
+                  key={c.hex}
+                  onClick={() => onColorChange(c.hex)}
+                  title={c.name}
+                  className={`w-5 h-5 rounded transition-all ${
+                    section.color.toLowerCase() === c.hex.toLowerCase()
+                      ? 'ring-2 ring-white scale-110'
+                      : 'hover:scale-110 hover:ring-1 hover:ring-white/40'
+                  }`}
+                  style={{ backgroundColor: c.hex }}
+                />
+              ))}
+            </div>
+          )}
         </div>
         <div>
           <label className={labelCls}>Positie</label>

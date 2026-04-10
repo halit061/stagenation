@@ -763,6 +763,19 @@ export function FloorPlanEditor() {
     }
   }
 
+  async function handleSectionColorChange(color: string) {
+    if (!selectedItem || selectedItem.type !== 'section') return;
+    const section = selectedItem.data as SeatSection;
+    const updated = { ...section, color };
+    setSeatSections(prev => prev.map(s => s.id === section.id ? updated : s));
+    setSelectedItem({ type: 'section', data: updated });
+    try {
+      await updateSection(section.id, { color });
+    } catch {
+      showToast('Kleur wijzigen mislukt', 'error');
+    }
+  }
+
   async function handleDeleteSection(section: SeatSection) {
     setContextMenu(null);
     if (!currentLayout) return;
@@ -1061,7 +1074,8 @@ export function FloorPlanEditor() {
       TRIBUNE: { width: 250, height: 80 },
     };
     const sz = sizeMap[objectType] ?? { width: 120, height: 80 };
-    const defaultName = objectType === 'TRIBUNE' ? 'Tribune' : objectType.replace(/_/g, ' ');
+    const nameMap: Record<string, string> = { STAGE: 'PODIUM', TRIBUNE: 'Tribune' };
+    const defaultName = nameMap[objectType] || objectType.replace(/_/g, ' ');
     const { data: newObj, error } = await supabase
       .from('floorplan_objects')
       .insert({
@@ -1990,6 +2004,7 @@ export function FloorPlanEditor() {
                   onDelete={handleDeleteSection}
                   onAutoFit={autoFitSectionToSeats}
                   onRotate={handleRotateItem}
+                  onColorChange={handleSectionColorChange}
                   linkedTicketTypes={
                     selectedEventId
                       ? eventTicketTypes.filter(tt => (sectionTicketLinks[(selectedItem.data as SeatSection).id] || []).includes(tt.id))
@@ -2509,6 +2524,7 @@ function ObjectProperties({ object, onUpdate, onSave }: {
   onUpdate: (updates: Partial<FloorplanObject>) => void;
   onSave: () => void;
 }) {
+  const isStageType = (object.type || object.object_type || '').toUpperCase() === 'STAGE';
   return (
     <div className="space-y-2.5 text-sm">
       <Field label="Naam / Label">
@@ -2566,12 +2582,20 @@ function ObjectProperties({ object, onUpdate, onSave }: {
       </div>
 
       <div>
-        <label className={labelCls}>Positie & Grootte</label>
+        <label className={labelCls}>Positie & Afmetingen</label>
         <div className="grid grid-cols-2 gap-1.5">
-          {([['X', 'x'], ['Y', 'y'], ['Breedte', 'width'], ['Hoogte', 'height']] as const).map(([ph, key]) => (
-            <input key={key} type="number" placeholder={ph} value={Math.round((object as any)[key])}
-              onChange={(e) => onUpdate({ [key]: parseInt(e.target.value) || 0 } as any)}
-              onBlur={onSave} className={inputCls} />
+          {([
+            ['X', 'x'],
+            ['Y', 'y'],
+            [isStageType ? 'Breedte (podium)' : 'Breedte', 'width'],
+            [isStageType ? 'Diepte (podium)' : 'Hoogte', 'height'],
+          ] as [string, string][]).map(([ph, key]) => (
+            <div key={key}>
+              <span className="text-[10px] text-slate-500">{ph}</span>
+              <input type="number" placeholder={ph} value={Math.round((object as any)[key])}
+                onChange={(e) => onUpdate({ [key]: parseInt(e.target.value) || 0 } as any)}
+                onBlur={onSave} className={inputCls} />
+            </div>
           ))}
         </div>
       </div>
