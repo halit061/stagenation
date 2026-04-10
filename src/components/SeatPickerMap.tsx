@@ -10,9 +10,9 @@ import { getColorCategory } from '../config/sectionColors';
 
 const HEADER_H = 28;
 const SEAT_SIZE_PRESETS = [
-  { size: 64, label: 'M' },
-  { size: 76, label: 'L' },
-  { size: 88, label: 'XL' },
+  { size: 56, label: 'M' },
+  { size: 68, label: 'L' },
+  { size: 80, label: 'XL' },
 ];
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 5;
@@ -487,39 +487,72 @@ export const SeatPickerMap = memo(function SeatPickerMap({
         style={{ cursor: isDragging.current ? 'grabbing' : 'grab' }}
       >
         <defs>
-          <pattern id="seatPickerGrid" width="50" height="50" patternUnits="userSpaceOnUse">
-            <path d="M 50 0 L 0 0 0 50" fill="none" stroke="rgba(51,65,85,0.08)" strokeWidth="0.5" />
+          <radialGradient id="venueSpotlight" cx="50%" cy="30%" r="65%" fx="50%" fy="25%">
+            <stop offset="0%" stopColor="#1e293b" stopOpacity="1" />
+            <stop offset="35%" stopColor="#131c2e" stopOpacity="1" />
+            <stop offset="70%" stopColor="#0b1120" stopOpacity="1" />
+            <stop offset="100%" stopColor="#060a14" stopOpacity="1" />
+          </radialGradient>
+
+          <radialGradient id="venueVignette" cx="50%" cy="50%" r="70%">
+            <stop offset="0%" stopColor="transparent" stopOpacity="0" />
+            <stop offset="65%" stopColor="#000" stopOpacity="0" />
+            <stop offset="100%" stopColor="#000" stopOpacity="0.6" />
+          </radialGradient>
+
+          <radialGradient id="stageSpill" cx="50%" cy="0%" r="100%" fx="50%" fy="0%">
+            <stop offset="0%" stopColor="#1e3a5f" stopOpacity="0.25" />
+            <stop offset="40%" stopColor="#0f2440" stopOpacity="0.1" />
+            <stop offset="100%" stopColor="transparent" stopOpacity="0" />
+          </radialGradient>
+
+          <pattern id="venueFloorNoise" width="200" height="200" patternUnits="userSpaceOnUse">
+            <rect width="200" height="200" fill="transparent" />
+            <circle cx="30" cy="40" r="0.6" fill="rgba(148,163,184,0.04)" />
+            <circle cx="90" cy="20" r="0.5" fill="rgba(148,163,184,0.03)" />
+            <circle cx="150" cy="60" r="0.7" fill="rgba(148,163,184,0.04)" />
+            <circle cx="50" cy="120" r="0.5" fill="rgba(148,163,184,0.03)" />
+            <circle cx="170" cy="140" r="0.6" fill="rgba(148,163,184,0.04)" />
+            <circle cx="110" cy="100" r="0.4" fill="rgba(148,163,184,0.03)" />
+            <circle cx="20" cy="180" r="0.5" fill="rgba(148,163,184,0.04)" />
+            <circle cx="130" cy="170" r="0.6" fill="rgba(148,163,184,0.03)" />
           </pattern>
 
-          <filter id="sectionShadow" x="-12%" y="-12%" width="135%" height="145%">
-            <feDropShadow dx="0" dy="6" stdDeviation="10" floodColor="rgba(0,0,0,0.55)" floodOpacity="0.55" />
+          <filter id="sectionShadow" x="-15%" y="-10%" width="140%" height="145%">
+            <feDropShadow dx="0" dy="8" stdDeviation="12" floodColor="rgba(0,0,0,0.7)" floodOpacity="0.7" />
           </filter>
 
-          <filter id="sectionShadowHover" x="-15%" y="-15%" width="140%" height="150%">
-            <feDropShadow dx="0" dy="8" stdDeviation="16" floodColor="rgba(0,0,0,0.65)" floodOpacity="0.65" />
+          <filter id="sectionShadowHover" x="-18%" y="-12%" width="145%" height="150%">
+            <feDropShadow dx="0" dy="10" stdDeviation="18" floodColor="rgba(0,0,0,0.8)" floodOpacity="0.8" />
           </filter>
 
-          <filter id="vipGlow" x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="12" result="blur" />
-            <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.85  0 0 0 0 0.7  0 0 0 0 0.15  0 0 0 0.55 0" result="glow" />
+          <filter id="sectionInnerLight" x="-5%" y="-5%" width="110%" height="110%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="blur" />
+            <feOffset in="blur" dx="0" dy="2" result="offsetBlur" />
+            <feComposite in="SourceGraphic" in2="offsetBlur" operator="over" />
+          </filter>
+
+          <filter id="vipGlow" x="-35%" y="-35%" width="170%" height="170%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="14" result="blur" />
+            <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.85  0 0 0 0 0.7  0 0 0 0 0.15  0 0 0 0.6 0" result="glow" />
             <feMerge>
               <feMergeNode in="glow" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
 
-          <filter id="premiumGlow" x="-25%" y="-25%" width="150%" height="150%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur" />
-            <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.18  0 0 0 0 0.4  0 0 0 0 0.92  0 0 0 0.4 0" result="glow" />
-            <feMerge>
-              <feMergeNode in="glow" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-
-          <filter id="podiumGlow" x="-25%" y="-25%" width="150%" height="150%">
+          <filter id="premiumGlow" x="-28%" y="-28%" width="156%" height="156%">
             <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur" />
-            <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.15  0 0 0 0 0.30  0 0 0 0 0.85  0 0 0 0.35 0" result="glow" />
+            <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.2  0 0 0 0 0.45  0 0 0 0 0.95  0 0 0 0.45 0" result="glow" />
+            <feMerge>
+              <feMergeNode in="glow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+
+          <filter id="stageGlow" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="18" result="blur" />
+            <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.12  0 0 0 0 0.25  0 0 0 0 0.65  0 0 0 0.5 0" result="glow" />
             <feMerge>
               <feMergeNode in="glow" />
               <feMergeNode in="SourceGraphic" />
@@ -527,40 +560,81 @@ export const SeatPickerMap = memo(function SeatPickerMap({
           </filter>
 
           <filter id="seatShadow" x="-20%" y="-20%" width="140%" height="150%">
-            <feDropShadow dx="0" dy="1" stdDeviation="1.5" floodColor="rgba(0,0,0,0.25)" floodOpacity="0.25" />
+            <feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="rgba(0,0,0,0.2)" floodOpacity="0.2" />
           </filter>
 
           <linearGradient id="podiumGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#0f172a" />
-            <stop offset="40%" stopColor="#1e293b" />
-            <stop offset="100%" stopColor="#0c1629" />
+            <stop offset="0%" stopColor="#172240" />
+            <stop offset="30%" stopColor="#1e3050" />
+            <stop offset="70%" stopColor="#162844" />
+            <stop offset="100%" stopColor="#0d1a30" />
+          </linearGradient>
+
+          <linearGradient id="podiumEdgeTop" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="rgba(100,160,255,0.35)" />
+            <stop offset="100%" stopColor="rgba(100,160,255,0)" />
+          </linearGradient>
+
+          <linearGradient id="podiumEdgeBottom" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="rgba(59,130,246,0)" />
+            <stop offset="100%" stopColor="rgba(59,130,246,0.6)" />
           </linearGradient>
 
           {gradientDefs.map(g => (
             <linearGradient key={g.id} id={`secGrad-${g.id}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={g.topColor} stopOpacity={g.topAlpha} />
-              <stop offset="50%" stopColor={g.midColor} stopOpacity={g.midAlpha} />
+              <stop offset="45%" stopColor={g.midColor} stopOpacity={g.midAlpha} />
               <stop offset="100%" stopColor={g.bottomColor} stopOpacity={g.bottomAlpha} />
             </linearGradient>
           ))}
 
           {gradientDefs.map(g => (
             <linearGradient key={`h-${g.id}`} id={`secHeaderGrad-${g.id}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={lighten(g.color, 0.35)} stopOpacity={0.85} />
-              <stop offset="100%" stopColor={g.topColor} stopOpacity={0.55} />
+              <stop offset="0%" stopColor={lighten(g.color, 0.4)} stopOpacity={0.9} />
+              <stop offset="100%" stopColor={g.topColor} stopOpacity={0.5} />
+            </linearGradient>
+          ))}
+
+          {gradientDefs.map(g => (
+            <linearGradient key={`bs-${g.id}`} id={`secBottomShadow-${g.id}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="transparent" stopOpacity="0" />
+              <stop offset="100%" stopColor="rgba(0,0,0,0.4)" stopOpacity="1" />
             </linearGradient>
           ))}
         </defs>
 
         <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
           {bounds.minX !== Infinity && (
-            <rect
-              x={bounds.minX - 200}
-              y={bounds.minY - 200}
-              width={bounds.maxX - bounds.minX + 400}
-              height={bounds.maxY - bounds.minY + 400}
-              fill="url(#seatPickerGrid)"
-            />
+            <>
+              <rect
+                x={bounds.minX - 400}
+                y={bounds.minY - 400}
+                width={bounds.maxX - bounds.minX + 800}
+                height={bounds.maxY - bounds.minY + 800}
+                fill="url(#venueSpotlight)"
+              />
+              <rect
+                x={bounds.minX - 400}
+                y={bounds.minY - 400}
+                width={bounds.maxX - bounds.minX + 800}
+                height={bounds.maxY - bounds.minY + 800}
+                fill="url(#venueFloorNoise)"
+              />
+              <rect
+                x={bounds.minX - 400}
+                y={bounds.minY - 400}
+                width={bounds.maxX - bounds.minX + 800}
+                height={bounds.maxY - bounds.minY + 800}
+                fill="url(#stageSpill)"
+              />
+              <rect
+                x={bounds.minX - 400}
+                y={bounds.minY - 400}
+                width={bounds.maxX - bounds.minX + 800}
+                height={bounds.maxY - bounds.minY + 800}
+                fill="url(#venueVignette)"
+              />
+            </>
           )}
 
           {floorplanObjects.map(obj => {
@@ -602,39 +676,50 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                     </text>
                   </>
                 ) : isStage ? (
-                  <g filter="url(#podiumGlow)">
+                  <g filter="url(#stageGlow)">
                     <rect
                       x={ox} y={oy} width={ow} height={oh}
                       fill="url(#podiumGrad)"
-                      stroke="rgba(59,130,246,0.5)"
-                      strokeWidth={2} rx={10}
+                      stroke="rgba(80,140,240,0.55)"
+                      strokeWidth={2.5} rx={14}
                     />
                     <rect
-                      x={ox + 1} y={oy + 1} width={ow - 2} height={oh * 0.15}
-                      rx={9}
-                      fill="rgba(148,163,184,0.08)"
+                      x={ox + 2} y={oy + 2} width={ow - 4} height={6}
+                      rx={12}
+                      fill="url(#podiumEdgeTop)"
+                    />
+                    <rect
+                      x={ox + 2} y={oy + oh - 8} width={ow - 4} height={6}
+                      rx={3}
+                      fill="url(#podiumEdgeBottom)"
                     />
                     <line
-                      x1={ox + 16} y1={oy + oh - 2}
-                      x2={ox + ow - 16} y2={oy + oh - 2}
-                      stroke="rgba(59,130,246,0.4)" strokeWidth={2.5} strokeLinecap="round"
+                      x1={ox + 20} y1={oy + oh - 1}
+                      x2={ox + ow - 20} y2={oy + oh - 1}
+                      stroke="rgba(59,130,246,0.7)" strokeWidth={3} strokeLinecap="round"
+                    />
+                    <rect
+                      x={ox + ow * 0.2} y={oy + oh + 2}
+                      width={ow * 0.6} height={40}
+                      fill="rgba(30,80,180,0.08)"
+                      rx={20}
                     />
                     <text
-                      x={ox + ow / 2} y={oy + oh / 2 - 2}
+                      x={ox + ow / 2} y={oy + oh / 2 - 4}
                       textAnchor="middle" dominantBaseline="central"
-                      fill={obj.font_color || '#e2e8f0'}
-                      fontSize={obj.font_size || 22}
+                      fill={obj.font_color || '#cbd5e1'}
+                      fontSize={obj.font_size || 26}
                       fontWeight={obj.font_weight || 'bold'}
-                      letterSpacing="0.25em"
+                      letterSpacing="0.3em"
                     >
                       {displayName.toUpperCase()}
                     </text>
                     <text
-                      x={ox + ow / 2} y={oy + oh / 2 + 16}
+                      x={ox + ow / 2} y={oy + oh / 2 + 18}
                       textAnchor="middle" dominantBaseline="central"
-                      fill="rgba(148,163,184,0.5)"
-                      fontSize={9}
-                      letterSpacing="0.3em"
+                      fill="rgba(148,163,184,0.45)"
+                      fontSize={10}
+                      letterSpacing="0.35em"
                     >
                       MAIN STAGE
                     </text>
@@ -644,9 +729,9 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                     <rect
                       x={ox} y={oy} width={ow} height={oh}
                       fill={obj.color || '#6b7280'}
-                      stroke={isDancefloor ? 'rgba(71,85,105,0.3)' : 'rgba(71,85,105,0.5)'}
-                      strokeWidth={1} rx={6}
-                      opacity={isDancefloor ? 0.3 : 0.85}
+                      stroke={isDancefloor ? 'rgba(71,85,105,0.25)' : 'rgba(71,85,105,0.45)'}
+                      strokeWidth={1} rx={8}
+                      opacity={isDancefloor ? 0.25 : 0.8}
                     />
                     <text
                       x={ox + ow / 2} y={oy + oh / 2}
@@ -655,7 +740,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                       fontSize={obj.font_size || (isDancefloor ? 14 : 16)}
                       fontWeight={obj.font_weight || 'bold'}
                       letterSpacing="0.05em"
-                      opacity={isDancefloor ? 0.6 : 0.9}
+                      opacity={isDancefloor ? 0.5 : 0.85}
                     >
                       {displayName.toUpperCase()}
                     </text>
@@ -708,6 +793,18 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                 onPointerEnter={() => !isRestricted && setHoveredSectionId(section.id)}
                 onPointerLeave={() => setHoveredSectionId(null)}
               >
+                {!isRestricted && (
+                  <rect
+                    x={section.position_x + 4}
+                    y={section.position_y + section.height - 2}
+                    width={section.width - 8}
+                    height={10}
+                    rx={5}
+                    fill="rgba(0,0,0,0.35)"
+                    style={{ pointerEvents: 'none', filter: 'blur(6px)' }}
+                  />
+                )}
+
                 <g filter={combinedFilter}>
                   <rect
                     x={section.position_x}
@@ -732,12 +829,25 @@ export const SeatPickerMap = memo(function SeatPickerMap({
 
                 {!isRestricted && (
                   <rect
-                    x={section.position_x + 1}
+                    x={section.position_x + 2}
                     y={section.position_y + 1}
-                    width={section.width - 2}
-                    height={Math.min(section.height * 0.08, 8)}
-                    rx={11}
-                    fill="rgba(255,255,255,0.12)"
+                    width={section.width - 4}
+                    height={4}
+                    rx={2}
+                    fill="rgba(255,255,255,0.15)"
+                    style={{ pointerEvents: 'none' }}
+                  />
+                )}
+
+                {!isRestricted && (
+                  <rect
+                    x={section.position_x}
+                    y={section.position_y + section.height - 14}
+                    width={section.width}
+                    height={14}
+                    rx={0}
+                    fill={`url(#secBottomShadow-${section.id})`}
+                    clipPath={`inset(0 0 0 0 round 0 0 12px 12px)`}
                     style={{ pointerEvents: 'none' }}
                   />
                 )}
@@ -761,11 +871,11 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                 />
                 {!isRestricted && (
                   <line
-                    x1={section.position_x + 6}
+                    x1={section.position_x + 8}
                     y1={section.position_y + HEADER_H}
-                    x2={section.position_x + section.width - 6}
+                    x2={section.position_x + section.width - 8}
                     y2={section.position_y + HEADER_H}
-                    stroke={hexToRgba(color, 0.25)}
+                    stroke={hexToRgba(color, 0.2)}
                     strokeWidth={0.5}
                   />
                 )}
@@ -912,36 +1022,36 @@ export const SeatPickerMap = memo(function SeatPickerMap({
 
                   if (isRestricted) {
                     fillColor = '#374151';
-                    fillOpacity = 0.12;
+                    fillOpacity = 0.1;
                   } else if (isSelected) {
                     fillColor = '#3b82f6';
                     fillOpacity = 1;
                     strokeColor = '#93c5fd';
-                    strokeW = 2;
+                    strokeW = 1.5;
                   } else if (isSold) {
                     fillColor = '#1e293b';
-                    fillOpacity = 0.45;
+                    fillOpacity = 0.35;
                   } else if (isReservedSeat) {
                     fillColor = '#f59e0b';
-                    fillOpacity = 0.75;
+                    fillOpacity = 0.7;
                     strokeColor = '#fbbf24';
-                    strokeW = 0.6;
+                    strokeW = 0.5;
                   } else if (isBlocked) {
                     fillColor = '#475569';
-                    fillOpacity = 0.2;
+                    fillOpacity = 0.15;
                   } else if (isAvailable) {
-                    fillColor = isHoveredSeat ? '#e2e8f0' : '#e2e8f0';
-                    fillOpacity = isHoveredSeat ? 0.85 : 0.65;
-                    strokeColor = '#94a3b8';
-                    strokeW = 0.5;
+                    fillColor = isHoveredSeat ? '#cbd5e1' : '#94a3b8';
+                    fillOpacity = isHoveredSeat ? 0.75 : 0.45;
+                    strokeColor = '#64748b';
+                    strokeW = 0.4;
                   } else {
-                    fillColor = '#e2e8f0';
-                    fillOpacity = 0.6;
-                    strokeColor = '#94a3b8';
-                    strokeW = 0.5;
+                    fillColor = '#94a3b8';
+                    fillOpacity = 0.4;
+                    strokeColor = '#64748b';
+                    strokeW = 0.4;
                   }
 
-                  const currentSize = isHoveredSeat && !isRestricted ? SEAT_CHAIR_SIZE * 1.08 : SEAT_CHAIR_SIZE;
+                  const currentSize = isHoveredSeat && !isRestricted ? SEAT_CHAIR_SIZE * 1.06 : SEAT_CHAIR_SIZE;
                   const clickable = !isRestricted && (isAvailable || isSelected);
 
                   return (
