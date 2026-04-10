@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Ticket, DollarSign, TrendingUp, RefreshCw } from 'lucide-react';
+import { Ticket, DollarSign, TrendingUp, RefreshCw, Receipt, Percent, Wallet } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
 interface LiveSalesCounterProps {
@@ -13,11 +13,22 @@ interface SalesData {
   totalTicketsRemaining: number;
 }
 
+interface FinancialBreakdown {
+  ticketIncomeCents: number;
+  serviceFeeCents: number;
+  netRevenueCents: number;
+}
+
 export function LiveSalesCounter({ eventId, eventName }: LiveSalesCounterProps) {
   const [sales, setSales] = useState<SalesData>({
     totalTicketsSold: 0,
     totalRevenueCents: 0,
     totalTicketsRemaining: 0,
+  });
+  const [breakdown, setBreakdown] = useState<FinancialBreakdown>({
+    ticketIncomeCents: 0,
+    serviceFeeCents: 0,
+    netRevenueCents: 0,
   });
   const [loading, setLoading] = useState(true);
   const [pulse, setPulse] = useState(false);
@@ -63,6 +74,23 @@ export function LiveSalesCounter({ eventId, eventName }: LiveSalesCounterProps) 
         totalRevenueCents,
         totalTicketsRemaining: totalCapacity - totalTicketsSold,
       });
+
+      const { data: breakdownOrders } = await supabase
+        .from('orders')
+        .select('total_amount, service_fee_total_cents, net_revenue_cents')
+        .eq('event_id', eventId)
+        .in('status', ['paid', 'comped']);
+
+      if (breakdownOrders) {
+        const totalAmount = breakdownOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+        const serviceFee = breakdownOrders.reduce((sum, o) => sum + (o.service_fee_total_cents || 0), 0);
+        const netRevenue = breakdownOrders.reduce((sum, o) => sum + (o.net_revenue_cents || 0), 0);
+        setBreakdown({
+          ticketIncomeCents: totalAmount - serviceFee,
+          serviceFeeCents: serviceFee,
+          netRevenueCents: netRevenue,
+        });
+      }
     } catch (error) {
       console.error('Error fetching sales data:', error);
     } finally {
@@ -166,6 +194,38 @@ export function LiveSalesCounter({ eventId, eventName }: LiveSalesCounterProps) 
           </div>
           <div className="text-3xl font-bold text-white">{sales.totalTicketsRemaining}</div>
           <div className="text-sm text-slate-400 mt-1">tickets beschikbaar</div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+        <div className="bg-slate-700/40 border border-slate-600/40 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-2">
+            <Receipt className="w-5 h-5 text-blue-400" />
+            <span className="text-[10px] text-slate-500 uppercase tracking-wider">Ticket inkomsten</span>
+          </div>
+          <div className="text-xl font-bold text-white">
+            {'\u20AC'}{(breakdown.ticketIncomeCents / 100).toFixed(2)}
+          </div>
+        </div>
+
+        <div className="bg-slate-700/40 border border-slate-600/40 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-2">
+            <Percent className="w-5 h-5 text-orange-400" />
+            <span className="text-[10px] text-slate-500 uppercase tracking-wider">Service fee</span>
+          </div>
+          <div className="text-xl font-bold text-white">
+            {'\u20AC'}{(breakdown.serviceFeeCents / 100).toFixed(2)}
+          </div>
+        </div>
+
+        <div className="bg-slate-700/40 border border-slate-600/40 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-2">
+            <Wallet className="w-5 h-5 text-emerald-400" />
+            <span className="text-[10px] text-slate-500 uppercase tracking-wider">Netto inkomsten</span>
+          </div>
+          <div className="text-xl font-bold text-white">
+            {'\u20AC'}{(breakdown.netRevenueCents / 100).toFixed(2)}
+          </div>
         </div>
       </div>
     </div>
