@@ -21,7 +21,11 @@ interface ScanResult {
   details?: {
     holder_name?: string;
     ticket_number?: string;
+    ticket_code?: string;
     event_name?: string;
+    section_name?: string;
+    row_label?: string;
+    seat_number?: number;
     guest_name?: string;
     table_number?: string;
     table_name?: string;
@@ -367,6 +371,24 @@ async function scanRegularTicket(
 
   const isTableTicket = ticket.product_type === 'TABLE' || ticket.table_guest_id || ticket.table_booking_id;
 
+  let seatInfo: { ticket_code?: string; section_name?: string; row_label?: string; seat_number?: number } = {};
+  try {
+    const { data: tsRow } = await supabase
+      .from("ticket_seats")
+      .select("ticket_code, seats!inner(row_label, seat_number, seat_sections(name))")
+      .eq("ticket_id", ticket.id)
+      .limit(1)
+      .maybeSingle();
+    if (tsRow) {
+      seatInfo = {
+        ticket_code: tsRow.ticket_code || undefined,
+        section_name: tsRow.seats?.seat_sections?.name || undefined,
+        row_label: tsRow.seats?.row_label || undefined,
+        seat_number: tsRow.seats?.seat_number || undefined,
+      };
+    }
+  } catch {}
+
   if (ticket.status === "used") {
     return {
       status: "ALREADY_USED",
@@ -381,6 +403,7 @@ async function scanRegularTicket(
         event_name: ticket.events.name,
         table_number: ticket.floorplan_tables?.table_number,
         table_type: ticket.floorplan_tables?.table_type,
+        ...seatInfo,
       },
     };
   }
@@ -388,7 +411,6 @@ async function scanRegularTicket(
   if (ticket.status === "valid") {
     const usedAt = new Date().toISOString();
 
-    // Mark as used
     const { error: updateError } = await supabase
       .from("tickets")
       .update({
@@ -407,7 +429,6 @@ async function scanRegularTicket(
       };
     }
 
-    // Log scan
     await supabase.from("scans").insert({
       ticket_id: ticket.id,
       scanner_id: scanner_user_id || null,
@@ -415,7 +436,6 @@ async function scanRegularTicket(
       result: "valid",
       device_info: device_info || {},
     });
-
 
     const isTableTicket = ticket.product_type === 'TABLE' || ticket.table_guest_id || ticket.table_booking_id;
 
@@ -432,6 +452,7 @@ async function scanRegularTicket(
         event_name: ticket.events.name,
         table_number: ticket.floorplan_tables?.table_number,
         table_type: ticket.floorplan_tables?.table_type,
+        ...seatInfo,
       },
     };
   }

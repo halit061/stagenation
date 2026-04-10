@@ -544,6 +544,35 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                   fill={isRestricted ? 'rgba(100,116,139,0.15)' : hexToRgba(color, 0.2)}
                   style={{ pointerEvents: 'none' }}
                 />
+                <rect
+                  x={section.position_x}
+                  y={section.position_y + HEADER_H - 6}
+                  width={section.width}
+                  height={6}
+                  fill={isRestricted ? 'rgba(100,116,139,0.15)' : hexToRgba(color, 0.2)}
+                  style={{ pointerEvents: 'none' }}
+                />
+
+                <text
+                  x={section.position_x + 8}
+                  y={section.position_y + 16}
+                  fill="rgba(255,255,255,0.7)"
+                  fontSize="12"
+                  fontWeight="bold"
+                  style={{ pointerEvents: 'none' }}
+                >
+                  {section.name}
+                </text>
+                <text
+                  x={section.position_x + section.width - 8}
+                  y={section.position_y + 16}
+                  textAnchor="end"
+                  fill="rgba(255,255,255,0.45)"
+                  fontSize="10"
+                  style={{ pointerEvents: 'none' }}
+                >
+                  {secSeats.length} {secSeats.length === 1 ? 'stoel' : 'stoelen'}
+                </text>
 
                 {isRestricted && (
                   <text
@@ -570,6 +599,29 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                     fill="rgba(15,23,42,0.5)"
                     style={{ pointerEvents: 'none' }}
                   />
+                )}
+
+                {!isRestricted && section.price_category && (
+                  <>
+                    <rect
+                      x={section.position_x}
+                      y={section.position_y + section.height - 20}
+                      width={section.width}
+                      height={20}
+                      fill={hexToRgba(color, 0.15)}
+                      rx={0}
+                      style={{ pointerEvents: 'none' }}
+                    />
+                    <text
+                      x={section.position_x + 8}
+                      y={section.position_y + section.height - 6}
+                      fill="rgba(255,255,255,0.5)"
+                      fontSize="10"
+                      style={{ pointerEvents: 'none' }}
+                    >
+                      {section.price_category} — EUR {Number(section.price_amount).toFixed(2)}
+                    </text>
+                  </>
                 )}
 
                 {!isRestricted && rowLabels.map(rl => (
