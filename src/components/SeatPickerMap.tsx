@@ -75,11 +75,12 @@ export const SeatPickerMap = memo(function SeatPickerMap({
 
   const bounds = useMemo(() => {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const sec of sections) {
-      minX = Math.min(minX, sec.position_x);
-      minY = Math.min(minY, sec.position_y);
-      maxX = Math.max(maxX, sec.position_x + sec.width);
-      maxY = Math.max(maxY, sec.position_y + sec.height);
+    const half = SEAT_SIZE_PRESETS[0].size / 2;
+    for (const s of seats) {
+      minX = Math.min(minX, s.cx - half);
+      minY = Math.min(minY, s.cy - half);
+      maxX = Math.max(maxX, s.cx + half);
+      maxY = Math.max(maxY, s.cy + half);
     }
     for (const obj of floorplanObjects) {
       minX = Math.min(minX, Number(obj.x));
@@ -89,7 +90,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
     }
     if (minX === Infinity) return { minX: 0, minY: 0, maxX: 1600, maxY: 1000 };
     return { minX, minY, maxX, maxY };
-  }, [sections, floorplanObjects]);
+  }, [seats, floorplanObjects]);
 
   const fitToOverview = useCallback(() => {
     if (!containerRef.current) return;
@@ -109,13 +110,28 @@ export const SeatPickerMap = memo(function SeatPickerMap({
   }, [bounds]);
 
   useEffect(() => {
-    if (sections.length === 0 && floorplanObjects.length === 0) return;
+    if (seats.length === 0 && floorplanObjects.length === 0) return;
     const fit = fitToOverview();
     if (fit) {
       setZoom(fit.zoom);
       setPan({ x: fit.panX, y: fit.panY });
     }
-  }, [sections.length, floorplanObjects.length, fitToOverview]);
+  }, [seats.length, floorplanObjects.length, fitToOverview]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => {
+      if (seats.length === 0 && floorplanObjects.length === 0) return;
+      const fit = fitToOverview();
+      if (fit) {
+        setZoom(fit.zoom);
+        setPan({ x: fit.panX, y: fit.panY });
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [seats.length, floorplanObjects.length, fitToOverview]);
 
   useEffect(() => {
     if (!containerRef.current || !onViewportChange) return;
