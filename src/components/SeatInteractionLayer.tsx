@@ -10,10 +10,10 @@ const SEAT_HIT_R = 7;
 const TOOLTIP_DELAY = 200;
 
 const STATUS_COLOR: Record<SeatStatus, string> = {
-  available: '#22c55e',
-  blocked: '#4b5563',
-  reserved: '#f59e0b',
-  sold: '#ef4444',
+  available: '#4ade80',
+  blocked: '#94a3b8',
+  reserved: '#fbbf24',
+  sold: '#f87171',
 };
 
 const STATUS_LABEL: Record<SeatStatus, string> = {
@@ -570,7 +570,7 @@ export function SeatInteractionLayer({
                 y={rl.y}
                 textAnchor="end"
                 dominantBaseline="middle"
-                fill="rgba(255,255,255,0.35)"
+                fill="#94a3b8"
                 fontSize="9"
                 fontWeight="500"
                 style={{ cursor: isSelectTool ? 'pointer' : 'default', pointerEvents: isSelectTool ? 'all' : 'none' }}
@@ -628,8 +628,8 @@ export function SeatInteractionLayer({
               const isMarqueePreview = marqueePreviewIds.has(seat.id);
               const isReserved = seat.status === 'reserved';
               const isVip = seat.seat_type === 'vip' && seat.status === 'available';
-              const baseColor = isCollisionFlash ? '#ef4444' : isVip ? '#fbbf24' : STATUS_COLOR[seat.status as SeatStatus] || '#22c55e';
-              const borderColor = isCollisionFlash ? '#dc2626' : isVip ? '#d97706' : (seat.status === 'sold' ? '#dc2626' : seat.status === 'blocked' ? '#6b7280' : seat.status === 'reserved' ? '#d97706' : '#15803d');
+              const baseColor = isCollisionFlash ? '#ef4444' : isVip ? '#fbbf24' : STATUS_COLOR[seat.status as SeatStatus] || '#4ade80';
+              const borderColor = isCollisionFlash ? '#dc2626' : isVip ? '#d97706' : (seat.status === 'sold' ? '#ef4444' : seat.status === 'blocked' ? '#94a3b8' : seat.status === 'reserved' ? '#f59e0b' : '#22c55e');
               const currentSize = isHovered ? hoverSize : seatSizeComputed;
 
               const manyDragging = dragState?.active && dragState.seatIds.size > 50;
@@ -644,9 +644,9 @@ export function SeatInteractionLayer({
                       cy={seat.cy}
                       size={seatSizeComputed}
                       color={baseColor}
-                      opacity={0.25}
-                      strokeColor="rgba(255,255,255,0.15)"
-                      strokeWidth={1}
+                      opacity={0.2}
+                      strokeColor="#cbd5e1"
+                      strokeWidth={0.5}
                       className="pointer-events-none"
                     />
                   )}
@@ -655,17 +655,13 @@ export function SeatInteractionLayer({
                     cy={renderCy}
                     size={currentSize}
                     color={baseColor}
-                    opacity={isReserved ? 0.7 : isDragTarget ? 0.95 : 0.9}
+                    opacity={isReserved ? 0.7 : 1}
                     selected={isSelected || isMarqueePreview}
-                    strokeColor={isSelected ? '#ffffff' : isMarqueePreview ? '#93c5fd' : borderColor}
-                    strokeWidth={isSelected ? 2.5 : isMarqueePreview ? 2 : 1.5}
-                    className={`seat-round-transition ${isReserved && !isDragTarget ? 'seat-reserved-pulse' : ''} ${isCollisionFlash ? 'seat-collision-flash' : ''}`}
+                    strokeColor={isSelected ? '#2563eb' : isMarqueePreview ? '#60a5fa' : borderColor}
+                    strokeWidth={isSelected ? 1.5 : isMarqueePreview ? 1.2 : 0.8}
+                    className={`seat-round-transition ${isCollisionFlash ? 'seat-collision-flash' : ''}`}
                     style={{
                       cursor: isDragTarget ? 'grabbing' : (isSelectTool || allowContextMenu) ? 'pointer' : 'default',
-                      filter: isDragTarget
-                        ? 'drop-shadow(0 2px 6px rgba(0,0,0,0.5))'
-                        : isSelected ? 'drop-shadow(0 0 3px rgba(255,255,255,0.6))'
-                        : isHovered ? 'drop-shadow(0 0 2px rgba(255,255,255,0.3))' : undefined,
                       transition: isCollisionFlash ? 'fill 150ms' : undefined,
                     }}
                     onClick={(e) => handleSeatClick(e, seat)}
@@ -698,9 +694,9 @@ export function SeatInteractionLayer({
           y={Math.min(marqueeRect.y1, marqueeRect.y2)}
           width={Math.abs(marqueeRect.x2 - marqueeRect.x1)}
           height={Math.abs(marqueeRect.y2 - marqueeRect.y1)}
-          fill="rgba(59,130,246,0.08)"
+          fill="rgba(59,130,246,0.06)"
           stroke="#3b82f6"
-          strokeWidth={2}
+          strokeWidth={1.5}
           strokeDasharray="6 4"
           className="marquee-rect pointer-events-none"
           rx="2"

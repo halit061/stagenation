@@ -18,13 +18,12 @@ export const SeatChair = memo(function SeatChair({
   borderColor,
 }: SeatChairProps) {
   const r = size / 2;
-  const border = borderColor || darkenHex(color, 0.25);
+  const border = borderColor || darkenHex(color, 0.2);
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ display: 'block' }}>
-      <circle cx={r} cy={r} r={r - 1} fill={color} opacity={opacity} stroke={border} strokeWidth={1.5} />
-      <circle cx={r - r * 0.15} cy={r - r * 0.22} r={r * 0.35} fill="rgba(255,255,255,0.2)" />
+      <circle cx={r} cy={r} r={r - 0.5} fill={color} opacity={opacity} stroke={border} strokeWidth={0.8} />
       {selected && (
-        <circle cx={r} cy={r} r={r - 0.5} stroke={glowColor || '#ffffff'} strokeWidth={2} fill="none" />
+        <circle cx={r} cy={r} r={r - 0.5} stroke={glowColor || '#2563eb'} strokeWidth={1.5} fill="none" />
       )}
     </svg>
   );
@@ -68,7 +67,7 @@ export const SvgSeatChair = memo(function SvgSeatChair({
   opacity = 1,
   selected = false,
   strokeColor,
-  strokeWidth = 2,
+  strokeWidth = 1,
   strokeOpacity = 1,
   className,
   style,
@@ -82,10 +81,6 @@ export const SvgSeatChair = memo(function SvgSeatChair({
   onContextMenu,
 }: SvgSeatChairProps) {
   const r = size / 2;
-  const borderW = strokeWidth;
-  const hlR = r * 0.35;
-  const hlCx = cx - r * 0.15;
-  const hlCy = cy - r * 0.22;
 
   return (
     <g
@@ -101,28 +96,18 @@ export const SvgSeatChair = memo(function SvgSeatChair({
       onContextMenu={onContextMenu}
     >
       <circle
-        cx={cx} cy={cy + 1} r={r}
-        fill="rgba(0,0,0,0.08)"
-        style={{ pointerEvents: 'none' }}
-      />
-      <circle
-        cx={cx} cy={cy} r={r - borderW / 2}
+        cx={cx} cy={cy} r={r - strokeWidth / 2}
         fill={color}
         opacity={opacity}
-        stroke={strokeColor || color}
-        strokeWidth={borderW}
+        stroke={strokeColor || darkenHex(color, 0.15)}
+        strokeWidth={strokeWidth}
         strokeOpacity={strokeOpacity}
-      />
-      <circle
-        cx={hlCx} cy={hlCy} r={hlR}
-        fill="rgba(255,255,255,0.18)"
-        style={{ pointerEvents: 'none' }}
       />
       {selected && (
         <circle
           cx={cx} cy={cy} r={r + 1}
-          stroke="#ffffff"
-          strokeWidth={2.5}
+          stroke="#2563eb"
+          strokeWidth={1.5}
           fill="none"
           style={{ pointerEvents: 'none' }}
         />

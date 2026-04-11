@@ -1,8 +1,6 @@
 import React from 'react';
 import type { SeatSection } from '../types/seats';
 
-const HEADER_H = 24;
-
 interface Props {
   section: SeatSection;
   seatCount: number;
@@ -32,7 +30,6 @@ function SeatSectionRendererInner({
   onMouseLeave,
   renderResizeHandles,
 }: Props) {
-  const isTribune = section.section_type === 'tribune';
   const sx = section.position_x;
   const sy = section.position_y;
   const sw = section.width;
@@ -42,8 +39,8 @@ function SeatSectionRendererInner({
   const centerX = sx + sw / 2;
   const centerY = sy + sh / 2;
 
-  const strokeColor = isSelected ? '#3b82f6' : isHovered ? '#60a5fa' : section.color;
-  const strokeW = isSelected ? 2.5 : isHovered ? 2 : 1.5;
+  const strokeColor = isSelected ? '#2563eb' : isHovered ? '#60a5fa' : '#cbd5e1';
+  const strokeW = isSelected ? 2 : isHovered ? 1.5 : 0.8;
 
   return (
     <g style={rotation ? { transform: `rotate(${rotation}deg)`, transformOrigin: `${centerX}px ${centerY}px` } : undefined}>
@@ -58,61 +55,35 @@ function SeatSectionRendererInner({
       >
         <rect
           x={sx} y={sy} width={sw} height={sh}
-          fill={section.color} fillOpacity={isHovered ? 0.18 : 0.12}
+          fill={isHovered ? '#f1f5f9' : 'transparent'}
           stroke={strokeColor}
           strokeWidth={strokeW}
-          strokeDasharray={isTribune ? 'none' : '8 4'}
-          rx="6"
-        />
-        <rect
-          x={sx} y={sy} width={sw} height={HEADER_H}
-          fill={section.color} fillOpacity={0.4} rx="6"
-        />
-        <rect
-          x={sx} y={sy + HEADER_H - 6}
-          width={sw} height={6}
-          fill={section.color} fillOpacity={0.4}
+          strokeDasharray={isSelected ? 'none' : '6 3'}
+          rx="3"
         />
         <text
-          x={sx + 8} y={sy + 16}
-          fill="white" fontSize="12" fontWeight="bold"
+          x={sx + 6} y={sy + 13}
+          fill="#64748b" fontSize="11" fontWeight="600"
           className="pointer-events-none"
         >
-          {isTribune ? 'T' : 'P'} {section.name}
+          {section.name}
         </text>
         <text
-          x={sx + sw - 8} y={sy + 16}
-          fill="rgba(255,255,255,0.7)" fontSize="10" textAnchor="end"
+          x={sx + sw - 6} y={sy + 13}
+          fill="#94a3b8" fontSize="9" textAnchor="end"
           className="pointer-events-none"
         >
-          {seatCount} stoelen
+          {seatCount}
         </text>
 
         {seatCount === 0 && (
           <text
             x={sx + sw / 2} y={sy + sh / 2 + 4}
-            textAnchor="middle" fill="rgba(255,255,255,0.4)" fontSize="11"
+            textAnchor="middle" fill="#94a3b8" fontSize="10"
             className="pointer-events-none"
           >
-            Geen stoelen — dubbelklik om te configureren
+            Geen stoelen
           </text>
-        )}
-
-        {section.price_category && (
-          <>
-            <rect
-              x={sx} y={sy + sh - 20}
-              width={sw} height={20}
-              fill={section.color} fillOpacity={0.25} rx="0"
-            />
-            <text
-              x={sx + 8} y={sy + sh - 6}
-              fill="rgba(255,255,255,0.7)" fontSize="10"
-              className="pointer-events-none"
-            >
-              {section.price_category} — EUR {section.price_amount.toFixed(2)}
-            </text>
-          </>
         )}
       </g>
       {renderResizeHandles()}

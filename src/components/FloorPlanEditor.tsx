@@ -1636,7 +1636,7 @@ export function FloorPlanEditor() {
   };
 
   return (
-    <div ref={editorWrapRef} className={`bg-slate-900 rounded-xl overflow-hidden border border-slate-700 ${isFullscreen ? 'fixed inset-0 z-[100] rounded-none border-0' : ''}`}>
+    <div ref={editorWrapRef} className={`bg-white rounded-xl overflow-hidden border border-slate-200 ${isFullscreen ? 'fixed inset-0 z-[100] rounded-none border-0' : ''}`}>
       <div className="p-3 pb-0">
         <LayoutToolbar
           currentLayout={currentLayout}
@@ -1764,7 +1764,7 @@ export function FloorPlanEditor() {
           <div className="lg:col-span-3 p-3">
             <div
               ref={canvasContainerRef}
-              className="bg-slate-950 rounded-lg overflow-auto relative"
+              className="bg-slate-100 rounded-lg overflow-auto relative border border-slate-200"
               style={{ height: isFullscreen ? 'calc(100vh - 140px)' : 'calc(100vh - 200px)', minHeight: '500px', paddingBottom: selectedSeatIds.size > 0 ? 60 : 0 }}
               onMouseMove={(e) => {
                 handleMouseMove(e);
@@ -1820,7 +1820,7 @@ export function FloorPlanEditor() {
                   seatDraw.handleCanvasMouseDown(cp.x, cp.y);
                 }}
               >
-                <rect x="0" y="0" width={CANVAS_W} height={CANVAS_H} fill="#0f172a"
+                <rect x="0" y="0" width={CANVAS_W} height={CANVAS_H} fill="#f8fafc"
                   onClick={(e) => {
                     if (!rulerActive) return;
                     const svg = svgRef.current;
@@ -1847,10 +1847,10 @@ export function FloorPlanEditor() {
                   <>
                     <defs>
                       <pattern id="gridMinor" width="50" height="50" patternUnits="userSpaceOnUse">
-                        <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#1e293b" strokeWidth="0.4" />
+                        <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#e2e8f0" strokeWidth="0.4" />
                       </pattern>
                       <pattern id="gridMajor" width="200" height="200" patternUnits="userSpaceOnUse">
-                        <path d="M 200 0 L 0 0 0 200" fill="none" stroke="#334155" strokeWidth="0.8" />
+                        <path d="M 200 0 L 0 0 0 200" fill="none" stroke="#cbd5e1" strokeWidth="0.6" />
                       </pattern>
                     </defs>
                     <rect x="0" y="0" width={CANVAS_W} height={CANVAS_H} fill="url(#gridMinor)" />
@@ -1892,40 +1892,18 @@ export function FloorPlanEditor() {
                         onMouseLeave={() => setHoveredItemId(null)}
                         style={{ cursor: currentTool === 'select' ? (isDragging ? 'grabbing' : 'grab') : 'default' }}
                       >
-                        {isTribune ? (
-                          <>
-                            <rect x={obj.x} y={obj.y} width={obj.width} height={obj.height}
-                              fill={obj.color} stroke={isSelected ? '#3b82f6' : isHovered ? '#60a5fa' : '#78350f'}
-                              strokeWidth={isSelected ? 2.5 : isHovered ? 2 : 1.5} rx="4" />
-                            {[0.2, 0.4, 0.6, 0.8].map((frac) => (
-                              <line key={frac}
-                                x1={obj.x + obj.width * frac} y1={obj.y + 4}
-                                x2={obj.x + obj.width * frac} y2={obj.y + obj.height - 4}
-                                stroke="rgba(0,0,0,0.3)" strokeWidth="1.5"
-                              />
-                            ))}
-                            <text x={obj.x + obj.width / 2} y={obj.y + obj.height / 2}
-                              textAnchor="middle" dominantBaseline="middle"
-                              fill={obj.font_color || '#fff'} fontSize={obj.font_size || 16}
-                              fontWeight={obj.font_weight || 'bold'} className="pointer-events-none">
-                              {displayName}
-                            </text>
-                          </>
-                        ) : (
-                          <>
-                            <rect x={obj.x} y={obj.y} width={obj.width} height={obj.height}
-                              fill={obj.color} stroke={isSelected ? '#3b82f6' : isHovered ? '#60a5fa' : '#475569'}
-                              strokeWidth={isSelected ? 2.5 : isHovered ? 2 : 1.5} rx="4"
-                              opacity={isDancefloor ? 0.35 : 1} />
-                            <text x={obj.x + obj.width / 2} y={obj.y + obj.height / 2}
-                              textAnchor="middle" dominantBaseline="middle"
-                              fill={obj.font_color || '#fff'} fontSize={obj.font_size || (isDancefloor ? 16 : 18)}
-                              fontWeight={obj.font_weight || 'bold'} className="pointer-events-none"
-                              opacity={isDancefloor ? 0.7 : 1}>
-                              {displayName.toUpperCase()}
-                            </text>
-                          </>
-                        )}
+                        <>
+                          <rect x={obj.x} y={obj.y} width={obj.width} height={obj.height}
+                            fill={obj.color}
+                            stroke={isSelected ? '#2563eb' : isHovered ? '#60a5fa' : '#94a3b8'}
+                            strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1} rx="4" />
+                          <text x={obj.x + obj.width / 2} y={obj.y + obj.height / 2}
+                            textAnchor="middle" dominantBaseline="middle"
+                            fill={obj.font_color || '#ffffff'} fontSize={obj.font_size || 18}
+                            fontWeight={obj.font_weight || '600'} className="pointer-events-none">
+                            {displayName.toUpperCase()}
+                          </text>
+                        </>
                       </g>
                       {isSelected && currentTool === 'select' && <ResizeHandles item={obj} />}
                     </g>
@@ -2069,15 +2047,15 @@ export function FloorPlanEditor() {
                         style={{ cursor: currentTool === 'select' ? (isDragging ? 'grabbing' : 'grab') : 'default' }}
                       >
                         <rect x={table.x} y={table.y} width={table.width} height={table.height}
-                          fill={fillColor} stroke={isSelected ? '#3b82f6' : isHovered ? '#60a5fa' : '#475569'}
-                          strokeWidth={isSelected ? 2.5 : isHovered ? 2 : 1.5} rx="4" />
+                          fill={fillColor} stroke={isSelected ? '#2563eb' : isHovered ? '#60a5fa' : '#94a3b8'}
+                          strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1} rx="4" />
                         {isSeated && [
                           [table.x + 12, table.y + 12],
                           [table.x + table.width - 12, table.y + 12],
                           [table.x + 12, table.y + table.height - 12],
                           [table.x + table.width - 12, table.y + table.height - 12],
                         ].map(([cx, cy], i) => (
-                          <circle key={i} cx={cx} cy={cy} r="7" fill="#1e293b" stroke="#475569" strokeWidth="1" />
+                          <circle key={i} cx={cx} cy={cy} r="7" fill="#f1f5f9" stroke="#94a3b8" strokeWidth="1" />
                         ))}
                         <text x={table.x + table.width / 2} y={table.y + table.height / 2 - 7}
                           textAnchor="middle" fill="white" fontSize="14" fontWeight="bold" className="pointer-events-none">
