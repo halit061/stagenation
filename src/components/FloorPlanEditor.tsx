@@ -396,7 +396,8 @@ export function FloorPlanEditor() {
       const map: Record<string, Seat[]> = {};
       for (const [id, seats] of results) map[id] = seats;
       setSectionSeats(map);
-    } catch {
+    } catch (err) {
+      console.error('Seats load error:', err);
       showToast('Fout bij laden stoelen', 'error');
     }
   }, [showToast]);
@@ -406,7 +407,8 @@ export function FloorPlanEditor() {
       const data = await getSectionsByLayout(layoutId);
       setSeatSections(data);
       await loadAllSectionSeats(data);
-    } catch {
+    } catch (err) {
+      console.error('Section load error:', err);
       showToast('Fout bij laden secties', 'error');
     }
   }, [showToast, loadAllSectionSeats]);

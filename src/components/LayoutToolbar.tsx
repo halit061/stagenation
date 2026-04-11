@@ -99,7 +99,8 @@ export function LayoutToolbar({
         onLayoutChange(null);
         onLayoutNameChange('');
       }
-    } catch {
+    } catch (err) {
+      console.error('Layout load error:', err);
       showToast('Fout bij laden event layout', 'error');
     }
   }

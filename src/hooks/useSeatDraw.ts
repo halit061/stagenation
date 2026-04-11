@@ -85,6 +85,7 @@ export function useSeatDraw(
           width: canvasW,
           height: canvasH,
           rotation: 0,
+          orientation: 'top',
           rows_count: 0,
           seats_per_row: 0,
           row_curve: 0,
