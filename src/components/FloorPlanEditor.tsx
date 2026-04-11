@@ -1809,18 +1809,18 @@ export function FloorPlanEditor() {
                   minHeight: '100%',
                   cursor: rulerActive ? 'crosshair' : currentTool === 'select' ? 'default' : 'crosshair',
                 }}
+                onMouseDown={(e) => {
+                  if (currentTool !== 'draw_seat') return;
+                  const svg = svgRef.current;
+                  if (!svg) return;
+                  const pt = svg.createSVGPoint();
+                  pt.x = e.clientX;
+                  pt.y = e.clientY;
+                  const cp = pt.matrixTransform(svg.getScreenCTM()?.inverse());
+                  seatDraw.handleCanvasMouseDown(cp.x, cp.y);
+                }}
               >
                 <rect x="0" y="0" width={CANVAS_W} height={CANVAS_H} fill="#0f172a"
-                  onMouseDown={(e) => {
-                    if (currentTool !== 'draw_seat') return;
-                    const svg = svgRef.current;
-                    if (!svg) return;
-                    const pt = svg.createSVGPoint();
-                    pt.x = e.clientX;
-                    pt.y = e.clientY;
-                    const cp = pt.matrixTransform(svg.getScreenCTM()?.inverse());
-                    seatDraw.handleCanvasMouseDown(cp.x, cp.y);
-                  }}
                   onClick={(e) => {
                     if (!rulerActive) return;
                     const svg = svgRef.current;
