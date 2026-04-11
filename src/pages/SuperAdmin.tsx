@@ -1148,7 +1148,7 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
     try {
       const { data, error } = await supabase
         .from('table_guests')
-        .select('*, events(name), floorplan_tables(id, table_number, table_type, capacity)')
+        .select('*, events(name), table_bookings(id, floorplan_tables(id, table_number, table_type, capacity))')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -2864,8 +2864,8 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
                         <div>
                           <div className="text-sm text-white">Tafel</div>
                           <div className="font-semibold text-cyan-400">
-                            {guest.floorplan_tables?.table_number || 'N/A'}
-                            {guest.floorplan_tables && ` (${guest.floorplan_tables.table_type === 'SEATED' ? 'Zit' : 'Sta'}, ${guest.floorplan_tables.capacity} pers.)`}
+                            {guest.table_bookings?.floorplan_tables?.table_number || 'N/A'}
+                            {guest.table_bookings?.floorplan_tables && ` (${guest.table_bookings.floorplan_tables.table_type === 'SEATED' ? 'Zit' : 'Sta'}, ${guest.table_bookings.floorplan_tables.capacity} pers.)`}
                           </div>
                         </div>
                       </div>
