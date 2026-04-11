@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Save, Trash2, ZoomIn, ZoomOut, Maximize2, Move, Grid3x3, Square, Circle, Copy, Rows3, Armchair, CreditCard as Edit, BoxSelect, Undo2, Redo2, HelpCircle, Image, Eye, EyeOff, Ruler } from 'lucide-react';
+import { Save, Trash2, ZoomIn, ZoomOut, Maximize2, Move, Grid3x3, Square, Circle, Copy, Rows3, Armchair, CreditCard as Edit, BoxSelect, Undo2, Redo2, HelpCircle, Image, Eye, EyeOff, Ruler, PenTool } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useToast } from './Toast';
 import { LayoutToolbar } from './LayoutToolbar';
@@ -27,6 +27,9 @@ import type { VenueLayout, SeatSection, Seat, TicketType } from '../types/seats'
 import { getSectionsByLayout, createSection, updateSection, deleteSection, generateSeats, getSeatsBySection, updateSeat as updateSeatDb, deleteSeatsById, updateSectionCapacity, updateSeatPositions, getTicketTypesForEvent, getAllTicketTypeSectionsForEvent, linkTicketTypeToSections } from '../services/seatService';
 import { useSeatHistory } from '../hooks/useSeatHistory';
 import { useSeatDrag } from '../hooks/useSeatDrag';
+import { useSeatDraw } from '../hooks/useSeatDraw';
+import { SeatDrawSettingsPanel } from './SeatDrawSettingsPanel';
+import { SeatDrawContextMenu } from './SeatDrawContextMenu';
 
 interface FloorplanTable {
   id: string;
@@ -82,7 +85,7 @@ interface TablePackage {
   base_price: number;
 }
 
-type EditorTool = 'select' | 'add_seated' | 'add_standing' | 'add_decor' | 'add_bar' | 'add_stage' | 'add_dancefloor' | 'add_tribune';
+type EditorTool = 'select' | 'draw_seat' | 'add_seated' | 'add_standing' | 'add_decor' | 'add_bar' | 'add_stage' | 'add_dancefloor' | 'add_tribune';
 type ObjectType = 'BAR' | 'STAGE' | 'DANCEFLOOR' | 'DECOR_TABLE' | 'DJ_BOOTH' | 'ENTRANCE' | 'EXIT' | 'RESTROOM' | 'TRIBUNE';
 type SelectedItemType = { type: 'table' | 'object' | 'section'; data: FloorplanTable | FloorplanObject | SeatSection };
 
@@ -214,6 +217,11 @@ export function FloorPlanEditor() {
     seatSections, sectionSeats, selectedSeatIds, setSectionSeats, pushAction, showGrid
   );
 
+  const seatDraw = useSeatDraw(seatSections, sectionSeats, setSectionSeats, showToast);
+  const [drawContextMenu, setDrawContextMenu] = useState<{
+    seat: Seat; section: SeatSection; position: { x: number; y: number };
+  } | null>(null);
+
   useEffect(() => {
     loadAll();
   }, []);
@@ -289,9 +297,38 @@ export function FloorPlanEditor() {
         return;
       }
       if (e.key === 'Escape') {
+        if (currentTool === 'draw_seat') {
+          setCurrentTool('select');
+          seatDraw.resetDrawState();
+          return;
+        }
         setSelectedItem(null);
         setContextMenu(null);
         setSeatContextMenu(null);
+        setDrawContextMenu(null);
+        return;
+      }
+      if (currentTool === 'draw_seat') {
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          e.preventDefault();
+          seatDraw.deleteLastPlaced();
+          return;
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          seatDraw.advanceRow();
+          return;
+        }
+        if (e.key === '+' || e.key === '=') {
+          e.preventDefault();
+          seatDraw.adjustSpacing(5);
+          return;
+        }
+        if (e.key === '-') {
+          e.preventDefault();
+          seatDraw.adjustSpacing(-5);
+          return;
+        }
         return;
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedSeatIds.size > 0) {
@@ -336,7 +373,7 @@ export function FloorPlanEditor() {
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, selectedSeatIds, selectedItem, nudgeItem, rotateSelectedItem]);
+  }, [undo, redo, selectedSeatIds, selectedItem, nudgeItem, rotateSelectedItem, currentTool, seatDraw]);
 
   async function handleSaveShortcut() {
     const saveBtn = document.querySelector('[data-layout-save]') as HTMLButtonElement | null;
@@ -955,8 +992,12 @@ export function FloorPlanEditor() {
   }, [showToast]);
 
   const handleSeatContextMenu = useCallback((e: React.MouseEvent, seat: Seat, section: SeatSection) => {
+    if (currentTool === 'draw_seat') {
+      setDrawContextMenu({ seat, section, position: { x: e.clientX, y: e.clientY } });
+      return;
+    }
     setSeatContextMenu({ seat, section, position: { x: e.clientX, y: e.clientY } });
-  }, []);
+  }, [currentTool]);
 
   const handleSelectRow = useCallback((sectionId: string, rowLabel: string) => {
     const seats = sectionSeats[sectionId] || [];
@@ -1703,6 +1744,11 @@ export function FloorPlanEditor() {
             if (!currentLayout) { showToast('Sla eerst een layout op', 'error'); return; }
             openSectionModal('plein');
           }} icon={<Armchair className="w-5 h-5" />} label="Plein" hoverColor="hover:bg-teal-700" />
+          <ToolButton active={currentTool === 'draw_seat'} onClick={() => {
+            if (!currentLayout) { showToast('Sla eerst een layout op', 'error'); return; }
+            if (currentTool === 'draw_seat') { setCurrentTool('select'); seatDraw.resetDrawState(); }
+            else { setCurrentTool('draw_seat'); setSelectedItem(null); setSelectedSeatIds(new Set()); }
+          }} icon={<PenTool className="w-5 h-5" />} label="Stoel +" hoverColor="hover:bg-emerald-600" />
           <div className="border-t border-slate-600 my-1" />
           <ToolButton active={showGrid} onClick={() => setShowGrid(!showGrid)} icon={<Grid3x3 className="w-5 h-5" />} label="Grid" />
           <ToolButton active={marqueeActive} onClick={() => setMarqueeActive(!marqueeActive)} icon={<BoxSelect className="w-5 h-5" />} label="Gebied" hoverColor="hover:bg-blue-600" />
@@ -1718,10 +1764,33 @@ export function FloorPlanEditor() {
               ref={canvasContainerRef}
               className="bg-slate-950 rounded-lg overflow-auto relative"
               style={{ height: isFullscreen ? 'calc(100vh - 140px)' : 'calc(100vh - 200px)', minHeight: '500px', paddingBottom: selectedSeatIds.size > 0 ? 60 : 0 }}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
+              onMouseMove={(e) => {
+                handleMouseMove(e);
+                if (currentTool === 'draw_seat') {
+                  const svg = svgRef.current;
+                  if (!svg) return;
+                  const pt = svg.createSVGPoint();
+                  pt.x = e.clientX;
+                  pt.y = e.clientY;
+                  const cp = pt.matrixTransform(svg.getScreenCTM()?.inverse());
+                  seatDraw.handleCanvasMouseMove(cp.x, cp.y);
+                }
+              }}
+              onMouseUp={(e) => {
+                handleMouseUp();
+                if (currentTool === 'draw_seat') {
+                  const svg = svgRef.current;
+                  if (!svg) return;
+                  const pt = svg.createSVGPoint();
+                  pt.x = e.clientX;
+                  pt.y = e.clientY;
+                  const cp = pt.matrixTransform(svg.getScreenCTM()?.inverse());
+                  seatDraw.handleCanvasMouseUp(cp.x, cp.y);
+                }
+              }}
               onWheel={handleWheel}
               onClick={() => {
+                if (currentTool === 'draw_seat') return;
                 if (!isDragging && !isResizing && !dragIntent.current?.thresholdMet) {
                   setSelectedItem(null); setContextMenu(null); setSeatContextMenu(null);
                   if (!marqueeActive) setSelectedSeatIds(new Set());
@@ -1740,6 +1809,16 @@ export function FloorPlanEditor() {
                 }}
               >
                 <rect x="0" y="0" width={CANVAS_W} height={CANVAS_H} fill="#0f172a"
+                  onMouseDown={(e) => {
+                    if (currentTool !== 'draw_seat') return;
+                    const svg = svgRef.current;
+                    if (!svg) return;
+                    const pt = svg.createSVGPoint();
+                    pt.x = e.clientX;
+                    pt.y = e.clientY;
+                    const cp = pt.matrixTransform(svg.getScreenCTM()?.inverse());
+                    seatDraw.handleCanvasMouseDown(cp.x, cp.y);
+                  }}
                   onClick={(e) => {
                     if (!rulerActive) return;
                     const svg = svgRef.current;
@@ -1912,6 +1991,7 @@ export function FloorPlanEditor() {
                   svgRef={svgRef}
                   zoom={zoom}
                   isSelectTool={currentTool === 'select'}
+                  allowContextMenu={currentTool === 'draw_seat'}
                   marqueeActive={marqueeActive}
                   onSeatContextMenu={handleSeatContextMenu}
                   dragState={dragState}
@@ -1919,6 +1999,56 @@ export function FloorPlanEditor() {
                   onDragMove={moveDrag}
                   onDragEnd={endDrag}
                 />
+
+                {currentTool === 'draw_seat' && (
+                  <g className="pointer-events-none">
+                    {seatDraw.linePreview && (
+                      <>
+                        <line
+                          x1={seatDraw.linePreview.x1} y1={seatDraw.linePreview.y1}
+                          x2={seatDraw.linePreview.x2} y2={seatDraw.linePreview.y2}
+                          stroke="#10b981" strokeWidth="2" strokeDasharray="6 3" opacity={0.7}
+                        />
+                        {(() => {
+                          const lp = seatDraw.linePreview;
+                          const dx = lp.x2 - lp.x1;
+                          const dy = lp.y2 - lp.y1;
+                          const dist = Math.sqrt(dx * dx + dy * dy);
+                          if (dist < 5) return null;
+                          const count = Math.max(1, Math.floor(dist / seatDraw.settings.seatSpacing) + 1);
+                          const ux = dx / dist;
+                          const uy = dy / dist;
+                          const dots = [];
+                          for (let i = 0; i < count; i++) {
+                            dots.push(
+                              <circle
+                                key={i}
+                                cx={lp.x1 + ux * seatDraw.settings.seatSpacing * i}
+                                cy={lp.y1 + uy * seatDraw.settings.seatSpacing * i}
+                                r="5" fill="#10b981" opacity={0.5}
+                              />
+                            );
+                          }
+                          return <>{dots}</>;
+                        })()}
+                      </>
+                    )}
+                    {seatDraw.lastPlacedId && seatDraw.settings.sectionId && (() => {
+                      const seats = sectionSeats[seatDraw.settings.sectionId] || [];
+                      const seat = seats.find(s => s.id === seatDraw.lastPlacedId);
+                      const section = seatSections.find(s => s.id === seatDraw.settings.sectionId);
+                      if (!seat || !section) return null;
+                      const cx = section.position_x + seat.x_position;
+                      const cy = section.position_y + seat.y_position;
+                      return (
+                        <circle cx={cx} cy={cy} r="10" fill="none" stroke="#facc15" strokeWidth="2" opacity={0.8}>
+                          <animate attributeName="r" from="8" to="14" dur="1s" repeatCount="indefinite" />
+                          <animate attributeName="opacity" from="0.8" to="0" dur="1s" repeatCount="indefinite" />
+                        </circle>
+                      );
+                    })()}
+                  </g>
+                )}
 
                 {tables.map((table) => {
                   const isSelected = selectedItem?.type === 'table' && selectedItem.data.id === table.id;
@@ -2036,7 +2166,15 @@ export function FloorPlanEditor() {
           </div>
 
           <div className="p-3 space-y-3 bg-slate-800/30 border-l border-slate-700 overflow-y-auto" style={{ maxHeight: '836px' }}>
-            {selectedSeatIds.size > 0 ? (
+            {currentTool === 'draw_seat' ? (
+              <SeatDrawSettingsPanel
+                sections={seatSections}
+                settings={seatDraw.settings}
+                onChange={seatDraw.updateSettings}
+                placedCount={seatDraw.placedInRow}
+                onDeactivate={() => { setCurrentTool('select'); seatDraw.resetDrawState(); }}
+              />
+            ) : selectedSeatIds.size > 0 ? (
               <SeatPropertiesPanel
                 selectedSeats={selectedSeats}
                 sections={seatSections}
@@ -2324,6 +2462,18 @@ export function FloorPlanEditor() {
           setSelectedSeatIds={setSelectedSeatIds}
           showToast={showToast}
           pushAction={pushAction}
+        />
+      )}
+
+      {drawContextMenu && (
+        <SeatDrawContextMenu
+          seat={drawContextMenu.seat}
+          section={drawContextMenu.section}
+          position={drawContextMenu.position}
+          onClose={() => setDrawContextMenu(null)}
+          onDelete={seatDraw.deleteSeatById}
+          onChangeRowLabel={seatDraw.updateSeatRowLabel}
+          onChangeNumber={seatDraw.updateSeatNumber}
         />
       )}
 

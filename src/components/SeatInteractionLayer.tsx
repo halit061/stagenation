@@ -65,6 +65,7 @@ interface Props {
   svgRef: React.RefObject<SVGSVGElement | null>;
   zoom: number;
   isSelectTool: boolean;
+  allowContextMenu?: boolean;
   marqueeActive: boolean;
   onSeatContextMenu?: (e: React.MouseEvent, seat: Seat, section: SeatSection) => void;
   dragState?: SeatDragRenderState | null;
@@ -170,6 +171,7 @@ export function SeatInteractionLayer({
   svgRef,
   zoom,
   isSelectTool,
+  allowContextMenu,
   marqueeActive,
   onSeatContextMenu,
   dragState,
@@ -625,7 +627,7 @@ export function SeatInteractionLayer({
               const renderCy = isDragTarget ? seat.cy + (dragState?.dy ?? 0) : seat.cy;
 
               return (
-                <g key={seat.id} style={{ pointerEvents: (isSelectTool && !dragState?.active) ? 'all' : 'none' }}>
+                <g key={seat.id} style={{ pointerEvents: ((isSelectTool || allowContextMenu) && !dragState?.active) ? 'all' : 'none' }}>
                   {isDragTarget && (
                     <SvgSeatChair
                       cx={seat.cx}
@@ -649,7 +651,7 @@ export function SeatInteractionLayer({
                     strokeWidth={isSelected ? 2.5 : isMarqueePreview ? 2 : 1.5}
                     className={`seat-round-transition ${isReserved && !isDragTarget ? 'seat-reserved-pulse' : ''} ${isCollisionFlash ? 'seat-collision-flash' : ''}`}
                     style={{
-                      cursor: isDragTarget ? 'grabbing' : isSelectTool ? 'pointer' : 'default',
+                      cursor: isDragTarget ? 'grabbing' : (isSelectTool || allowContextMenu) ? 'pointer' : 'default',
                       filter: isDragTarget
                         ? 'drop-shadow(0 2px 6px rgba(0,0,0,0.5))'
                         : isSelected ? 'drop-shadow(0 0 3px rgba(255,255,255,0.6))'
