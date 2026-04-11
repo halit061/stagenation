@@ -244,7 +244,7 @@ Deno.serve(async (req: Request) => {
     if (promo_code) {
       const { data: promo } = await supabase
         .from('promo_codes')
-        .select('id, code, discount_type, discount_value, max_uses, used_count, valid_from, valid_until, is_active, event_id')
+        .select('id, code, discount_type, discount_value, max_uses, used_count, valid_from, valid_until, is_active, event_id, ticket_type_id')
         .eq('code', promo_code)
         .eq('is_active', true)
         .maybeSingle();
@@ -270,6 +270,13 @@ Deno.serve(async (req: Request) => {
         if (promo.valid_until && new Date(promo.valid_until) < now) {
           console.warn(`[checkout] Promo code ${promo_code} expired`);
           promoValid = false;
+        }
+        if (promo.ticket_type_id) {
+          const cartHasTicketType = cart.some((item: CartItem) => item.ticket_type_id === promo.ticket_type_id);
+          if (!cartHasTicketType) {
+            console.warn(`[checkout] Promo code ${promo_code} not valid for ticket types in cart`);
+            promoValid = false;
+          }
         }
 
         if (promoValid) {

@@ -413,6 +413,15 @@ export function Tickets({ onNavigate }: TicketsProps) {
         return;
       }
 
+      if (data.ticket_type_id) {
+        const cartHasTicketType = cart.some((item) => item.ticketType.id === data.ticket_type_id);
+        if (!cartHasTicketType) {
+          setPromoError('Deze code is niet geldig voor dit tickettype');
+          setPromoApplied(null);
+          return;
+        }
+      }
+
       setPromoApplied({
         code: data.code,
         discount_type: data.discount_type,
