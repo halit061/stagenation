@@ -192,6 +192,7 @@ export type Database = {
           valid_from: string | null;
           valid_until: string | null;
           is_active: boolean;
+          ticket_type_id: string | null;
           created_at: string;
         };
       };
