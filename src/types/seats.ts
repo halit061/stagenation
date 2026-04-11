@@ -50,6 +50,7 @@ export interface TicketType {
   is_active: boolean;
   metadata: Record<string, unknown>;
   created_at: string;
+  color: string | null;
   service_fee_mode: string;
   service_fee_fixed: number;
   service_fee_percent: number;
@@ -114,6 +115,7 @@ export interface Seat {
   metadata: Record<string, unknown>;
   is_active: boolean;
   created_at: string;
+  ticket_type_id: string | null;
 }
 
 export type SeatHoldStatus = 'held' | 'released' | 'converted';

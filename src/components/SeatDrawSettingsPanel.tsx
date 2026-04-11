@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
-import { Pencil, ChevronDown } from 'lucide-react';
+import { Pencil, ChevronDown, Check } from 'lucide-react';
+import type { TicketType } from '../types/seats';
 
 export type DrawSeatType = 'regular' | 'vip' | 'wheelchair' | 'restricted_view';
 
@@ -9,6 +10,7 @@ export interface SeatDrawSettings {
   startNumber: number;
   seatSpacing: number;
   seatType: DrawSeatType;
+  ticketTypeId: string | null;
 }
 
 interface SeatDrawSettingsPanelProps {
@@ -16,6 +18,7 @@ interface SeatDrawSettingsPanelProps {
   onChange: (settings: SeatDrawSettings) => void;
   placedCount: number;
   onDeactivate: () => void;
+  ticketTypes?: TicketType[];
 }
 
 const SEAT_TYPE_OPTIONS: { value: DrawSeatType; label: string }[] = [
@@ -30,11 +33,14 @@ export function SeatDrawSettingsPanel({
   onChange,
   placedCount,
   onDeactivate,
+  ticketTypes,
 }: SeatDrawSettingsPanelProps) {
   const update = useCallback(
     (patch: Partial<SeatDrawSettings>) => onChange({ ...settings, ...patch }),
     [settings, onChange],
   );
+
+  const activeTicketType = ticketTypes?.find(t => t.id === settings.ticketTypeId) ?? null;
 
   return (
     <div className="bg-slate-800 rounded-lg p-4 space-y-4">
@@ -106,6 +112,58 @@ export function SeatDrawSettingsPanel({
           <ChevronDown className="w-3 h-3 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
       </div>
+
+      {ticketTypes && ticketTypes.length > 0 && (
+        <div>
+          <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1.5">Ticket Type</label>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              onClick={() => update({ ticketTypeId: null })}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-medium transition-all ${
+                !settings.ticketTypeId
+                  ? 'bg-slate-600 text-white ring-2 ring-white/40'
+                  : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-300'
+              }`}
+            >
+              <span className="w-3 h-3 rounded-full bg-slate-500 flex-shrink-0" />
+              Geen
+              {!settings.ticketTypeId && <Check className="w-3 h-3" />}
+            </button>
+            {ticketTypes.map(tt => {
+              const isActive = settings.ticketTypeId === tt.id;
+              const color = tt.color || '#6b7280';
+              return (
+                <button
+                  key={tt.id}
+                  onClick={() => update({ ticketTypeId: tt.id })}
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-medium transition-all ${
+                    isActive
+                      ? 'bg-slate-600 text-white ring-2 ring-white/40'
+                      : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-300'
+                  }`}
+                >
+                  <span
+                    className="w-3 h-3 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: color }}
+                  />
+                  <span className="truncate max-w-[80px]">{tt.name}</span>
+                  <span className="text-slate-500">{(tt.price / 100).toFixed(0)}</span>
+                  {isActive && <Check className="w-3 h-3 flex-shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+          {activeTicketType && (
+            <div className="mt-2 flex items-center gap-2 text-[10px] text-slate-400">
+              <span
+                className="w-2.5 h-2.5 rounded-full"
+                style={{ backgroundColor: activeTicketType.color || '#6b7280' }}
+              />
+              Pen kleur: {activeTicketType.name}
+            </div>
+          )}
+        </div>
+      )}
 
       {placedCount > 0 && (
         <div className="bg-emerald-900/30 border border-emerald-800/50 rounded px-3 py-2">

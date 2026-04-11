@@ -72,6 +72,7 @@ interface Props {
   onDragStart?: (seat: ComputedSeat, svgX: number, svgY: number, allSeats: ComputedSeat[]) => boolean;
   onDragMove?: (svgX: number, svgY: number) => void;
   onDragEnd?: (allSeats: ComputedSeat[]) => void;
+  ticketTypeColors?: Record<string, string>;
 }
 
 function computeSeatPositions(section: SeatSection, seats: Seat[]): ComputedSeat[] {
@@ -188,6 +189,7 @@ export function SeatInteractionLayer({
   onDragStart,
   onDragMove,
   onDragEnd,
+  ticketTypeColors,
 }: Props) {
   const [hoveredSeat, setHoveredSeat] = useState<ComputedSeat | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
@@ -628,8 +630,10 @@ export function SeatInteractionLayer({
               const isMarqueePreview = marqueePreviewIds.has(seat.id);
               const isReserved = seat.status === 'reserved';
               const isVip = seat.seat_type === 'vip' && seat.status === 'available';
-              const baseColor = isCollisionFlash ? '#ef4444' : isVip ? '#fbbf24' : STATUS_COLOR[seat.status as SeatStatus] || '#4ade80';
-              const borderColor = isCollisionFlash ? '#dc2626' : isVip ? '#d97706' : (seat.status === 'sold' ? '#ef4444' : seat.status === 'blocked' ? '#94a3b8' : seat.status === 'reserved' ? '#f59e0b' : '#22c55e');
+              const ttColor = seat.ticket_type_id && ticketTypeColors?.[seat.ticket_type_id];
+              const statusColor = ttColor && seat.status === 'available' ? ttColor : (STATUS_COLOR[seat.status as SeatStatus] || '#4ade80');
+              const baseColor = isCollisionFlash ? '#ef4444' : isVip && !ttColor ? '#fbbf24' : statusColor;
+              const borderColor = isCollisionFlash ? '#dc2626' : isVip && !ttColor ? '#d97706' : (seat.status === 'sold' ? '#ef4444' : seat.status === 'blocked' ? '#94a3b8' : seat.status === 'reserved' ? '#f59e0b' : ttColor && seat.status === 'available' ? ttColor : '#22c55e');
               const currentSize = isHovered ? hoverSize : seatSizeComputed;
 
               const manyDragging = dragState?.active && dragState.seatIds.size > 50;

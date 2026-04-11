@@ -172,6 +172,14 @@ export function FloorPlanEditor() {
 
   const sectionIds = useMemo(() => seatSections.map(s => s.id), [seatSections]);
 
+  const ticketTypeColors = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const tt of eventTicketTypes) {
+      if (tt.color) map[tt.id] = tt.color;
+    }
+    return map;
+  }, [eventTicketTypes]);
+
   const handleRealtimeSeatUpdate = useCallback((seat: Partial<Seat> & { id: string }) => {
     setSectionSeats(prev => {
       const next = { ...prev };
@@ -1978,16 +1986,19 @@ export function FloorPlanEditor() {
                   onDragStart={startDrag}
                   onDragMove={moveDrag}
                   onDragEnd={endDrag}
+                  ticketTypeColors={ticketTypeColors}
                 />
 
                 {currentTool === 'draw_seat' && (
                   <g className="pointer-events-none">
-                    {seatDraw.linePreview && (
+                    {seatDraw.linePreview && (() => {
+                      const penColor = (seatDraw.settings.ticketTypeId && ticketTypeColors[seatDraw.settings.ticketTypeId]) || '#10b981';
+                      return (
                       <>
                         <line
                           x1={seatDraw.linePreview.x1} y1={seatDraw.linePreview.y1}
                           x2={seatDraw.linePreview.x2} y2={seatDraw.linePreview.y2}
-                          stroke="#10b981" strokeWidth="2" strokeDasharray="6 3" opacity={0.7}
+                          stroke={penColor} strokeWidth="2" strokeDasharray="6 3" opacity={0.7}
                         />
                         {(() => {
                           const lp = seatDraw.linePreview;
@@ -2005,14 +2016,15 @@ export function FloorPlanEditor() {
                                 key={i}
                                 cx={lp.x1 + ux * seatDraw.settings.seatSpacing * i}
                                 cy={lp.y1 + uy * seatDraw.settings.seatSpacing * i}
-                                r="5" fill="#10b981" opacity={0.5}
+                                r="5" fill={penColor} opacity={0.5}
                               />
                             );
                           }
                           return <>{dots}</>;
                         })()}
                       </>
-                    )}
+                      );
+                    })()}
                     {seatDraw.lastPlacedId && seatDraw.settings.sectionId && (() => {
                       const seats = sectionSeats[seatDraw.settings.sectionId] || [];
                       const seat = seats.find(s => s.id === seatDraw.lastPlacedId);
@@ -2152,6 +2164,7 @@ export function FloorPlanEditor() {
                 onChange={seatDraw.updateSettings}
                 placedCount={seatDraw.placedInRow}
                 onDeactivate={() => { setCurrentTool('select'); seatDraw.resetDrawState(); }}
+                ticketTypes={eventTicketTypes}
               />
             ) : selectedSeatIds.size > 0 ? (
               <SeatPropertiesPanel

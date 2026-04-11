@@ -39,6 +39,7 @@ export function useSeatDraw(
     startNumber: 1,
     seatSpacing: 25,
     seatType: 'regular',
+    ticketTypeId: null,
   });
 
   const [placedInRow, setPlacedInRow] = useState(0);
@@ -128,19 +129,22 @@ export function useSeatDraw(
       relX: number,
       relY: number,
       seatType: DrawSeatType,
+      ticketTypeId: string | null,
     ): Promise<Seat | null> => {
+      const row: Record<string, unknown> = {
+        section_id: sectionId,
+        row_label: rowLabel,
+        seat_number: seatNumber,
+        x_position: relX,
+        y_position: relY,
+        status: 'available',
+        seat_type: seatType,
+        is_active: true,
+      };
+      if (ticketTypeId) row.ticket_type_id = ticketTypeId;
       const { data, error } = await supabase
         .from('seats')
-        .insert({
-          section_id: sectionId,
-          row_label: rowLabel,
-          seat_number: seatNumber,
-          x_position: relX,
-          y_position: relY,
-          status: 'available',
-          seat_type: seatType,
-          is_active: true,
-        })
+        .insert(row)
         .select()
         .single();
       if (error) {
@@ -176,6 +180,7 @@ export function useSeatDraw(
         canvasX,
         canvasY,
         settings.seatType,
+        settings.ticketTypeId,
       );
 
       if (seat) {
@@ -220,16 +225,7 @@ export function useSeatDraw(
       const ux = dx / totalDist;
       const uy = dy / totalDist;
 
-      const newSeats: Array<{
-        section_id: string;
-        row_label: string;
-        seat_number: number;
-        x_position: number;
-        y_position: number;
-        status: string;
-        seat_type: string;
-        is_active: boolean;
-      }> = [];
+      const newSeats: Array<Record<string, unknown>> = [];
 
       let seatNum = nextNumber.current;
 
@@ -237,7 +233,7 @@ export function useSeatDraw(
         const cx = x1 + ux * spacing * i;
         const cy = y1 + uy * spacing * i;
 
-        newSeats.push({
+        const row: Record<string, unknown> = {
           section_id: sectionId,
           row_label: settings.rowLabel,
           seat_number: seatNum,
@@ -246,7 +242,9 @@ export function useSeatDraw(
           status: 'available',
           seat_type: settings.seatType,
           is_active: true,
-        });
+        };
+        if (settings.ticketTypeId) row.ticket_type_id = settings.ticketTypeId;
+        newSeats.push(row);
         seatNum++;
       }
 
