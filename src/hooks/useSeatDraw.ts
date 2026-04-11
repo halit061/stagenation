@@ -4,6 +4,7 @@ import type { Seat, SeatSection } from '../types/seats';
 import type { SeatDrawSettings, DrawSeatType } from '../components/SeatDrawSettingsPanel';
 
 const MAX_SEATS_PER_SECTION = 5000;
+const FREE_SECTION_NAME = 'Vrije Plaatsing';
 
 function nextRowLabel(current: string): string {
   if (/^\d+$/.test(current)) return String(Number(current) + 1);
@@ -26,7 +27,11 @@ export function useSeatDraw(
   sections: SeatSection[],
   sectionSeats: Record<string, Seat[]>,
   setSectionSeats: React.Dispatch<React.SetStateAction<Record<string, Seat[]>>>,
+  setSeatSections: React.Dispatch<React.SetStateAction<SeatSection[]>>,
   showToast: (msg: string, type?: 'success' | 'error' | 'info') => void,
+  layoutId: string | null,
+  canvasW: number,
+  canvasH: number,
 ) {
   const [settings, setSettings] = useState<SeatDrawSettings>({
     sectionId: null,
@@ -42,23 +47,72 @@ export function useSeatDraw(
   const drawLineStart = useRef<{ x: number; y: number } | null>(null);
   const isDrawingLine = useRef(false);
   const [linePreview, setLinePreview] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  const autoSectionCreating = useRef(false);
 
-  const getSection = useCallback(
-    (id: string | null) => sections.find(s => s.id === id) ?? null,
-    [sections],
-  );
+  const getOrCreateFreeSection = useCallback(async (): Promise<string | null> => {
+    if (settings.sectionId) {
+      const existing = sections.find(s => s.id === settings.sectionId);
+      if (existing) return settings.sectionId;
+    }
 
-  const isInsideSection = useCallback(
-    (canvasX: number, canvasY: number, section: SeatSection): boolean => {
-      return (
-        canvasX >= section.position_x &&
-        canvasX <= section.position_x + section.width &&
-        canvasY >= section.position_y &&
-        canvasY <= section.position_y + section.height
-      );
-    },
-    [],
-  );
+    const freeSection = sections.find(s => s.name === FREE_SECTION_NAME);
+    if (freeSection) {
+      setSettings(prev => ({ ...prev, sectionId: freeSection.id }));
+      return freeSection.id;
+    }
+
+    if (!layoutId) {
+      showToast('Sla eerst een layout op', 'error');
+      return null;
+    }
+
+    if (autoSectionCreating.current) return null;
+    autoSectionCreating.current = true;
+
+    try {
+      const { data, error } = await supabase
+        .from('seat_sections')
+        .insert({
+          layout_id: layoutId,
+          name: FREE_SECTION_NAME,
+          section_type: 'plein',
+          capacity: 0,
+          color: 'transparent',
+          price_category: '',
+          price_amount: 0,
+          position_x: 0,
+          position_y: 0,
+          width: canvasW,
+          height: canvasH,
+          rotation: 0,
+          rows_count: 0,
+          seats_per_row: 0,
+          row_curve: 0,
+          sort_order: 9999,
+          is_active: true,
+          start_row_label: 'A',
+          numbering_direction: 'left-to-right',
+          row_label_direction: 'top-to-bottom',
+          row_spacing: 35,
+          seat_spacing: 25,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        showToast(`Fout bij aanmaken sectie: ${error.message}`, 'error');
+        return null;
+      }
+
+      const newSection = data as SeatSection;
+      setSeatSections(prev => [...prev, newSection]);
+      setSectionSeats(prev => ({ ...prev, [newSection.id]: [] }));
+      setSettings(prev => ({ ...prev, sectionId: newSection.id }));
+      return newSection.id;
+    } finally {
+      autoSectionCreating.current = false;
+    }
+  }, [settings.sectionId, sections, layoutId, canvasW, canvasH, setSeatSections, setSectionSeats, showToast]);
 
   const countSeatsInSection = useCallback(
     (sectionId: string) => (sectionSeats[sectionId] || []).length,
@@ -103,61 +157,45 @@ export function useSeatDraw(
 
   const placeSingleSeat = useCallback(
     async (canvasX: number, canvasY: number) => {
-      const section = getSection(settings.sectionId);
-      if (!section) {
-        showToast('Kies eerst een sectie in de instellingen', 'error');
-        return;
-      }
+      const sectionId = await getOrCreateFreeSection();
+      if (!sectionId) return;
 
-      if (!isInsideSection(canvasX, canvasY, section)) {
-        showToast('Klik binnen een sectie om een stoel te plaatsen', 'info');
-        return;
-      }
-
-      const currentCount = countSeatsInSection(section.id);
+      const currentCount = countSeatsInSection(sectionId);
       if (currentCount >= MAX_SEATS_PER_SECTION) {
         showToast(`Maximaal ${MAX_SEATS_PER_SECTION} stoelen per sectie bereikt`, 'error');
         return;
       }
 
-      const relX = canvasX - section.position_x;
-      const relY = canvasY - section.position_y;
       const seatNum = nextNumber.current;
 
       const seat = await insertSeatToDb(
-        section.id,
+        sectionId,
         settings.rowLabel,
         seatNum,
-        relX,
-        relY,
+        canvasX,
+        canvasY,
         settings.seatType,
       );
 
       if (seat) {
         nextNumber.current = seatNum + 1;
-        setSettings(prev => ({ ...prev, startNumber: seatNum + 1 }));
+        setSettings(prev => ({ ...prev, startNumber: seatNum + 1, sectionId }));
         setPlacedInRow(prev => prev + 1);
         setLastPlacedId(seat.id);
 
         setSectionSeats(prev => ({
           ...prev,
-          [section.id]: [...(prev[section.id] || []), seat],
+          [sectionId]: [...(prev[sectionId] || []), seat],
         }));
 
-        await updateSectionCapacity(section.id, currentCount + 1);
+        await updateSectionCapacity(sectionId, currentCount + 1);
       }
     },
-    [settings, getSection, isInsideSection, countSeatsInSection, insertSeatToDb, setSectionSeats, updateSectionCapacity, showToast],
+    [settings, getOrCreateFreeSection, countSeatsInSection, insertSeatToDb, setSectionSeats, updateSectionCapacity, showToast],
   );
 
   const placeSeatsAlongLine = useCallback(
     async (x1: number, y1: number, x2: number, y2: number) => {
-      const section = getSection(settings.sectionId);
-      if (!section) {
-        showToast('Kies eerst een sectie in de instellingen', 'error');
-        return;
-      }
-
       const dx = x2 - x1;
       const dy = y2 - y1;
       const totalDist = Math.sqrt(dx * dx + dy * dy);
@@ -166,9 +204,12 @@ export function useSeatDraw(
         return;
       }
 
+      const sectionId = await getOrCreateFreeSection();
+      if (!sectionId) return;
+
       const spacing = settings.seatSpacing;
       const count = Math.max(1, Math.floor(totalDist / spacing) + 1);
-      const currentCount = countSeatsInSection(section.id);
+      const currentCount = countSeatsInSection(sectionId);
 
       if (currentCount + count > MAX_SEATS_PER_SECTION) {
         showToast(`Dit zou meer dan ${MAX_SEATS_PER_SECTION} stoelen geven`, 'error');
@@ -195,17 +236,12 @@ export function useSeatDraw(
         const cx = x1 + ux * spacing * i;
         const cy = y1 + uy * spacing * i;
 
-        if (!isInsideSection(cx, cy, section)) continue;
-
-        const relX = cx - section.position_x;
-        const relY = cy - section.position_y;
-
         newSeats.push({
-          section_id: section.id,
+          section_id: sectionId,
           row_label: settings.rowLabel,
           seat_number: seatNum,
-          x_position: relX,
-          y_position: relY,
+          x_position: cx,
+          y_position: cy,
           status: 'available',
           seat_type: settings.seatType,
           is_active: true,
@@ -227,7 +263,7 @@ export function useSeatDraw(
 
       const insertedSeats = (data ?? []) as Seat[];
       nextNumber.current = seatNum;
-      setSettings(prev => ({ ...prev, startNumber: seatNum }));
+      setSettings(prev => ({ ...prev, startNumber: seatNum, sectionId }));
       setPlacedInRow(prev => prev + insertedSeats.length);
       if (insertedSeats.length > 0) {
         setLastPlacedId(insertedSeats[insertedSeats.length - 1].id);
@@ -235,12 +271,12 @@ export function useSeatDraw(
 
       setSectionSeats(prev => ({
         ...prev,
-        [section.id]: [...(prev[section.id] || []), ...insertedSeats],
+        [sectionId]: [...(prev[sectionId] || []), ...insertedSeats],
       }));
 
-      await updateSectionCapacity(section.id, currentCount + insertedSeats.length);
+      await updateSectionCapacity(sectionId, currentCount + insertedSeats.length);
     },
-    [settings, getSection, isInsideSection, countSeatsInSection, placeSingleSeat, setSectionSeats, updateSectionCapacity, showToast],
+    [settings, getOrCreateFreeSection, countSeatsInSection, placeSingleSeat, setSectionSeats, updateSectionCapacity, showToast],
   );
 
   const handleCanvasMouseDown = useCallback(
@@ -291,6 +327,7 @@ export function useSeatDraw(
 
   const deleteLastPlaced = useCallback(async () => {
     if (!lastPlacedId || !settings.sectionId) return;
+    const sectionId = settings.sectionId;
     const { error } = await supabase.from('seats').delete().eq('id', lastPlacedId);
     if (error) {
       showToast('Fout bij verwijderen stoel', 'error');
@@ -298,21 +335,18 @@ export function useSeatDraw(
     }
 
     setSectionSeats(prev => {
-      const seats = prev[settings.sectionId!] || [];
-      return {
-        ...prev,
-        [settings.sectionId!]: seats.filter(s => s.id !== lastPlacedId),
-      };
+      const seats = prev[sectionId] || [];
+      return { ...prev, [sectionId]: seats.filter(s => s.id !== lastPlacedId) };
     });
 
-    const newCount = countSeatsInSection(settings.sectionId) - 1;
-    await updateSectionCapacity(settings.sectionId, Math.max(0, newCount));
+    const newCount = countSeatsInSection(sectionId) - 1;
+    await updateSectionCapacity(sectionId, Math.max(0, newCount));
 
     nextNumber.current = Math.max(1, nextNumber.current - 1);
     setSettings(prev => ({ ...prev, startNumber: Math.max(1, prev.startNumber - 1) }));
     setPlacedInRow(prev => Math.max(0, prev - 1));
 
-    const seats = sectionSeats[settings.sectionId] || [];
+    const seats = sectionSeats[sectionId] || [];
     const remaining = seats.filter(s => s.id !== lastPlacedId);
     setLastPlacedId(remaining.length > 0 ? remaining[remaining.length - 1].id : null);
   }, [lastPlacedId, settings.sectionId, sectionSeats, setSectionSeats, countSeatsInSection, updateSectionCapacity, showToast]);

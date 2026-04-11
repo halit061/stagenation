@@ -1,6 +1,5 @@
 import { useCallback } from 'react';
 import { Pencil, ChevronDown } from 'lucide-react';
-import type { SeatSection } from '../types/seats';
 
 export type DrawSeatType = 'regular' | 'vip' | 'wheelchair' | 'restricted_view';
 
@@ -13,7 +12,6 @@ export interface SeatDrawSettings {
 }
 
 interface SeatDrawSettingsPanelProps {
-  sections: SeatSection[];
   settings: SeatDrawSettings;
   onChange: (settings: SeatDrawSettings) => void;
   placedCount: number;
@@ -28,7 +26,6 @@ const SEAT_TYPE_OPTIONS: { value: DrawSeatType; label: string }[] = [
 ];
 
 export function SeatDrawSettingsPanel({
-  sections,
   settings,
   onChange,
   placedCount,
@@ -38,8 +35,6 @@ export function SeatDrawSettingsPanel({
     (patch: Partial<SeatDrawSettings>) => onChange({ ...settings, ...patch }),
     [settings, onChange],
   );
-
-  const selectedSection = sections.find(s => s.id === settings.sectionId);
 
   return (
     <div className="bg-slate-800 rounded-lg p-4 space-y-4">
@@ -56,32 +51,7 @@ export function SeatDrawSettingsPanel({
         </button>
       </div>
 
-      <div>
-        <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">Sectie</label>
-        {sections.length === 0 ? (
-          <p className="text-xs text-amber-400">Maak eerst een sectie aan</p>
-        ) : (
-          <div className="relative">
-            <select
-              value={settings.sectionId || ''}
-              onChange={(e) => update({ sectionId: e.target.value || null })}
-              className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-xs text-white appearance-none pr-7"
-            >
-              <option value="">-- Kies sectie --</option>
-              {sections.map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-            <ChevronDown className="w-3 h-3 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
-        )}
-        {selectedSection && (
-          <div className="mt-1 flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: selectedSection.color }} />
-            <span className="text-[10px] text-slate-400">{selectedSection.section_type}</span>
-          </div>
-        )}
-      </div>
+      <p className="text-[10px] text-slate-400">Klik op de canvas om stoelen te plaatsen. Sleep voor een rij.</p>
 
       <div className="grid grid-cols-2 gap-3">
         <div>

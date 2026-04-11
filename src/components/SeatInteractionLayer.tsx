@@ -76,6 +76,16 @@ interface Props {
 
 function computeSeatPositions(section: SeatSection, seats: Seat[]): ComputedSeat[] {
   if (seats.length === 0) return [];
+
+  if (section.name === 'Vrije Plaatsing') {
+    return seats.map((seat) => ({
+      ...seat,
+      cx: section.position_x + seat.x_position,
+      cy: section.position_y + seat.y_position,
+      sectionId: section.id,
+    }));
+  }
+
   const sx = section.position_x;
   const sy = section.position_y;
   const sw = section.width;
@@ -549,7 +559,7 @@ export function SeatInteractionLayer({
         )}
       </g>
 
-      {sections.map((section) => (
+      {sections.filter(s => s.name !== 'Vrije Plaatsing').map((section) => (
         <g key={`labels-${section.id}`} style={getSectionTransform(section.id)}>
           {rowLabels
             .filter(rl => rl.sectionId === section.id)

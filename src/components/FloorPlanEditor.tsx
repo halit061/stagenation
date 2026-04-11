@@ -217,7 +217,7 @@ export function FloorPlanEditor() {
     seatSections, sectionSeats, selectedSeatIds, setSectionSeats, pushAction, showGrid
   );
 
-  const seatDraw = useSeatDraw(seatSections, sectionSeats, setSectionSeats, showToast);
+  const seatDraw = useSeatDraw(seatSections, sectionSeats, setSectionSeats, setSeatSections, showToast, currentLayout?.id ?? null, CANVAS_W, CANVAS_H);
   const [drawContextMenu, setDrawContextMenu] = useState<{
     seat: Seat; section: SeatSection; position: { x: number; y: number };
   } | null>(null);
@@ -1930,7 +1930,7 @@ export function FloorPlanEditor() {
                   );
                 })}
 
-                {seatSections.map((section) => {
+                {seatSections.filter(s => s.name !== 'Vrije Plaatsing').map((section) => {
                   const isSel = selectedItem?.type === 'section' && selectedItem.data.id === section.id;
                   const isHovered = hoveredItemId === section.id && !isSel;
                   const seatCount = (sectionSeats[section.id] || []).length;
@@ -2168,7 +2168,6 @@ export function FloorPlanEditor() {
           <div className="p-3 space-y-3 bg-slate-800/30 border-l border-slate-700 overflow-y-auto" style={{ maxHeight: '836px' }}>
             {currentTool === 'draw_seat' ? (
               <SeatDrawSettingsPanel
-                sections={seatSections}
                 settings={seatDraw.settings}
                 onChange={seatDraw.updateSettings}
                 placedCount={seatDraw.placedInRow}
