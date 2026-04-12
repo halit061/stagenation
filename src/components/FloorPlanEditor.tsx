@@ -982,7 +982,7 @@ export function FloorPlanEditor() {
 
   const handleUpdateSeats = useCallback(async (
     seatIds: string[],
-    updates: Partial<Pick<Seat, 'status' | 'seat_type' | 'price_override'>>
+    updates: Partial<Pick<Seat, 'status' | 'seat_type' | 'price_override' | 'row_label' | 'seat_number'>>
   ) => {
     try {
       await updateSeatDb(seatIds, updates);
@@ -995,7 +995,13 @@ export function FloorPlanEditor() {
         }
         return next;
       });
-      showToast('Stoelen bijgewerkt', 'success');
+      if (updates.row_label !== undefined || updates.seat_number !== undefined) {
+        const row = updates.row_label ?? '';
+        const num = updates.seat_number ?? '';
+        showToast(`Stoel bijgewerkt naar ${row}${num}`, 'success');
+      } else {
+        showToast('Stoelen bijgewerkt', 'success');
+      }
     } catch (err: any) {
       showToast(err.message || 'Fout bij bijwerken stoelen', 'error');
     }

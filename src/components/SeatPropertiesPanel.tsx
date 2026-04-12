@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { X } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { X, Check } from 'lucide-react';
 import type { Seat, SeatSection, SeatStatus, SeatType } from '../types/seats';
 
 const inputCls = "w-full px-2.5 py-1.5 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500/20";
@@ -24,7 +24,7 @@ interface Props {
   selectedSeats: Seat[];
   sections: SeatSection[];
   onDeselectAll: () => void;
-  onUpdateSeats: (seatIds: string[], updates: Partial<Pick<Seat, 'status' | 'seat_type' | 'price_override'>>) => void;
+  onUpdateSeats: (seatIds: string[], updates: Partial<Pick<Seat, 'status' | 'seat_type' | 'price_override' | 'row_label' | 'seat_number'>>) => void;
 }
 
 export function SeatPropertiesPanel({ selectedSeats, sections, onDeselectAll, onUpdateSeats }: Props) {
@@ -37,6 +37,24 @@ export function SeatPropertiesPanel({ selectedSeats, sections, onDeselectAll, on
   const isSingle = selectedSeats.length === 1;
   const seat = isSingle ? selectedSeats[0] : null;
   const seatSection = seat ? sectionMap.get(seat.section_id) : null;
+
+  const [editRowLabel, setEditRowLabel] = useState('');
+  const [editSeatNumber, setEditSeatNumber] = useState('');
+  const [rowDirty, setRowDirty] = useState(false);
+  const [seatNumDirty, setSeatNumDirty] = useState(false);
+
+  const prevSeatId = useMemo(() => seat?.id ?? null, [seat?.id]);
+  useMemo(() => {
+    if (seat) {
+      setEditRowLabel(seat.row_label);
+      setEditSeatNumber(String(seat.seat_number));
+      setRowDirty(false);
+      setSeatNumDirty(false);
+    }
+  }, [prevSeatId]);
+
+  const [editBulkRow, setEditBulkRow] = useState('');
+  const [bulkRowDirty, setBulkRowDirty] = useState(false);
 
   const sharedStatus = useMemo(() => {
     if (selectedSeats.length === 0) return null;
@@ -73,11 +91,54 @@ export function SeatPropertiesPanel({ selectedSeats, sections, onDeselectAll, on
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className={labelCls}>Rij</label>
-                <p className="text-white text-sm font-medium">{seat.row_label}</p>
+                <div className="flex gap-1">
+                  <input
+                    type="text"
+                    value={editRowLabel}
+                    onChange={(e) => { setEditRowLabel(e.target.value); setRowDirty(true); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && rowDirty && editRowLabel.trim()) {
+                        onUpdateSeats([seat.id], { row_label: editRowLabel.trim() });
+                        setRowDirty(false);
+                      }
+                    }}
+                    className={inputCls}
+                  />
+                  {rowDirty && editRowLabel.trim() && (
+                    <button
+                      onClick={() => { onUpdateSeats([seat.id], { row_label: editRowLabel.trim() }); setRowDirty(false); }}
+                      className="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded transition-colors flex-shrink-0"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
               <div>
-                <label className={labelCls}>Stoel</label>
-                <p className="text-white text-sm font-medium">{seat.seat_number}</p>
+                <label className={labelCls}>Stoel Nr.</label>
+                <div className="flex gap-1">
+                  <input
+                    type="number"
+                    min="1"
+                    value={editSeatNumber}
+                    onChange={(e) => { setEditSeatNumber(e.target.value); setSeatNumDirty(true); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && seatNumDirty && editSeatNumber) {
+                        onUpdateSeats([seat.id], { seat_number: parseInt(editSeatNumber, 10) });
+                        setSeatNumDirty(false);
+                      }
+                    }}
+                    className={inputCls}
+                  />
+                  {seatNumDirty && editSeatNumber && (
+                    <button
+                      onClick={() => { onUpdateSeats([seat.id], { seat_number: parseInt(editSeatNumber, 10) }); setSeatNumDirty(false); }}
+                      className="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded transition-colors flex-shrink-0"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
             {seatSection && (
@@ -140,22 +201,50 @@ export function SeatPropertiesPanel({ selectedSeats, sections, onDeselectAll, on
         )}
 
         {!isSingle && selectedSeats.length > 1 && (
-          <div className="border-t border-slate-700 pt-3 mt-3">
-            <label className={labelCls}>Samenvatting</label>
-            <div className="text-xs text-slate-400 space-y-1">
-              {(() => {
-                const sectionCounts = new Map<string, number>();
-                for (const s of selectedSeats) {
-                  const sec = sectionMap.get(s.section_id);
-                  const name = sec?.name || 'Onbekend';
-                  sectionCounts.set(name, (sectionCounts.get(name) || 0) + 1);
-                }
-                return [...sectionCounts.entries()].map(([name, count]) => (
-                  <p key={name}>{name}: {count} stoelen</p>
-                ));
-              })()}
+          <>
+            <div>
+              <label className={labelCls}>Rij wijzigen ({selectedSeats.length} stoelen)</label>
+              <div className="flex gap-1">
+                <input
+                  type="text"
+                  value={editBulkRow}
+                  onChange={(e) => { setEditBulkRow(e.target.value); setBulkRowDirty(true); }}
+                  placeholder={`Rij voor alle ${selectedSeats.length} stoelen`}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && bulkRowDirty && editBulkRow.trim()) {
+                      onUpdateSeats(ids, { row_label: editBulkRow.trim() });
+                      setBulkRowDirty(false);
+                    }
+                  }}
+                  className={inputCls}
+                />
+                {bulkRowDirty && editBulkRow.trim() && (
+                  <button
+                    onClick={() => { onUpdateSeats(ids, { row_label: editBulkRow.trim() }); setBulkRowDirty(false); }}
+                    className="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded transition-colors flex-shrink-0"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+            <div className="border-t border-slate-700 pt-3 mt-3">
+              <label className={labelCls}>Samenvatting</label>
+              <div className="text-xs text-slate-400 space-y-1">
+                {(() => {
+                  const sectionCounts = new Map<string, number>();
+                  for (const s of selectedSeats) {
+                    const sec = sectionMap.get(s.section_id);
+                    const name = sec?.name || 'Onbekend';
+                    sectionCounts.set(name, (sectionCounts.get(name) || 0) + 1);
+                  }
+                  return [...sectionCounts.entries()].map(([name, count]) => (
+                    <p key={name}>{name}: {count} stoelen</p>
+                  ));
+                })()}
+              </div>
+            </div>
+          </>
         )}
       </div>
     </div>

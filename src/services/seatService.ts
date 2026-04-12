@@ -566,7 +566,7 @@ export async function updateSeatPrice(
 
 export async function updateSeat(
   seatIds: string[],
-  updates: Partial<Pick<Seat, 'status' | 'seat_type' | 'price_override'>>
+  updates: Partial<Pick<Seat, 'status' | 'seat_type' | 'price_override' | 'row_label' | 'seat_number'>>
 ): Promise<void> {
   await requireAuth();
   const { error } = await supabase
