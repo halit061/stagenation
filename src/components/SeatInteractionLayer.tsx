@@ -1,20 +1,12 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { SeatSection, Seat, SeatStatus, SeatType } from '../types/seats';
-import { SvgSeatChair } from './SeatIcon';
+import type { CanvasSeat } from './SeatCanvasLayer';
 
 const HEADER_H = 24;
 const PAD = 10;
 const SEAT_SIZE = 12;
-const SEAT_SIZE_HOVER = 15;
 const SEAT_HIT_R = 7;
 const TOOLTIP_DELAY = 200;
-
-const STATUS_COLOR: Record<SeatStatus, string> = {
-  available: '#4ade80',
-  blocked: '#94a3b8',
-  reserved: '#fbbf24',
-  sold: '#f87171',
-};
 
 const STATUS_LABEL: Record<SeatStatus, string> = {
   available: 'Beschikbaar',
@@ -73,6 +65,13 @@ interface Props {
   onDragMove?: (svgX: number, svgY: number) => void;
   onDragEnd?: (allSeats: ComputedSeat[]) => void;
   ticketTypeColors?: Record<string, string>;
+  onCanvasDataChange?: (data: {
+    seats: CanvasSeat[];
+    selectedIds: Set<string>;
+    hoveredId: string | null;
+    marqueePreviewIds: Set<string>;
+    seatSize: number;
+  }) => void;
 }
 
 function computeSeatPositions(section: SeatSection, seats: Seat[]): ComputedSeat[] {
@@ -119,51 +118,6 @@ function computeSeatPositions(section: SeatSection, seats: Seat[]): ComputedSeat
   });
 }
 
-function SeatOverlayIcon({ seat, r }: { seat: ComputedSeat; r: number }) {
-  const st = seat.seat_type as SeatType;
-  const tiny = r * 0.45;
-
-  if (st === 'vip' && seat.status === 'available') {
-    return (
-      <>
-        <polygon
-          points={`${seat.cx},${seat.cy - tiny * 1.1} ${seat.cx + tiny * 0.4},${seat.cy - tiny * 0.2} ${seat.cx + tiny * 1.1},${seat.cy - tiny * 0.2} ${seat.cx + tiny * 0.55},${seat.cy + tiny * 0.35} ${seat.cx + tiny * 0.75},${seat.cy + tiny * 1.1} ${seat.cx},${seat.cy + tiny * 0.6} ${seat.cx - tiny * 0.75},${seat.cy + tiny * 1.1} ${seat.cx - tiny * 0.55},${seat.cy + tiny * 0.35} ${seat.cx - tiny * 1.1},${seat.cy - tiny * 0.2} ${seat.cx - tiny * 0.4},${seat.cy - tiny * 0.2}`}
-          fill="white" fillOpacity={0.9}
-          className="pointer-events-none"
-        />
-      </>
-    );
-  }
-  if (st === 'wheelchair' && seat.status === 'available') {
-    return (
-      <g className="pointer-events-none">
-        <circle cx={seat.cx} cy={seat.cy + tiny * 0.2} r={tiny * 0.7} fill="none" stroke="white" strokeWidth={0.8} />
-        <line x1={seat.cx} y1={seat.cy - tiny} x2={seat.cx} y2={seat.cy + tiny * 0.2} stroke="white" strokeWidth={0.8} />
-        <line x1={seat.cx} y1={seat.cy - tiny * 0.2} x2={seat.cx + tiny * 0.5} y2={seat.cy - tiny * 0.2} stroke="white" strokeWidth={0.8} />
-      </g>
-    );
-  }
-  if (st === 'restricted_view' && seat.status === 'available') {
-    return (
-      <line
-        x1={seat.cx - tiny} y1={seat.cy + tiny}
-        x2={seat.cx + tiny} y2={seat.cy - tiny}
-        stroke="white" strokeWidth={1} strokeOpacity={0.8}
-        className="pointer-events-none"
-      />
-    );
-  }
-  if (seat.status === 'blocked') {
-    return (
-      <g className="pointer-events-none">
-        <line x1={seat.cx - tiny * 0.6} y1={seat.cy - tiny * 0.6} x2={seat.cx + tiny * 0.6} y2={seat.cy + tiny * 0.6} stroke="white" strokeWidth={0.8} strokeOpacity={0.7} />
-        <line x1={seat.cx + tiny * 0.6} y1={seat.cy - tiny * 0.6} x2={seat.cx - tiny * 0.6} y2={seat.cy + tiny * 0.6} stroke="white" strokeWidth={0.8} strokeOpacity={0.7} />
-      </g>
-    );
-  }
-  return null;
-}
-
 function getRowGroups(seats: ComputedSeat[]): Map<string, ComputedSeat[]> {
   const groups = new Map<string, ComputedSeat[]>();
   for (const s of seats) {
@@ -189,7 +143,7 @@ export function SeatInteractionLayer({
   onDragStart,
   onDragMove,
   onDragEnd,
-  ticketTypeColors,
+  onCanvasDataChange,
 }: Props) {
   const [hoveredSeat, setHoveredSeat] = useState<ComputedSeat | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
@@ -511,8 +465,6 @@ export function SeatInteractionLayer({
     return minSize;
   }, [allComputedSeats.length, sections]);
 
-  const hoverSize = seatSizeComputed * (SEAT_SIZE_HOVER / SEAT_SIZE);
-
   const marqueePreviewIds = useMemo(() => {
     if (!marqueeRect) return new Set<string>();
     const x = Math.min(marqueeRect.x1, marqueeRect.x2);
@@ -527,6 +479,28 @@ export function SeatInteractionLayer({
     }
     return ids;
   }, [marqueeRect, allComputedSeats]);
+
+  const canvasSeats = useMemo<CanvasSeat[]>(() =>
+    allComputedSeats.map(s => ({
+      id: s.id,
+      cx: s.cx,
+      cy: s.cy,
+      status: s.status as SeatStatus,
+      seat_type: s.seat_type as SeatType,
+      sectionId: s.sectionId,
+      ticket_type_id: s.ticket_type_id,
+    })),
+  [allComputedSeats]);
+
+  useEffect(() => {
+    onCanvasDataChange?.({
+      seats: canvasSeats,
+      selectedIds: selectedSeatIds,
+      hoveredId: hoveredSeat?.id ?? null,
+      marqueePreviewIds,
+      seatSize: seatSizeComputed,
+    });
+  }, [canvasSeats, selectedSeatIds, hoveredSeat?.id, marqueePreviewIds, seatSizeComputed, onCanvasDataChange]);
 
   const findSectionForSeat = useCallback((seatId: string) => {
     const seat = seatById.get(seatId);
@@ -617,80 +591,37 @@ export function SeatInteractionLayer({
         );
       })}
 
-      {sections.map((section) => {
-        const sectionSeatsComputed = allComputedSeats.filter(s => s.sectionId === section.id);
-        if (sectionSeatsComputed.length === 0) return null;
-        return (
-          <g key={`seats-${section.id}`} style={getSectionTransform(section.id)}>
-            {sectionSeatsComputed.map((seat) => {
-              const isDragTarget = dragState?.active && dragState.seatIds.has(seat.id);
-              const isCollisionFlash = dragState?.collisionFlash === seat.id;
-              const isSelected = selectedSeatIds.has(seat.id);
-              const isHovered = hoveredSeat?.id === seat.id && !dragState?.active;
-              const isMarqueePreview = marqueePreviewIds.has(seat.id);
-              const isReserved = seat.status === 'reserved';
-              const isVip = seat.seat_type === 'vip' && seat.status === 'available';
-              const ttColor = seat.ticket_type_id && ticketTypeColors?.[seat.ticket_type_id];
-              const statusColor = ttColor && seat.status === 'available' ? ttColor : (STATUS_COLOR[seat.status as SeatStatus] || '#4ade80');
-              const baseColor = isCollisionFlash ? '#ef4444' : isVip && !ttColor ? '#fbbf24' : statusColor;
-              const borderColor = isCollisionFlash ? '#dc2626' : isVip && !ttColor ? '#d97706' : (seat.status === 'sold' ? '#ef4444' : seat.status === 'blocked' ? '#94a3b8' : seat.status === 'reserved' ? '#f59e0b' : ttColor && seat.status === 'available' ? ttColor : '#22c55e');
-              const currentSize = isHovered ? hoverSize : seatSizeComputed;
-
-              const manyDragging = dragState?.active && dragState.seatIds.size > 50;
-              const renderCx = isDragTarget ? seat.cx + (dragState?.dx ?? 0) : seat.cx;
-              const renderCy = isDragTarget ? seat.cy + (dragState?.dy ?? 0) : seat.cy;
-
-              return (
-                <g key={seat.id} style={{ pointerEvents: ((isSelectTool || allowContextMenu) && !dragState?.active) ? 'all' : 'none' }}>
-                  {isDragTarget && (
-                    <SvgSeatChair
-                      cx={seat.cx}
-                      cy={seat.cy}
-                      size={seatSizeComputed}
-                      color={baseColor}
-                      opacity={0.2}
-                      strokeColor="#cbd5e1"
-                      strokeWidth={0.5}
-                      className="pointer-events-none"
-                    />
-                  )}
-                  <SvgSeatChair
-                    cx={renderCx}
-                    cy={renderCy}
-                    size={currentSize}
-                    color={baseColor}
-                    opacity={isReserved ? 0.7 : 1}
-                    selected={isSelected || isMarqueePreview}
-                    strokeColor={isSelected ? '#2563eb' : isMarqueePreview ? '#60a5fa' : borderColor}
-                    strokeWidth={isSelected ? 1.5 : isMarqueePreview ? 1.2 : 0.8}
-                    className={`seat-round-transition ${isCollisionFlash ? 'seat-collision-flash' : ''}`}
-                    style={{
-                      cursor: isDragTarget ? 'grabbing' : (isSelectTool || allowContextMenu) ? 'pointer' : 'default',
-                      transition: isCollisionFlash ? 'fill 150ms' : undefined,
-                    }}
-                    onClick={(e) => handleSeatClick(e, seat)}
-                    onMouseDown={(e) => handleSeatMouseDown(e, seat)}
-                    onMouseMove={handleMouseMove}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      if (onSeatContextMenu) {
-                        const sec = sections.find(s => s.id === seat.sectionId);
-                        if (sec) onSeatContextMenu(e, seat, sec);
-                      }
-                    }}
-                  />
-                  {(!manyDragging || !isDragTarget) && (
-                    <g transform={isDragTarget ? `translate(${dragState?.dx ?? 0}, ${dragState?.dy ?? 0})` : undefined}>
-                      <SeatOverlayIcon seat={seat} r={currentSize / 2} />
-                    </g>
-                  )}
-                </g>
-              );
-            })}
-          </g>
-        );
-      })}
+      {allComputedSeats.length > 0 && (
+        <rect
+          x={0} y={0} width={9999} height={9999}
+          fill="transparent"
+          style={{
+            pointerEvents: ((isSelectTool || allowContextMenu) && !dragState?.active) ? 'all' : 'none',
+            cursor: (isSelectTool || allowContextMenu) ? 'pointer' : 'default',
+          }}
+          onClick={(e) => {
+            const p = getSvgPoint(e);
+            const seat = findSeatAt(p.x, p.y);
+            if (seat) handleSeatClick(e, seat);
+          }}
+          onMouseDown={(e) => {
+            const p = getSvgPoint(e);
+            const seat = findSeatAt(p.x, p.y);
+            if (seat) handleSeatMouseDown(e, seat);
+          }}
+          onMouseMove={handleMouseMove}
+          onContextMenu={(e) => {
+            const p = getSvgPoint(e);
+            const seat = findSeatAt(p.x, p.y);
+            if (seat && onSeatContextMenu) {
+              e.preventDefault();
+              e.stopPropagation();
+              const sec = sections.find(s => s.id === seat.sectionId);
+              if (sec) onSeatContextMenu(e, seat, sec);
+            }
+          }}
+        />
+      )}
 
       {marqueeRect && (
         <rect

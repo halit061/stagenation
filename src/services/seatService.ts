@@ -405,6 +405,59 @@ export async function getSeatsByLayout(layoutId: string): Promise<SeatWithSectio
   return (seats ?? []) as SeatWithSection[];
 }
 
+export async function getSeatsBySectionBatched(
+  sectionId: string,
+  onBatch: (seats: Seat[], total: number) => void
+): Promise<Seat[]> {
+  const BATCH = 500;
+  const all: Seat[] = [];
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from('seats')
+      .select('*')
+      .eq('section_id', sectionId)
+      .eq('is_active', true)
+      .order('row_label', { ascending: true })
+      .order('seat_number', { ascending: true })
+      .range(from, from + BATCH - 1);
+    if (error) throw error;
+    if (data && data.length > 0) {
+      all.push(...data);
+      from += BATCH;
+      hasMore = data.length === BATCH;
+      onBatch(all, all.length);
+    } else {
+      hasMore = false;
+    }
+  }
+  return all;
+}
+
+export async function loadAllSeatsBatched(
+  sections: SeatSection[],
+  onProgress: (loaded: number, sectionsDone: number, totalSections: number) => void
+): Promise<Record<string, Seat[]>> {
+  const map: Record<string, Seat[]> = {};
+  let totalLoaded = 0;
+  let sectionsDone = 0;
+
+  for (const section of sections) {
+    const seats = await getSeatsBySectionBatched(section.id, (batch) => {
+      totalLoaded = Object.values(map).reduce((s, arr) => s + arr.length, 0) + batch.length;
+      onProgress(totalLoaded, sectionsDone, sections.length);
+    });
+    map[section.id] = seats;
+    sectionsDone++;
+    totalLoaded = Object.values(map).reduce((s, arr) => s + arr.length, 0);
+    onProgress(totalLoaded, sectionsDone, sections.length);
+  }
+
+  return map;
+}
+
 // ---------------------------------------------------------------------------
 // Seat generation
 // ---------------------------------------------------------------------------

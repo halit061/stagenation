@@ -24,12 +24,16 @@ import { useAdminSeatRealtime } from '../hooks/useAdminSeatRealtime';
 import type { BackgroundSettings } from '../lib/backgroundUpload';
 import type { SectionFormData } from './SectionConfigModal';
 import type { VenueLayout, SeatSection, Seat, TicketType } from '../types/seats';
-import { getSectionsByLayout, createSection, updateSection, deleteSection, generateSeats, getSeatsBySection, updateSeat as updateSeatDb, deleteSeatsById, updateSectionCapacity, updateSeatPositions, getTicketTypesForEvent, getAllTicketTypeSectionsForEvent, linkTicketTypeToSections } from '../services/seatService';
+import { getSectionsByLayout, createSection, updateSection, deleteSection, generateSeats, getSeatsBySection, updateSeat as updateSeatDb, deleteSeatsById, updateSectionCapacity, updateSeatPositions, getTicketTypesForEvent, getAllTicketTypeSectionsForEvent, linkTicketTypeToSections, loadAllSeatsBatched } from '../services/seatService';
 import { useSeatHistory } from '../hooks/useSeatHistory';
 import { useSeatDrag } from '../hooks/useSeatDrag';
 import { useSeatDraw } from '../hooks/useSeatDraw';
 import { SeatDrawSettingsPanel } from './SeatDrawSettingsPanel';
 import { SeatDrawContextMenu } from './SeatDrawContextMenu';
+import { SeatCanvasLayer } from './SeatCanvasLayer';
+import type { CanvasSeat } from './SeatCanvasLayer';
+import { SeatLoadingProgress } from './SeatLoadingProgress';
+import { useViewportCulling } from '../hooks/useViewportCulling';
 
 interface FloorplanTable {
   id: string;
@@ -162,6 +166,18 @@ export function FloorPlanEditor() {
     seat: Seat; section: SeatSection; position: { x: number; y: number };
   } | null>(null);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [seatLoadProgress, setSeatLoadProgress] = useState({ loaded: 0, sectionsDone: 0, totalSections: 0 });
+  const [seatsLoading, setSeatsLoading] = useState(false);
+  const [seatsLoadComplete, setSeatsLoadComplete] = useState(false);
+  const [canvasData, setCanvasData] = useState<{
+    seats: CanvasSeat[];
+    selectedIds: Set<string>;
+    hoveredId: string | null;
+    marqueePreviewIds: Set<string>;
+    seatSize: number;
+  } | null>(null);
+  const [scrollPos, setScrollPos] = useState({ left: 0, top: 0 });
+  const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [eventInfo, setEventInfo] = useState<{ name: string; start_date: string } | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -394,20 +410,23 @@ export function FloorPlanEditor() {
 
   const loadAllSectionSeats = useCallback(async (sections: SeatSection[]) => {
     if (sections.length === 0) { setSectionSeats({}); return; }
+    setSeatsLoading(true);
+    setSeatsLoadComplete(false);
+    setSeatLoadProgress({ loaded: 0, sectionsDone: 0, totalSections: sections.length });
     try {
-      const results = await Promise.all(
-        sections.map(async (s) => {
-          const seats = await getSeatsBySection(s.id);
-          return [s.id, seats] as const;
-        })
-      );
-      const map: Record<string, Seat[]> = {};
-      for (const [id, seats] of results) map[id] = seats;
+      const map = await loadAllSeatsBatched(sections, (loaded, sectionsDone, totalSections) => {
+        setSeatLoadProgress({ loaded, sectionsDone, totalSections });
+      });
       setSectionSeats(map);
+      const total = Object.values(map).reduce((s, arr) => s + arr.length, 0);
+      setSeatLoadProgress({ loaded: total, sectionsDone: sections.length, totalSections: sections.length });
+      setSeatsLoadComplete(true);
+      setTimeout(() => setSeatsLoadComplete(false), 3000);
     } catch (err) {
       console.error('Seats load error:', err);
       showToast('Fout bij laden stoelen', 'error');
     }
+    setSeatsLoading(false);
   }, [showToast]);
 
   const loadSections = useCallback(async (layoutId: string) => {
@@ -511,6 +530,36 @@ export function FloorPlanEditor() {
     }
     document.addEventListener('fullscreenchange', onFsChange);
     return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
+
+  useEffect(() => {
+    const el = canvasContainerRef.current;
+    if (!el) return;
+    const onScroll = () => setScrollPos({ left: el.scrollLeft, top: el.scrollTop });
+    const ro = new ResizeObserver(() => setContainerSize({ w: el.clientWidth, h: el.clientHeight }));
+    el.addEventListener('scroll', onScroll, { passive: true });
+    ro.observe(el);
+    setContainerSize({ w: el.clientWidth, h: el.clientHeight });
+    return () => { el.removeEventListener('scroll', onScroll); ro.disconnect(); };
+  }, []);
+
+  const visibleCanvasSeats = useViewportCulling(
+    canvasData?.seats ?? [],
+    containerSize.w,
+    containerSize.h,
+    zoom,
+    scrollPos.left,
+    scrollPos.top,
+  );
+
+  const handleCanvasDataChange = useCallback((data: {
+    seats: CanvasSeat[];
+    selectedIds: Set<string>;
+    hoveredId: string | null;
+    marqueePreviewIds: Set<string>;
+    seatSize: number;
+  }) => {
+    setCanvasData(data);
   }, []);
 
   const zoomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1993,6 +2042,7 @@ export function FloorPlanEditor() {
                   onDragMove={moveDrag}
                   onDragEnd={endDrag}
                   ticketTypeColors={ticketTypeColors}
+                  onCanvasDataChange={handleCanvasDataChange}
                 />
 
                 {currentTool === 'draw_seat' && (
@@ -2140,6 +2190,28 @@ export function FloorPlanEditor() {
                   </g>
                 )}
               </svg>
+              {canvasData && canvasData.seats.length > 0 && (
+                <SeatCanvasLayer
+                  seats={visibleCanvasSeats}
+                  selectedIds={canvasData.selectedIds}
+                  hoveredId={canvasData.hoveredId}
+                  marqueePreviewIds={canvasData.marqueePreviewIds}
+                  zoom={zoom}
+                  seatSize={canvasData.seatSize}
+                  ticketTypeColors={ticketTypeColors}
+                  dragState={dragState ? { active: dragState.active, dx: dragState.dx, dy: dragState.dy, seatIds: dragState.seatIds } : null}
+                  canvasWidth={CANVAS_W * zoom}
+                  canvasHeight={CANVAS_H * zoom}
+                />
+              )}
+              {(seatsLoading || seatsLoadComplete) && (
+                <SeatLoadingProgress
+                  loaded={seatLoadProgress.loaded}
+                  sectionsDone={seatLoadProgress.sectionsDone}
+                  totalSections={seatLoadProgress.totalSections}
+                  isComplete={!seatsLoading}
+                />
+              )}
               <SelectionCounter count={selectedSeatIds.size} onClear={() => setSelectedSeatIds(new Set())} />
 
               {selectedItem && currentTool === 'select' && !isDragging && !isResizing && (
