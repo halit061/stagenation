@@ -108,6 +108,7 @@ export function Tickets({ onNavigate }: TicketsProps) {
   const [floorplanObjects, setFloorplanObjects] = useState<any[]>([]);
   const [floorplanSections, setFloorplanSections] = useState<any[]>([]);
   const [floorplanSeatDots, setFloorplanSeatDots] = useState<any[]>([]);
+  const [floorplanTicketTypes, setFloorplanTicketTypes] = useState<{ id: string; name: string; color: string | null; price: number }[]>([]);
 
   // Refund protection state
   const [refundProtectionConfig, setRefundProtectionConfig] = useState<{
@@ -170,16 +171,18 @@ export function Tickets({ onNavigate }: TicketsProps) {
           try { await supabase.rpc('release_expired_reservations', { p_event_id: evId }); } catch (_) {}
 
           if (eventData?.floorplan_enabled) {
-            const [{ data: fpObjects }, { data: layouts }] = await Promise.all([
-              supabase.from('floorplan_objects').select('*').eq('is_active', true).eq('is_visible', true).order('created_at'),
+            const [{ data: fpObjects }, { data: layouts }, { data: ttColors }] = await Promise.all([
+              supabase.from('floorplan_objects').select('*').eq('is_active', true).eq('is_visible', true).or(`event_id.eq.${evId},event_id.is.null`).order('created_at'),
               supabase.from('venue_layouts').select('id').eq('event_id', evId).limit(1),
+              supabase.from('ticket_types').select('id, name, color, price').eq('event_id', evId).eq('is_active', true),
             ]);
             if (fpObjects) setFloorplanObjects(fpObjects);
+            if (ttColors) setFloorplanTicketTypes(ttColors.map((tt: any) => ({ id: tt.id, name: tt.name, color: tt.color || null, price: (tt.price || 0) / 100 })));
             const layoutId = layouts?.[0]?.id;
             if (layoutId) {
               const [{ data: secs }, { data: allSeats }] = await Promise.all([
                 supabase.from('seat_sections').select('id, name, color, position_x, position_y, width, height, rotation').eq('layout_id', layoutId).eq('is_active', true),
-                supabase.from('seats').select('section_id, x_position, y_position, status').eq('is_active', true),
+                supabase.from('seats').select('id, section_id, row_label, seat_number, x_position, y_position, status, ticket_type_id').eq('is_active', true),
               ]);
               if (secs) setFloorplanSections(secs);
               if (allSeats && secs) {
@@ -979,6 +982,8 @@ export function Tickets({ onNavigate }: TicketsProps) {
                 objects={floorplanObjects}
                 sections={floorplanSections}
                 seatDots={floorplanSeatDots}
+                ticketTypes={floorplanTicketTypes}
+                onNavigateToSeatPicker={eventId ? () => onNavigate?.(`seat-picker?event=${eventId}`) : undefined}
               />
             )}
 
