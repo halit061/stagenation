@@ -158,7 +158,7 @@ export async function fetchOrderById(orderId: string) {
 export async function fetchOrderSeats(orderId: string) {
   const { data, error } = await supabase
     .from('ticket_seats')
-    .select('id, seat_id, event_id, price_paid, assigned_at, ticket_code, qr_data')
+    .select('id, seat_id, event_id, price_paid, assigned_at, ticket_code, ticket_number, qr_data, qr_token')
     .eq('order_id', orderId);
 
   if (error) throw error;
@@ -169,7 +169,7 @@ export async function fetchSeatsForOrder(seatIds: string[]) {
   if (seatIds.length === 0) return [];
   const { data, error } = await supabase
     .from('seats')
-    .select('id, row_label, seat_number, seat_type, section_id')
+    .select('id, row_label, seat_number, seat_type, section_id, ticket_type_id')
     .in('id', seatIds);
 
   if (error) throw error;

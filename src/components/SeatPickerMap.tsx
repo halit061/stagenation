@@ -36,6 +36,7 @@ interface Props {
   flashingIds?: Set<string>;
   restrictedSectionIds?: Set<string>;
   floorplanObjects?: FloorplanObject[];
+  ticketTypeColorMap?: Record<string, string>;
   onSeatClick: (seatId: string) => void;
   canvasWidth?: number;
   canvasHeight?: number;
@@ -50,6 +51,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
   flashingIds,
   restrictedSectionIds,
   floorplanObjects = [],
+  ticketTypeColorMap = {},
   onSeatClick,
   onViewportChange,
 }: Props) {
@@ -702,7 +704,11 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                     borderColor = '#9ca3af';
                     fillOpacity = 0.5;
                   } else if (isAvailable) {
-                    if (tier === 'vip') {
+                    const ttColor = seat.ticket_type_id ? ticketTypeColorMap[seat.ticket_type_id] : null;
+                    if (ttColor) {
+                      fillColor = ttColor;
+                      borderColor = ttColor;
+                    } else if (tier === 'vip') {
                       fillColor = '#fbbf24';
                       borderColor = '#d97706';
                     } else {

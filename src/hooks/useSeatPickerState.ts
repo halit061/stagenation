@@ -9,6 +9,7 @@ import {
   fetchLinkedSectionIds,
   fetchFloorplanObjects,
   fetchTicketTypePricesForSections,
+  fetchTicketTypeColorsForEvent,
   holdSeatsAtomic,
   extendHolds,
   releaseSessionHolds,
@@ -21,7 +22,7 @@ import {
   recordRateAttempt,
   getSessionId,
 } from '../services/seatPickerService';
-import type { FloorplanObject } from '../services/seatPickerService';
+import type { FloorplanObject, TicketTypeColor } from '../services/seatPickerService';
 import { findBestAvailable } from '../lib/bestAvailable';
 
 export interface PickerSeat extends Seat {
@@ -125,6 +126,7 @@ export function useSeatPickerState(eventId: string, ticketTypeId?: string) {
   const [highlightedSeatIds, setHighlightedSeatIds] = useState<Set<string>>(new Set());
   const [allowedSectionIds, setAllowedSectionIds] = useState<string[] | null>(null);
   const [sectionTicketPrices, setSectionTicketPrices] = useState<Map<string, { ttName: string; price: number }>>(new Map());
+  const [ticketTypeColors, setTicketTypeColors] = useState<TicketTypeColor[]>([]);
 
   const lastBestAvailableOpts = useRef<{
     count: number;
@@ -233,9 +235,13 @@ export function useSeatPickerState(eventId: string, ticketTypeId?: string) {
         }
 
         const sectionIds = secs.map(s => s.id);
-        const ttPrices = await fetchTicketTypePricesForSections(sectionIds);
+        const [ttPrices, ttColors] = await Promise.all([
+          fetchTicketTypePricesForSections(sectionIds),
+          fetchTicketTypeColorsForEvent(eventId),
+        ]);
         if (cancelled) return;
         setSectionTicketPrices(ttPrices);
+        setTicketTypeColors(ttColors);
 
         const seatData = await fetchSeats(secs.map(s => s.id));
         if (cancelled) return;
@@ -602,5 +608,6 @@ export function useSeatPickerState(eventId: string, ticketTypeId?: string) {
     highlightedSeatIds,
     dismissNotification,
     allowedSectionIds,
+    ticketTypeColors,
   };
 }

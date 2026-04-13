@@ -276,6 +276,28 @@ export async function fetchLinkedSectionIds(ticketTypeId: string): Promise<strin
   return (data ?? []).map(r => r.section_id);
 }
 
+export interface TicketTypeColor {
+  id: string;
+  name: string;
+  color: string;
+  price: number;
+}
+
+export async function fetchTicketTypeColorsForEvent(eventId: string): Promise<TicketTypeColor[]> {
+  const { data, error } = await supabase
+    .from('ticket_types')
+    .select('id, name, color, price')
+    .eq('event_id', eventId)
+    .eq('is_active', true);
+  if (error) return [];
+  return (data ?? []).map((tt: any) => ({
+    id: tt.id,
+    name: tt.name,
+    color: tt.color || null,
+    price: (tt.price || 0) / 100,
+  }));
+}
+
 export async function refreshAllSeats(sectionIds: string[]): Promise<Seat[]> {
   return fetchSeats(sectionIds);
 }

@@ -31,6 +31,7 @@ const SuperAdminReset = lazy(() => import('./pages/SuperAdminReset').then(m => (
 const SeatPicker = lazy(() => import('./pages/SeatPicker').then(m => ({ default: m.SeatPicker })));
 const SeatCheckout = lazy(() => import('./pages/SeatCheckout').then(m => ({ default: m.SeatCheckout })));
 const SeatConfirmation = lazy(() => import('./pages/SeatConfirmation').then(m => ({ default: m.SeatConfirmation })));
+const TicketVerify = lazy(() => import('./pages/TicketVerify').then(m => ({ default: m.TicketVerify })));
 
 function getPageFromUrl(): string {
   const path = window.location.pathname.replace(/^\/+/, '') || 'home';
@@ -234,7 +235,11 @@ case 'contact':
         if (!confirmEventId || !confirmOrderId) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">Bestelling niet gevonden</div>;
         return <SeatConfirmation eventId={confirmEventId} orderId={confirmOrderId} onNavigate={navigate} />;
       }
-      default:
+      default: {
+        if (page.startsWith('verify/')) {
+          const verifyToken = page.slice('verify/'.length);
+          return <TicketVerify token={verifyToken} />;
+        }
         return (
           <div className="min-h-screen flex items-center justify-center p-4">
             <div className="text-center max-w-md">
@@ -254,6 +259,7 @@ case 'contact':
             </div>
           </div>
         );
+      }
     }
   };
 
@@ -272,7 +278,7 @@ case 'contact':
   }
 
   const page = currentPage.split('?')[0].replace(/^\/+/, '');
-  const isAdminPage = ['superadmin', 'admin', 'dashboard', 'scanner', 'login', 'superadmin-reset', 'superadmin-reset.html', 'seat-picker', 'seat-checkout', 'seat-confirmation'].includes(page);
+  const isAdminPage = ['superadmin', 'admin', 'dashboard', 'scanner', 'login', 'superadmin-reset', 'superadmin-reset.html', 'seat-picker', 'seat-checkout', 'seat-confirmation'].includes(page) || page.startsWith('verify/');
 
   if (isAdminPage) {
     return (

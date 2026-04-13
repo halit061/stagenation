@@ -80,6 +80,14 @@ export function SeatPicker({ eventId, ticketTypeId, onNavigate }: Props) {
   const serviceFee = feePerTicket * selectedSeats.length;
   const totalPrice = subtotal + serviceFee;
 
+  const ticketTypeColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const tt of state.ticketTypeColors) {
+      if (tt.color) map[tt.id] = tt.color;
+    }
+    return map;
+  }, [state.ticketTypeColors]);
+
   const restrictedSectionIds = useMemo(() => {
     if (!state.allowedSectionIds) return undefined;
     const allowed = new Set(state.allowedSectionIds);
@@ -226,7 +234,7 @@ export function SeatPicker({ eventId, ticketTypeId, onNavigate }: Props) {
               />
             </div>
             <div className="hidden md:block">
-              <SeatPickerLegend compact />
+              <SeatPickerLegend compact ticketTypeColors={state.ticketTypeColors} />
             </div>
           </div>
         </div>
@@ -242,6 +250,7 @@ export function SeatPicker({ eventId, ticketTypeId, onNavigate }: Props) {
             flashingIds={state.flashingSeatIds}
             restrictedSectionIds={restrictedSectionIds}
             floorplanObjects={state.floorplanObjects}
+            ticketTypeColorMap={ticketTypeColorMap}
             onSeatClick={state.toggleSeat}
             canvasWidth={state.canvasWidth}
             canvasHeight={state.canvasHeight}
@@ -263,7 +272,7 @@ export function SeatPicker({ eventId, ticketTypeId, onNavigate }: Props) {
 
           <div className="absolute bottom-4 left-4 md:hidden z-10">
             <div className="bg-slate-900/80 backdrop-blur border border-slate-700/50 rounded-lg px-3 py-2">
-              <SeatPickerLegend compact />
+              <SeatPickerLegend compact ticketTypeColors={state.ticketTypeColors} />
             </div>
           </div>
 

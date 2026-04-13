@@ -7,8 +7,9 @@ import {
   fetchSeatsForOrder,
   fetchSectionsForOrder,
 } from '../services/seatCheckoutService';
-import { fetchEventInfo } from '../services/seatPickerService';
+import { fetchEventInfo, fetchLayoutByEvent, fetchSections } from '../services/seatPickerService';
 import { generateTicketsPdf } from '../lib/generateTicketPdf';
+import type { TicketPdfSection } from '../lib/generateTicketPdf';
 import { useLanguage } from '../contexts/LanguageContext';
 import { st } from '../lib/seatTranslations';
 
@@ -42,7 +43,9 @@ interface SeatInfo {
   section_color: string;
   price: number;
   ticket_code: string | null;
+  ticket_number: string | null;
   qr_data: string | null;
+  ticket_type_name: string | null;
 }
 
 function QRCodeImage({ data, size = 160 }: { data: string; size?: number }) {
@@ -71,6 +74,7 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
   const [animReady, setAnimReady] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<string>('loading');
   const [pdfGenerating, setPdfGenerating] = useState(false);
+  const [venueSections, setVenueSections] = useState<TicketPdfSection[]>([]);
   const pollRef = useRef(0);
 
   const dateLocale = language === 'de' ? 'de-DE' : language === 'fr' ? 'fr-FR' : language === 'tr' ? 'tr-TR' : 'nl-NL';
@@ -139,6 +143,17 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
         const sectionData = await fetchSectionsForOrder(sectionIds as string[]);
         if (cancelled) return;
 
+        const ttIds = [...new Set(seatData.filter((s: any) => s.ticket_type_id).map((s: any) => s.ticket_type_id))];
+        let ttMap = new Map<string, string>();
+        if (ttIds.length > 0) {
+          const { supabase: sb } = await import('../lib/supabaseClient');
+          const { data: ttData } = await sb
+            .from('ticket_types')
+            .select('id, name')
+            .in('id', ttIds);
+          if (ttData) ttMap = new Map(ttData.map((t: any) => [t.id, t.name]));
+        }
+
         const sectionMap = new Map(sectionData.map((s: any) => [s.id, s]));
         const seatInfos: SeatInfo[] = ticketSeats.map((ts: any) => {
           const seat = seatData.find((s: any) => s.id === ts.seat_id);
@@ -152,7 +167,9 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
             section_color: section?.color || '#64748b',
             price: Number(ts.price_paid),
             ticket_code: ts.ticket_code || null,
+            ticket_number: ts.ticket_number || null,
             qr_data: ts.qr_data || null,
+            ticket_type_name: seat?.ticket_type_id ? ttMap.get(seat.ticket_type_id) || null : null,
           };
         });
 
@@ -163,6 +180,24 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
         );
 
         setSeats(seatInfos);
+
+        try {
+          const layout = await fetchLayoutByEvent(eventId);
+          if (layout && !cancelled) {
+            const allSections = await fetchSections(layout.id);
+            if (!cancelled) {
+              setVenueSections(allSections.map(s => ({
+                id: s.id,
+                name: s.name,
+                color: s.color,
+                position_x: s.position_x,
+                position_y: s.position_y,
+                width: s.width,
+                height: s.height,
+              })));
+            }
+          }
+        } catch {}
       } catch {}
     }
 
@@ -228,9 +263,12 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
           section_color: s.section_color,
           price: s.price,
           ticket_code: s.ticket_code,
+          ticket_number: s.ticket_number,
           qr_data: s.qr_data,
           seat_type: s.seat_type,
+          ticket_type_name: s.ticket_type_name || undefined,
         })),
+        venueSections.length > 0 ? venueSections : undefined,
       );
     } catch {
     } finally {
