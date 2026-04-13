@@ -159,6 +159,7 @@ export function FloorPlanEditor() {
   const [editingSection, setEditingSection] = useState<SeatSection | null>(null);
   const [sectionSaving, setSectionSaving] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; section: SeatSection } | null>(null);
+  const [itemContextMenu, setItemContextMenu] = useState<{ x: number; y: number; item: SelectedItemType } | null>(null);
   const [sectionSeats, setSectionSeats] = useState<Record<string, Seat[]>>({});
   const [selectedSeatIds, setSelectedSeatIds] = useState<Set<string>>(new Set());
   const [marqueeActive, setMarqueeActive] = useState(false);
@@ -328,6 +329,7 @@ export function FloorPlanEditor() {
         }
         setSelectedItem(null);
         setContextMenu(null);
+        setItemContextMenu(null);
         setSeatContextMenu(null);
         setDrawContextMenu(null);
         return;
@@ -1857,7 +1859,7 @@ export function FloorPlanEditor() {
               onClick={() => {
                 if (currentTool === 'draw_seat') return;
                 if (!isDragging && !isResizing && !dragIntent.current?.thresholdMet) {
-                  setSelectedItem(null); setContextMenu(null); setSeatContextMenu(null);
+                  setSelectedItem(null); setContextMenu(null); setItemContextMenu(null); setSeatContextMenu(null);
                   if (!marqueeActive) setSelectedSeatIds(new Set());
                 }
               }}
@@ -1939,40 +1941,6 @@ export function FloorPlanEditor() {
                   </g>
                 )}
 
-                {objects.map((obj) => {
-                  const isSelected = selectedItem?.type === 'object' && selectedItem.data.id === obj.id;
-                  const isHovered = hoveredItemId === obj.id && !isSelected;
-                  const displayName = obj.name || obj.label || obj.type || '';
-                  const isDancefloor = obj.type === 'DANCEFLOOR';
-                  const isTribune = obj.type === 'TRIBUNE';
-
-                  return (
-                    <g key={obj.id}>
-                      <g
-                        onMouseDown={(e) => handleItemMouseDown(e, { type: 'object', data: obj })}
-                        onClick={(e) => { e.stopPropagation(); setSelectedItem({ type: 'object', data: obj }); setSelectedSeatIds(new Set()); }}
-                        onMouseEnter={() => setHoveredItemId(obj.id)}
-                        onMouseLeave={() => setHoveredItemId(null)}
-                        style={{ cursor: currentTool === 'select' ? (isDragging ? 'grabbing' : 'grab') : 'default' }}
-                      >
-                        <>
-                          <rect x={obj.x} y={obj.y} width={obj.width} height={obj.height}
-                            fill={obj.color}
-                            stroke={isSelected ? '#2563eb' : isHovered ? '#60a5fa' : '#94a3b8'}
-                            strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1} rx="4" />
-                          <text x={obj.x + obj.width / 2} y={obj.y + obj.height / 2}
-                            textAnchor="middle" dominantBaseline="middle"
-                            fill={obj.font_color || '#ffffff'} fontSize={obj.font_size || 18}
-                            fontWeight={obj.font_weight || '600'} className="pointer-events-none">
-                            {displayName.toUpperCase()}
-                          </text>
-                        </>
-                      </g>
-                      {isSelected && currentTool === 'select' && <ResizeHandles item={obj} />}
-                    </g>
-                  );
-                })}
-
                 {seatSections.filter(s => s.name !== 'Vrije Plaatsing').map((section) => {
                   const isSel = selectedItem?.type === 'section' && selectedItem.data.id === section.id;
                   const isHovered = hoveredItemId === section.id && !isSel;
@@ -2045,6 +2013,43 @@ export function FloorPlanEditor() {
                   onCanvasDataChange={handleCanvasDataChange}
                 />
 
+                {objects.map((obj) => {
+                  const isSelected = selectedItem?.type === 'object' && selectedItem.data.id === obj.id;
+                  const isHovered = hoveredItemId === obj.id && !isSelected;
+                  const displayName = obj.name || obj.label || obj.type || '';
+
+                  return (
+                    <g key={obj.id}>
+                      <g
+                        onMouseDown={(e) => handleItemMouseDown(e, { type: 'object', data: obj })}
+                        onClick={(e) => { e.stopPropagation(); setSelectedItem({ type: 'object', data: obj }); setSelectedSeatIds(new Set()); }}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setSelectedItem({ type: 'object', data: obj });
+                          setSelectedSeatIds(new Set());
+                          setItemContextMenu({ x: e.clientX, y: e.clientY, item: { type: 'object', data: obj } });
+                        }}
+                        onMouseEnter={() => setHoveredItemId(obj.id)}
+                        onMouseLeave={() => setHoveredItemId(null)}
+                        style={{ cursor: currentTool === 'select' ? (isDragging ? 'grabbing' : 'grab') : 'default' }}
+                      >
+                        <rect x={obj.x} y={obj.y} width={obj.width} height={obj.height}
+                          fill={obj.color}
+                          stroke={isSelected ? '#2563eb' : isHovered ? '#60a5fa' : '#94a3b8'}
+                          strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 1} rx="4" />
+                        <text x={obj.x + obj.width / 2} y={obj.y + obj.height / 2}
+                          textAnchor="middle" dominantBaseline="middle"
+                          fill={obj.font_color || '#ffffff'} fontSize={obj.font_size || 18}
+                          fontWeight={obj.font_weight || '600'} className="pointer-events-none">
+                          {displayName.toUpperCase()}
+                        </text>
+                      </g>
+                      {isSelected && currentTool === 'select' && <ResizeHandles item={obj} />}
+                    </g>
+                  );
+                })}
+
                 {currentTool === 'draw_seat' && (
                   <g className="pointer-events-none">
                     {seatDraw.linePreview && (() => {
@@ -2110,6 +2115,13 @@ export function FloorPlanEditor() {
                       <g
                         onMouseDown={(e) => handleItemMouseDown(e, { type: 'table', data: table })}
                         onClick={(e) => { e.stopPropagation(); setSelectedItem({ type: 'table', data: table }); setSelectedSeatIds(new Set()); }}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setSelectedItem({ type: 'table', data: table });
+                          setSelectedSeatIds(new Set());
+                          setItemContextMenu({ x: e.clientX, y: e.clientY, item: { type: 'table', data: table } });
+                        }}
                         onMouseEnter={() => setHoveredItemId(table.id)}
                         onMouseLeave={() => setHoveredItemId(null)}
                         style={{ cursor: currentTool === 'select' ? (isDragging ? 'grabbing' : 'grab') : 'default' }}
@@ -2467,6 +2479,26 @@ export function FloorPlanEditor() {
             </button>
             <div className="border-t border-slate-700 my-1" />
             <button onClick={() => handleDeleteSection(contextMenu.section)}
+              className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2">
+              <Trash2 className="w-3.5 h-3.5" /> Verwijderen
+            </button>
+          </div>
+        </>
+      )}
+
+      {itemContextMenu && (
+        <>
+          <div className="fixed inset-0 z-[50]" onClick={() => setItemContextMenu(null)} />
+          <div
+            className="fixed z-[51] bg-slate-800 border border-slate-600 rounded-lg shadow-2xl py-1 min-w-[180px]"
+            style={{ left: itemContextMenu.x, top: itemContextMenu.y }}
+          >
+            <button onClick={() => { duplicateItem(); setItemContextMenu(null); }}
+              className="w-full px-4 py-2 text-left text-sm text-white hover:bg-slate-700 flex items-center gap-2">
+              <Copy className="w-3.5 h-3.5" /> Dupliceren
+            </button>
+            <div className="border-t border-slate-700 my-1" />
+            <button onClick={() => { deleteItem(); setItemContextMenu(null); }}
               className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2">
               <Trash2 className="w-3.5 h-3.5" /> Verwijderen
             </button>
