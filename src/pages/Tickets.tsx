@@ -7,6 +7,7 @@ import { checkoutWithRetry, reserveTickets } from '../lib/checkoutClient';
 import { cachedQuery } from '../lib/queryCache';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { VenueMap } from '../components/VenueMap';
+import { fetchSeats as fetchSeatsFromService } from '../services/seatPickerService';
 
 type TicketType = Database['public']['Tables']['ticket_types']['Row'];
 
@@ -180,14 +181,18 @@ export function Tickets({ onNavigate }: TicketsProps) {
             if (ttColors) setFloorplanTicketTypes(ttColors.map((tt: any) => ({ id: tt.id, name: tt.name, color: tt.color || null, price: (tt.price || 0) / 100 })));
             const layoutId = layouts?.[0]?.id;
             if (layoutId) {
-              const [{ data: secs }, { data: allSeats }] = await Promise.all([
-                supabase.from('seat_sections').select('id, name, color, position_x, position_y, width, height, rotation').eq('layout_id', layoutId).eq('is_active', true),
-                supabase.from('seats').select('id, section_id, row_label, seat_number, x_position, y_position, status, ticket_type_id').eq('is_active', true),
-              ]);
-              if (secs) setFloorplanSections(secs);
-              if (allSeats && secs) {
-                const secIds = new Set(secs.map((s: any) => s.id));
-                setFloorplanSeatDots(allSeats.filter((s: any) => secIds.has(s.section_id)));
+              const { data: secs } = await supabase
+                .from('seat_sections')
+                .select('id, name, color, position_x, position_y, width, height, rotation')
+                .eq('layout_id', layoutId)
+                .eq('is_active', true);
+              if (secs) {
+                setFloorplanSections(secs);
+                const sectionIds = secs.map((s: any) => s.id);
+                if (sectionIds.length > 0) {
+                  const allSeats = await fetchSeatsFromService(sectionIds);
+                  setFloorplanSeatDots(allSeats);
+                }
               }
             }
           }

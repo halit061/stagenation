@@ -79,14 +79,6 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-function isLightColor(hex: string): boolean {
-  const h = hex.replace('#', '');
-  const r = parseInt(h.substring(0, 2), 16) || 0;
-  const g = parseInt(h.substring(2, 4), 16) || 0;
-  const b = parseInt(h.substring(4, 6), 16) || 0;
-  return (r * 299 + g * 587 + b * 114) / 1000 > 140;
-}
-
 const HEADER_H = 24;
 const PAD = 10;
 const SEAT_R = 3;
@@ -116,6 +108,7 @@ export function VenueMap({ objects, sections, seatDots, ticketTypes = [], onNavi
   };
 
   const computedSeats = useMemo(() => {
+    if (!seatDots || seatDots.length === 0) return [];
     const results: ComputedSeat[] = [];
     for (const section of sections) {
       const secSeats = seatDots.filter(s => s.section_id === section.id);
@@ -130,10 +123,12 @@ export function VenueMap({ objects, sections, seatDots, ticketTypes = [], onNavi
       const bodyW = Math.max(1, sw - PAD * 2);
       const bodyLeft = sx + PAD;
 
-      const minX = Math.min(...secSeats.map(s => s.x_position));
-      const maxX = Math.max(...secSeats.map(s => s.x_position));
-      const minY = Math.min(...secSeats.map(s => s.y_position));
-      const maxY = Math.max(...secSeats.map(s => s.y_position));
+      const xPositions = secSeats.map(s => s.x_position);
+      const yPositions = secSeats.map(s => s.y_position);
+      const minX = Math.min(...xPositions);
+      const maxX = Math.max(...xPositions);
+      const minY = Math.min(...yPositions);
+      const maxY = Math.max(...yPositions);
       const rangeX = maxX - minX || 1;
       const rangeY = maxY - minY || 1;
       const scale = Math.min(bodyW / rangeX, bodyH / rangeY);
@@ -143,9 +138,12 @@ export function VenueMap({ objects, sections, seatDots, ticketTypes = [], onNavi
       const offsetY = bodyTop + (bodyH - fittedH) / 2;
 
       for (const seat of secSeats) {
+        const cx = offsetX + (seat.x_position - minX) * scale;
+        const cy = offsetY + (seat.y_position - minY) * scale;
+        if (isNaN(cx) || isNaN(cy)) continue;
         results.push({
-          cx: offsetX + (seat.x_position - minX) * scale,
-          cy: offsetY + (seat.y_position - minY) * scale,
+          cx,
+          cy,
           row_label: seat.row_label,
           seat_number: seat.seat_number,
           status: seat.status,
@@ -183,22 +181,19 @@ export function VenueMap({ objects, sections, seatDots, ticketTypes = [], onNavi
       if (!rowMap.has(key)) rowMap.set(key, []);
       rowMap.get(key)!.push(s);
     }
-    const nums: { cx: number; cy: number; num: number; light: boolean }[] = [];
+    const nums: { cx: number; cy: number; num: number }[] = [];
     for (const [, seats] of rowMap) {
       if (seats.length === 0) continue;
       const sorted = [...seats].sort((a, b) => a.seat_number - b.seat_number);
       const first = sorted[0];
       const last = sorted[sorted.length - 1];
-      const seatColor = getSeatColor(first, ttMap);
-      const light = isLightColor(seatColor);
-      nums.push({ cx: first.cx, cy: first.cy, num: first.seat_number, light });
+      nums.push({ cx: first.cx, cy: first.cy, num: first.seat_number });
       if (last.seat_number !== first.seat_number) {
-        const lastColor = getSeatColor(last, ttMap);
-        nums.push({ cx: last.cx, cy: last.cy, num: last.seat_number, light: isLightColor(lastColor) });
+        nums.push({ cx: last.cx, cy: last.cy, num: last.seat_number });
       }
     }
     return nums;
-  }, [computedSeats, ttMap]);
+  }, [computedSeats]);
 
   const sectionLabels = useMemo(() => {
     return sections.map(sec => {
@@ -206,36 +201,36 @@ export function VenueMap({ objects, sections, seatDots, ticketTypes = [], onNavi
       if (secSeats.length === 0) {
         return { x: sec.position_x + sec.width / 2, y: sec.position_y + HEADER_H / 2, name: sec.name };
       }
-      let minY = Infinity;
+      let topY = Infinity;
       let sumX = 0;
       let count = 0;
       for (const s of secSeats) {
-        if (s.cy < minY) minY = s.cy;
+        if (s.cy < topY) topY = s.cy;
         sumX += s.cx;
         count++;
       }
-      return { x: sumX / count, y: minY - 12, name: sec.name };
+      return { x: sumX / count, y: topY - 12, name: sec.name };
     });
   }, [sections, computedSeats]);
 
   const bounds = useMemo(() => {
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let bMinX = Infinity, bMinY = Infinity, bMaxX = -Infinity, bMaxY = -Infinity;
     for (const obj of objects) {
-      minX = Math.min(minX, Number(obj.x));
-      minY = Math.min(minY, Number(obj.y));
-      maxX = Math.max(maxX, Number(obj.x) + Number(obj.width));
-      maxY = Math.max(maxY, Number(obj.y) + Number(obj.height));
+      bMinX = Math.min(bMinX, Number(obj.x));
+      bMinY = Math.min(bMinY, Number(obj.y));
+      bMaxX = Math.max(bMaxX, Number(obj.x) + Number(obj.width));
+      bMaxY = Math.max(bMaxY, Number(obj.y) + Number(obj.height));
     }
     for (const sec of sections) {
-      minX = Math.min(minX, sec.position_x);
-      minY = Math.min(minY, sec.position_y);
-      maxX = Math.max(maxX, sec.position_x + sec.width);
-      maxY = Math.max(maxY, sec.position_y + sec.height);
+      bMinX = Math.min(bMinX, sec.position_x);
+      bMinY = Math.min(bMinY, sec.position_y);
+      bMaxX = Math.max(bMaxX, sec.position_x + sec.width);
+      bMaxY = Math.max(bMaxY, sec.position_y + sec.height);
     }
-    if (minX === Infinity) return { minX: 0, minY: 0, maxX: 1600, maxY: 1000 };
-    const padX = (maxX - minX) * 0.06 + 30;
-    const padY = (maxY - minY) * 0.06 + 30;
-    return { minX: minX - padX, minY: minY - padY, maxX: maxX + padX, maxY: maxY + padY };
+    if (bMinX === Infinity) return { minX: 0, minY: 0, maxX: 1600, maxY: 1000 };
+    const padX = (bMaxX - bMinX) * 0.06 + 30;
+    const padY = (bMaxY - bMinY) * 0.06 + 30;
+    return { minX: bMinX - padX, minY: bMinY - padY, maxX: bMaxX + padX, maxY: bMaxY + padY };
   }, [objects, sections]);
 
   const contentW = bounds.maxX - bounds.minX;
@@ -338,7 +333,7 @@ export function VenueMap({ objects, sections, seatDots, ticketTypes = [], onNavi
       const count = ttCounts.get(tt.id) || 0;
       if (count > 0) {
         items.push({
-          color: tt.color || '#22c55e',
+          color: tt.color || '#10B981',
           label: `${tt.name} - \u20AC${tt.price.toFixed(2)}`,
           count,
         });
@@ -347,45 +342,44 @@ export function VenueMap({ objects, sections, seatDots, ticketTypes = [], onNavi
 
     const availWithoutTT = computedSeats.filter(s => s.status === 'available' && !s.ticket_type_id).length;
     if (availWithoutTT > 0) {
-      items.push({ color: '#22c55e', label: 'Beschikbaar', count: availWithoutTT });
+      items.push({ color: '#10B981', label: 'Beschikbaar', count: availWithoutTT });
     }
 
-    if (soldCount > 0) items.push({ color: '#ef4444', label: 'Verkocht', count: soldCount });
-    if (blockedCount > 0) items.push({ color: '#6b7280', label: 'Niet beschikbaar', count: blockedCount });
+    if (soldCount > 0) items.push({ color: '#94A3B8', label: 'Verkocht', count: soldCount });
+    if (blockedCount > 0) items.push({ color: '#CBD5E1', label: 'Niet beschikbaar', count: blockedCount });
 
     return items;
   }, [computedSeats, ticketTypes]);
 
   const viewBox = `${bounds.minX} ${bounds.minY} ${contentW} ${contentH}`;
-  const viewScale = zoom;
 
   if (objects.length === 0 && sections.length === 0) return null;
 
   return (
-    <div className="bg-slate-800/40 border border-slate-700/50 rounded-2xl overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-3 border-b border-slate-700/40">
+    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
         <div className="flex items-center gap-2">
-          <MapPin className="w-4 h-4 text-cyan-400" />
-          <span className="text-sm font-bold text-white tracking-wide">{t('tickets.venueMap').toUpperCase()}</span>
+          <MapPin className="w-4 h-4 text-slate-700" />
+          <span className="text-sm font-bold text-slate-800 tracking-wide">{t('tickets.venueMap').toUpperCase()}</span>
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setZoom(z => Math.min(MAX_ZOOM, z * 1.3))}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
             aria-label="Zoom in"
           >
             <ZoomIn className="w-4 h-4" />
           </button>
           <button
             onClick={() => setZoom(z => Math.max(MIN_ZOOM, z / 1.3))}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
             aria-label="Zoom out"
           >
             <ZoomOut className="w-4 h-4" />
           </button>
           <button
             onClick={fitToView}
-            className="ml-1 px-2 py-1 rounded-lg text-[11px] text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors"
+            className="ml-1 px-2 py-1 rounded-lg text-[11px] text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
           >
             Reset
           </button>
@@ -394,7 +388,7 @@ export function VenueMap({ objects, sections, seatDots, ticketTypes = [], onNavi
 
       <div
         ref={containerRef}
-        className="relative overflow-hidden cursor-grab active:cursor-grabbing select-none"
+        className="relative overflow-hidden cursor-grab active:cursor-grabbing select-none bg-white"
         style={{ height: 420, touchAction: 'none' }}
         onWheel={handleWheel}
         onPointerDown={handlePointerDown}
@@ -409,11 +403,11 @@ export function VenueMap({ objects, sections, seatDots, ticketTypes = [], onNavi
           className="w-full h-full"
           preserveAspectRatio="xMidYMid meet"
           style={{
-            transform: `scale(${viewScale}) translate(${pan.x / viewScale}px, ${pan.y / viewScale}px)`,
+            transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
             transformOrigin: 'center center',
           }}
         >
-          <rect x={bounds.minX} y={bounds.minY} width={contentW} height={contentH} fill="#0f172a" />
+          <rect x={bounds.minX} y={bounds.minY} width={contentW} height={contentH} fill="#FFFFFF" />
 
           {objects.map((obj) => {
             const ox = Number(obj.x);
@@ -432,12 +426,12 @@ export function VenueMap({ objects, sections, seatDots, ticketTypes = [], onNavi
                   <>
                     <rect
                       x={ox} y={oy} width={ow} height={oh}
-                      fill="#1e293b" stroke="#475569" strokeWidth={2} rx={10}
+                      fill="#1e293b" stroke="#334155" strokeWidth={2} rx={10}
                     />
                     <text
                       x={ox + ow / 2} y={oy + oh / 2}
                       textAnchor="middle" dominantBaseline="central"
-                      fill="#94a3b8" fontSize={obj.font_size || Math.min(28, ow * 0.12)}
+                      fill="#e2e8f0" fontSize={obj.font_size || Math.min(28, ow * 0.12)}
                       fontWeight="700" letterSpacing="0.3em"
                     >
                       {displayName.toUpperCase()}
@@ -447,26 +441,26 @@ export function VenueMap({ objects, sections, seatDots, ticketTypes = [], onNavi
                   <>
                     <rect
                       x={ox} y={oy} width={ow} height={oh}
-                      fill={obj.color || '#374151'}
-                      stroke={isTribune ? '#78350f' : 'rgba(71,85,105,0.4)'}
+                      fill={obj.color || '#e2e8f0'}
+                      stroke="#94a3b8"
                       strokeWidth={1.5} rx={4}
-                      opacity={isDancefloor ? 0.3 : 0.9}
+                      opacity={isDancefloor ? 0.4 : 0.9}
                     />
                     {isTribune && [0.2, 0.4, 0.6, 0.8].map((frac) => (
                       <line key={frac}
                         x1={ox + ow * frac} y1={oy + 4}
                         x2={ox + ow * frac} y2={oy + oh - 4}
-                        stroke="rgba(0,0,0,0.2)" strokeWidth={1}
+                        stroke="rgba(0,0,0,0.1)" strokeWidth={1}
                       />
                     ))}
                     <text
                       x={ox + ow / 2} y={oy + oh / 2}
                       textAnchor="middle" dominantBaseline="central"
-                      fill={obj.font_color || 'white'}
+                      fill={obj.font_color || '#1e293b'}
                       fontSize={obj.font_size || 14}
                       fontWeight={obj.font_weight || 'bold'}
                       letterSpacing="0.05em" pointerEvents="none"
-                      opacity={isDancefloor ? 0.6 : 1}
+                      opacity={isDancefloor ? 0.7 : 1}
                     >
                       {displayName.toUpperCase()}
                     </text>
@@ -484,8 +478,8 @@ export function VenueMap({ objects, sections, seatDots, ticketTypes = [], onNavi
                   x={section.position_x} y={section.position_y}
                   width={section.width} height={section.height}
                   rx={6}
-                  fill={hexToRgba(color, 0.08)}
-                  stroke={hexToRgba(color, 0.25)}
+                  fill={hexToRgba(color, 0.06)}
+                  stroke={hexToRgba(color, 0.2)}
                   strokeWidth={1}
                 />
               </g>
@@ -499,7 +493,9 @@ export function VenueMap({ objects, sections, seatDots, ticketTypes = [], onNavi
                 key={i}
                 cx={seat.cx} cy={seat.cy} r={SEAT_R}
                 fill={color}
-                opacity={seat.status === 'available' ? 0.9 : seat.status === 'blocked' ? 0.4 : 0.6}
+                opacity={seat.status === 'available' ? 1 : 0.5}
+                stroke={seat.status === 'available' ? 'rgba(0,0,0,0.1)' : 'none'}
+                strokeWidth={0.5}
                 style={{ cursor: 'pointer' }}
                 onMouseEnter={(e) => handleSeatHover(e, seat)}
                 onMouseMove={(e) => handleSeatHover(e, seat)}
@@ -508,13 +504,13 @@ export function VenueMap({ objects, sections, seatDots, ticketTypes = [], onNavi
             );
           })}
 
-          {viewScale > 0.8 && rowLabels.map((rl, i) => (
+          {zoom >= 0.8 && rowLabels.map((rl, i) => (
             <text
               key={`rl-${i}`}
               x={rl.x} y={rl.y}
               textAnchor="end" dominantBaseline="central"
-              fill="#94a3b8"
-              fontSize={Math.max(6, Math.min(10, 8 / Math.sqrt(viewScale)))}
+              fill="#475569"
+              fontSize={Math.max(6, Math.min(10, 8 / Math.sqrt(zoom)))}
               fontWeight="600"
               fontFamily="monospace"
               style={{ pointerEvents: 'none' }}
@@ -523,13 +519,13 @@ export function VenueMap({ objects, sections, seatDots, ticketTypes = [], onNavi
             </text>
           ))}
 
-          {viewScale > 1.5 && seatNumbers.map((sn, i) => (
+          {zoom >= 1.5 && seatNumbers.map((sn, i) => (
             <text
               key={`sn-${i}`}
               x={sn.cx} y={sn.cy + SEAT_R + 6}
               textAnchor="middle" dominantBaseline="central"
-              fill={sn.light ? '#1e293b' : '#cbd5e1'}
-              fontSize={Math.max(4, Math.min(7, 5 / Math.sqrt(viewScale)))}
+              fill="#64748b"
+              fontSize={Math.max(4, Math.min(7, 5 / Math.sqrt(zoom)))}
               fontWeight="500"
               style={{ pointerEvents: 'none' }}
             >
@@ -537,7 +533,7 @@ export function VenueMap({ objects, sections, seatDots, ticketTypes = [], onNavi
             </text>
           ))}
 
-          {viewScale > 0.7 && sectionLabels.map((sl, i) => (
+          {zoom >= 0.7 && sectionLabels.map((sl, i) => (
             <g key={`sl-${i}`} style={{ pointerEvents: 'none' }}>
               <rect
                 x={sl.x - sl.name.length * 3 - 6}
@@ -545,7 +541,7 @@ export function VenueMap({ objects, sections, seatDots, ticketTypes = [], onNavi
                 width={sl.name.length * 6 + 12}
                 height={14}
                 rx={4}
-                fill="rgba(15,23,42,0.85)"
+                fill="rgba(30,41,59,0.85)"
               />
               <text
                 x={sl.x} y={sl.y}
@@ -562,15 +558,15 @@ export function VenueMap({ objects, sections, seatDots, ticketTypes = [], onNavi
 
         {tooltip && (
           <div
-            className="absolute z-50 pointer-events-none px-2.5 py-1.5 bg-slate-900/95 border border-slate-600/50 rounded-lg shadow-xl"
+            className="absolute z-50 pointer-events-none px-2.5 py-1.5 bg-slate-800 border border-slate-600/50 rounded-lg shadow-xl"
             style={{ left: tooltip.x, top: tooltip.y, transform: 'translateX(-50%)' }}
           >
-            <span className="text-[11px] text-slate-200 whitespace-nowrap">{tooltip.text}</span>
+            <span className="text-[11px] text-white whitespace-nowrap">{tooltip.text}</span>
           </div>
         )}
       </div>
 
-      <div className="px-5 py-3 border-t border-slate-700/40 space-y-2.5">
+      <div className="px-5 py-3 border-t border-slate-200 space-y-2.5">
         {legendItems.length > 0 && (
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
             {legendItems.map((item, i) => (
@@ -579,9 +575,9 @@ export function VenueMap({ objects, sections, seatDots, ticketTypes = [], onNavi
                   className="w-2.5 h-2.5 rounded-full inline-block flex-shrink-0"
                   style={{ backgroundColor: item.color }}
                 />
-                <span className="text-[11px] text-slate-400">
+                <span className="text-[11px] text-slate-600">
                   {item.label}
-                  <span className="text-slate-500 ml-1">({item.count})</span>
+                  <span className="text-slate-400 ml-1">({item.count})</span>
                 </span>
               </div>
             ))}
@@ -591,7 +587,7 @@ export function VenueMap({ objects, sections, seatDots, ticketTypes = [], onNavi
         {onNavigateToSeatPicker && (
           <button
             onClick={onNavigateToSeatPicker}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-semibold rounded-xl transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-sm font-semibold rounded-xl transition-colors"
           >
             Kies je stoelen
             <ArrowRight className="w-4 h-4" />
@@ -603,11 +599,11 @@ export function VenueMap({ objects, sections, seatDots, ticketTypes = [], onNavi
 }
 
 function getSeatColor(seat: ComputedSeat, ttMap: Map<string, TicketTypeInfo>): string {
-  if (seat.status === 'blocked') return '#6b7280';
-  if (seat.status === 'sold' || seat.status === 'reserved') return '#ef4444';
+  if (seat.status === 'blocked') return '#CBD5E1';
+  if (seat.status === 'sold' || seat.status === 'reserved') return '#94A3B8';
   if (seat.ticket_type_id) {
     const tt = ttMap.get(seat.ticket_type_id);
     if (tt?.color) return tt.color;
   }
-  return '#22c55e';
+  return '#10B981';
 }
