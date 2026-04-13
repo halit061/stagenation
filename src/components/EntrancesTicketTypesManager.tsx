@@ -32,10 +32,35 @@ interface Props {
 }
 
 const PRESET_COLORS = [
-  '#ef4444', '#f97316', '#eab308', '#22c55e',
-  '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899',
-  '#64748b', '#ffffff',
+  '#EF4444', '#DC2626', '#B91C1C', '#F87171', '#FCA5A5', '#FF6B6B',
+  '#F97316', '#F59E0B', '#EAB308', '#FBBF24', '#FDE68A', '#FFD93D',
+  '#10B981', '#059669', '#3B82F6', '#2563EB', '#06B6D4', '#0891B2',
+  '#8B5CF6', '#7C3AED', '#EC4899', '#DB2777', '#6366F1', '#4F46E5',
+  '#1e293b', '#334155', '#64748B', '#94A3B8', '#F1F5F9', '#FFFFFF',
+  '#FF6B35', '#C084FC', '#34D399', '#38BDF8', '#FB923C', '#A78BFA',
 ];
+
+function isValidHex(v: string): boolean {
+  return /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(v);
+}
+
+function normalizeHex(v: string): string {
+  const h = v.startsWith('#') ? v : `#${v}`;
+  if (/^#[0-9A-Fa-f]{3}$/.test(h)) {
+    const [, r, g, b] = h.split('');
+    return `#${r}${r}${g}${g}${b}${b}`.toUpperCase();
+  }
+  return h.toUpperCase();
+}
+
+function isLightColor(hex: string): boolean {
+  if (!isValidHex(hex)) return false;
+  const n = normalizeHex(hex).slice(1);
+  const r = parseInt(n.substring(0, 2), 16);
+  const g = parseInt(n.substring(2, 4), 16);
+  const b = parseInt(n.substring(4, 6), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 > 160;
+}
 
 export function EntrancesTicketTypesManager({ events }: Props) {
   const [selectedEventId, setSelectedEventId] = useState('');
@@ -415,33 +440,60 @@ export function EntrancesTicketTypesManager({ events }: Props) {
                 </select>
                 <div>
                   <p className="text-xs text-slate-400 mb-2">Kleur (optioneel)</p>
-                  <div className="flex flex-wrap gap-2">
-                    {PRESET_COLORS.map(c => (
-                      <button
-                        key={c}
-                        type="button"
-                        onClick={() => setTtForm(f => ({ ...f, color: f.color === c ? '' : c }))}
-                        className={`w-7 h-7 rounded-full border-2 transition-all ${
-                          ttForm.color === c ? 'border-white scale-110' : 'border-transparent hover:scale-105'
-                        }`}
-                        style={{ backgroundColor: c }}
-                        title={c}
-                      />
-                    ))}
-                    {ttForm.color && !PRESET_COLORS.includes(ttForm.color) && (
-                      <div
-                        className="w-7 h-7 rounded-full border-2 border-white"
-                        style={{ backgroundColor: ttForm.color }}
-                      />
-                    )}
+                  <div className="grid grid-cols-6 gap-1.5">
+                    {PRESET_COLORS.map(c => {
+                      const selected = ttForm.color?.toUpperCase() === c.toUpperCase();
+                      const isLight = isLightColor(c);
+                      return (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setTtForm(f => ({ ...f, color: f.color?.toUpperCase() === c.toUpperCase() ? '' : c }))}
+                          className={`w-7 h-7 rounded transition-all flex items-center justify-center ${
+                            selected ? 'ring-2 ring-white ring-offset-1 ring-offset-slate-800 scale-110' : 'hover:scale-105'
+                          }`}
+                          style={{ backgroundColor: c }}
+                          title={c}
+                        >
+                          {selected && (
+                            <Check className={`w-3.5 h-3.5 ${isLight ? 'text-slate-800' : 'text-white'}`} />
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
-                  <input
-                    type="text"
-                    placeholder="#hex of naam"
-                    value={ttForm.color}
-                    onChange={e => setTtForm(f => ({ ...f, color: e.target.value }))}
-                    className="mt-2 w-full bg-slate-700 border border-slate-600 text-white placeholder-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                  />
+                  <div className="flex items-center gap-2 mt-3">
+                    <input
+                      type="color"
+                      value={isValidHex(ttForm.color || '') ? normalizeHex(ttForm.color) : '#000000'}
+                      onChange={e => setTtForm(f => ({ ...f, color: e.target.value.toUpperCase() }))}
+                      className="w-9 h-9 rounded cursor-pointer border border-slate-600 bg-transparent p-0.5"
+                      title="Kies een kleur"
+                    />
+                    <input
+                      type="text"
+                      placeholder="#000000"
+                      value={ttForm.color}
+                      onChange={e => {
+                        const v = e.target.value;
+                        setTtForm(f => ({ ...f, color: v }));
+                      }}
+                      className="flex-1 bg-slate-700 border border-slate-600 text-white placeholder-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 font-mono"
+                    />
+                  </div>
+                  {ttForm.color && (
+                    <div
+                      className="mt-3 rounded-lg h-10 flex items-center justify-between px-4 text-sm font-medium"
+                      style={{ backgroundColor: ttForm.color }}
+                    >
+                      <span className={isLightColor(ttForm.color) ? 'text-slate-800' : 'text-white'}>
+                        Geselecteerd
+                      </span>
+                      <span className={`font-mono text-xs ${isLightColor(ttForm.color) ? 'text-slate-700' : 'text-white/80'}`}>
+                        {ttForm.color}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <p className="text-xs text-slate-400 mb-2">Fase Groep (optioneel)</p>
