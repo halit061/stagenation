@@ -26,6 +26,14 @@ interface TableInfo {
   capacity: number;
 }
 
+async function generateQRCode(data: string): Promise<string> {
+  try {
+    return await QRCode.toDataURL(data, { width: 300, margin: 2 });
+  } catch {
+    return '';
+  }
+}
+
 function drawQROnPage(page: any, qrData: string, x: number, y: number, size: number) {
   const qrCode = QRCode.create(qrData, { errorCorrectionLevel: 'M' });
   const modules = qrCode.modules;
@@ -601,15 +609,24 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const pdfBytes = await generateTicketsPDF(
-      event,
-      recipientName,
-      qrEntries,
-      order.order_number,
-      tableInfo,
-      tableNote,
-      guestNotes
-    );
+    let pdfAttachments: Array<{ filename: string; content: Uint8Array }> = [];
+    try {
+      const pdfBytes = await generateTicketsPDF(
+        event,
+        recipientName,
+        qrEntries,
+        order.order_number,
+        tableInfo,
+        tableNote,
+        guestNotes
+      );
+      pdfAttachments = [{
+        filename: `tickets-${order.order_number}.pdf`,
+        content: pdfBytes
+      }];
+    } catch (pdfError) {
+      console.error('[pdf] PDF generatie mislukt, mail wordt zonder PDF verstuurd:', pdfError.message);
+    }
 
     const seatAssignmentsForEmail: SeatAssignment[] = qrEntries
       .filter(q => q.seat)
@@ -630,10 +647,7 @@ Deno.serve(async (req: Request) => {
       to: recipientEmail,
       subject: `Guest Tickets (${qrEntries.length}x): ${event.name}`,
       html: emailHtml,
-      attachments: [{
-        filename: `tickets-${order.order_number}.pdf`,
-        content: pdfBytes
-      }]
+      attachments: pdfAttachments.length > 0 ? pdfAttachments : undefined
     });
 
     await adminClient

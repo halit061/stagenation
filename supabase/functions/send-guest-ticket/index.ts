@@ -56,7 +56,11 @@ function generateSecureToken(): string {
 }
 
 async function generateQRCode(data: string): Promise<string> {
-  return await QRCode.toDataURL(data, { width: 300, margin: 2 });
+  try {
+    return await QRCode.toDataURL(data, { width: 300, margin: 2 });
+  } catch {
+    return '';
+  }
 }
 
 function drawQROnPage(page: any, qrData: string, x: number, y: number, size: number) {
@@ -804,15 +808,24 @@ Deno.serve(async (req: Request) => {
 
     const publicToken = ticket?.public_token || '';
 
-    const pdfBytes = await generateTicketsPDF(
-      event,
-      recipient_name,
-      qrEntries,
-      orderNumber,
-      tableInfo,
-      table_note || null,
-      notes || null
-    );
+    let pdfAttachments: Array<{ filename: string; content: Uint8Array }> = [];
+    try {
+      const pdfBytes = await generateTicketsPDF(
+        event,
+        recipient_name,
+        qrEntries,
+        orderNumber,
+        tableInfo,
+        table_note || null,
+        notes || null
+      );
+      pdfAttachments = [{
+        filename: `tickets-${orderNumber}.pdf`,
+        content: pdfBytes
+      }];
+    } catch (pdfError) {
+      console.error('[pdf] PDF generatie mislukt, mail wordt zonder PDF verstuurd:', pdfError.message);
+    }
 
     const emailHtml = buildMultiPersonEmail(
       event,
@@ -829,10 +842,7 @@ Deno.serve(async (req: Request) => {
       to: recipient_email,
       subject: `Guest Tickets (${validatedPersonsCount}x): ${event.name}`,
       html: emailHtml,
-      attachments: [{
-        filename: `tickets-${orderNumber}.pdf`,
-        content: pdfBytes
-      }]
+      attachments: pdfAttachments.length > 0 ? pdfAttachments : undefined
     });
 
     await adminClient
