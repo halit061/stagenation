@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { Resend } from 'npm:resend@4.0.0';
 import QRCode from 'npm:qrcode@1.5.4';
+import { PDFDocument, rgb, StandardFonts } from 'npm:pdf-lib@1.17.1';
 import { getCorsHeaders } from "../_shared/cors.ts";
 
 interface SendTicketEmailRequest {
@@ -96,292 +97,112 @@ function formatTime(dateString: string): string {
   });
 }
 
-function pdfEscape(str: string): string {
-  return String(str || '')
-    .replace(/\\/g, '\\\\')
-    .replace(/\(/g, '\\(')
-    .replace(/\)/g, '\\)');
-}
-
-function pdfTextWidth(text: string, fontSize: number): number {
-  return text.length * fontSize * 0.5;
-}
-
-function pdfCenterX(text: string, fontSize: number, pageWidth: number): number {
-  return (pageWidth - pdfTextWidth(text, fontSize)) / 2;
-}
-
-interface PdfObject {
-  id: number;
-  offset: number;
-  content: string;
-}
-
-function buildPurePdf(pages: string[][], qrImages: (Uint8Array | null)[][]): string {
-  const PAGE_W = 595.28;
-  const PAGE_H = 841.89;
-  const objects: PdfObject[] = [];
-  let nextId = 1;
-
-  function addObj(content: string): number {
-    const id = nextId++;
-    objects.push({ id, offset: 0, content: `${id} 0 obj\n${content}\nendobj\n` });
-    return id;
-  }
-
-  const catalogId = addObj('<< /Type /Catalog /Pages 2 0 R >>');
-  const pagesObjId = nextId++;
-  objects.push({ id: pagesObjId, offset: 0, content: '' });
-
-  const fontId = addObj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
-  const fontBoldId = addObj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
-  const fontMonoId = addObj('<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>');
-
-  const pageIds: number[] = [];
-
-  for (let pi = 0; pi < pages.length; pi++) {
-    const lines = pages[pi];
-    const pageQrImages = qrImages[pi] || [];
-
-    const imageObjIds: number[] = [];
-    for (const imgData of pageQrImages) {
-      if (!imgData) continue;
-      const streamContent = Array.from(imgData).map(b => String.fromCharCode(b)).join('');
-      const imgId = addObj(
-        `<< /Type /XObject /Subtype /Image /Width 300 /Height 300 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /ASCIIHexDecode /Length ${imgData.length * 2} >>\nstream\n${Array.from(imgData).map(b => b.toString(16).padStart(2, '0')).join('')}>\nendstream`
-      );
-      imageObjIds.push(imgId);
-    }
-
-    let streamText = '';
-    let imgIndex = 0;
-
-    for (const line of lines) {
-      if (line.startsWith('%%IMAGE%%')) {
-        const parts = line.split('|');
-        const x = parseFloat(parts[1]);
-        const y = parseFloat(parts[2]);
-        const w = parseFloat(parts[3]);
-        const h = parseFloat(parts[4]);
-        if (imgIndex < imageObjIds.length) {
-          streamText += `q ${w} 0 0 ${h} ${x} ${y} cm /Img${imgIndex} Do Q\n`;
-          imgIndex++;
-        }
-        continue;
-      }
-      streamText += line + '\n';
-    }
-
-    const streamBytes = new TextEncoder().encode(streamText);
-    const contentsId = addObj(
-      `<< /Length ${streamBytes.length} >>\nstream\n${streamText}endstream`
-    );
-
-    let xobjDict = '';
-    if (imageObjIds.length > 0) {
-      const entries = imageObjIds.map((id, i) => `/Img${i} ${id} 0 R`).join(' ');
-      xobjDict = ` /XObject << ${entries} >>`;
-    }
-
-    const pageId = addObj(
-      `<< /Type /Page /Parent ${pagesObjId} 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Contents ${contentsId} 0 R /Resources << /Font << /F1 ${fontId} 0 R /F2 ${fontBoldId} 0 R /F3 ${fontMonoId} 0 R >>${xobjDict} >> >>`
-    );
-    pageIds.push(pageId);
-  }
-
-  const kidsStr = pageIds.map(id => `${id} 0 R`).join(' ');
-  const pagesObj = objects.find(o => o.id === pagesObjId)!;
-  pagesObj.content = `${pagesObjId} 0 obj\n<< /Type /Pages /Kids [${kidsStr}] /Count ${pageIds.length} >>\nendobj\n`;
-
-  let body = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
-  for (const obj of objects) {
-    obj.offset = body.length;
-    body += obj.content;
-  }
-
-  const xrefOffset = body.length;
-  let xref = `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  for (const obj of objects) {
-    xref += `${String(obj.offset).padStart(10, '0')} 00000 n \n`;
-  }
-
-  body += xref;
-  body += `trailer\n<< /Size ${objects.length + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
-
-  const bytes = new TextEncoder().encode(body);
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-
-async function getQrRgbBytes(data: string): Promise<Uint8Array | null> {
+async function generateQrPngBytes(data: string): Promise<Uint8Array | null> {
   try {
-    const buffer = await QRCode.toBuffer(data, { width: 300, margin: 2, type: 'png' });
-    const png = new Uint8Array(buffer);
-
-    const width = 300;
-    const height = 300;
-    const rgb = new Uint8Array(width * height * 3);
-
-    let dataStart = 8;
-    const chunks: Uint8Array[] = [];
-    while (dataStart < png.length) {
-      const len = (png[dataStart] << 24) | (png[dataStart+1] << 16) | (png[dataStart+2] << 8) | png[dataStart+3];
-      const type = String.fromCharCode(png[dataStart+4], png[dataStart+5], png[dataStart+6], png[dataStart+7]);
-      if (type === 'IDAT') {
-        chunks.push(png.slice(dataStart + 8, dataStart + 8 + len));
-      }
-      if (type === 'IEND') break;
-      dataStart += 12 + len;
-    }
-
-    if (chunks.length === 0) return null;
-
-    const compressed = new Uint8Array(chunks.reduce((a, c) => a + c.length, 0));
-    let offset = 0;
-    for (const chunk of chunks) {
-      compressed.set(chunk, offset);
-      offset += chunk.length;
-    }
-
-    const ds = new DecompressionStream('deflate');
-    const writer = ds.writable.getWriter();
-    const reader = ds.readable.getReader();
-
-    writer.write(compressed);
-    writer.close();
-
-    const decompressedChunks: Uint8Array[] = [];
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      decompressedChunks.push(value);
-    }
-
-    const raw = new Uint8Array(decompressedChunks.reduce((a, c) => a + c.length, 0));
-    let rOff = 0;
-    for (const c of decompressedChunks) {
-      raw.set(c, rOff);
-      rOff += c.length;
-    }
-
-    const bytesPerPixel = 4;
-    const stride = 1 + width * bytesPerPixel;
-    for (let row = 0; row < height; row++) {
-      const rowStart = row * stride + 1;
-      for (let col = 0; col < width; col++) {
-        const srcIdx = rowStart + col * bytesPerPixel;
-        const dstIdx = (row * width + col) * 3;
-        if (srcIdx + 2 < raw.length) {
-          rgb[dstIdx] = raw[srcIdx];
-          rgb[dstIdx + 1] = raw[srcIdx + 1];
-          rgb[dstIdx + 2] = raw[srcIdx + 2];
-        }
-      }
-    }
-
-    return rgb;
-  } catch (e) {
-    console.error('[pdf] QR RGB extraction failed:', e.message);
+    const buf = await QRCode.toBuffer(data, { width: 300, margin: 2, type: 'png' });
+    return new Uint8Array(buf);
+  } catch (e: any) {
+    console.error('[pdf] QR PNG generation failed:', e.message);
     return null;
   }
 }
 
-function buildPageLines(
-  textBlocks: { text: string; x: number; y: number; font: string; size: number; color?: number }[],
-  lineDraws: { x1: number; y1: number; x2: number; y2: number; gray?: number }[],
-  rectDraws?: { x: number; y: number; w: number; h: number }[],
-): string[] {
-  const cmds: string[] = [];
-  for (const ld of lineDraws) {
-    const g = (ld.gray ?? 200) / 255;
-    cmds.push(`${g.toFixed(2)} ${g.toFixed(2)} ${g.toFixed(2)} RG 0.5 w ${ld.x1.toFixed(1)} ${ld.y1.toFixed(1)} m ${ld.x2.toFixed(1)} ${ld.y2.toFixed(1)} l S`);
-  }
-  if (rectDraws) {
-    for (const r of rectDraws) {
-      cmds.push(`0 0 0 RG 0.5 w ${r.x.toFixed(1)} ${r.y.toFixed(1)} ${r.w.toFixed(1)} ${r.h.toFixed(1)} re S`);
-    }
-  }
-  for (const tb of textBlocks) {
-    const c = (tb.color ?? 0) / 255;
-    const fontRef = tb.font === 'bold' ? '/F2' : tb.font === 'mono' ? '/F3' : '/F1';
-    cmds.push(`BT ${c.toFixed(2)} ${c.toFixed(2)} ${c.toFixed(2)} rg ${fontRef} ${tb.size} Tf ${tb.x.toFixed(1)} ${tb.y.toFixed(1)} Td (${pdfEscape(tb.text)}) Tj ET`);
-  }
-  return cmds;
+function centerText(text: string, font: any, size: number, pageWidth: number): number {
+  const w = font.widthOfTextAtSize(text, size);
+  return (pageWidth - w) / 2;
 }
 
 async function buildTicketPdf(order: any, event: any, tickets: any[]): Promise<string> {
-  const PW = 595.28;
-  const PH = 841.89;
-  const M = 56.69;
-  const allPages: string[][] = [];
-  const allQr: (Uint8Array | null)[][] = [];
+  console.log('[pdf] buildTicketPdf start, tickets:', tickets?.length);
+  const pdfDoc = await PDFDocument.create();
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
   for (const ticket of tickets) {
-    const texts: { text: string; x: number; y: number; font: string; size: number; color?: number }[] = [];
-    const lines: { x1: number; y1: number; x2: number; y2: number; gray?: number }[] = [];
-    const cmds: string[] = [];
-    let y = PH - M;
+    const page = pdfDoc.addPage([595, 842]);
+    const { width, height } = page.getSize();
+    let y = height - 50;
 
-    const title = event.name || 'Event';
-    texts.push({ text: title, x: pdfCenterX(title, 18, PW), y, font: 'bold', size: 18 });
-    y -= 20;
+    page.drawRectangle({ x: 0, y: height - 80, width, height: 80, color: rgb(0.02, 0.59, 0.41) });
+    const brandText = 'STAGENATION';
+    page.drawText(brandText, { x: centerText(brandText, boldFont, 26, width), y: height - 38, size: 26, font: boldFont, color: rgb(1, 1, 1) });
+    const subText = 'TOEGANGSTICKET';
+    page.drawText(subText, { x: centerText(subText, font, 12, width), y: height - 58, size: 12, font, color: rgb(1, 1, 1) });
 
-    lines.push({ x1: M, y1: y, x2: PW - M, y2: y });
-    y -= 16;
+    y = height - 110;
+
+    const eventName = event.name || 'Event';
+    page.drawText(eventName, { x: 50, y, size: 20, font: boldFont, color: rgb(0.1, 0.1, 0.1) });
+    y -= 22;
+
+    if (event.start_date) {
+      page.drawText(formatDate(event.start_date), { x: 50, y, size: 11, font, color: rgb(0.3, 0.3, 0.3) });
+      y -= 16;
+      page.drawText('Tijd: ' + formatTime(event.start_date), { x: 50, y, size: 11, font, color: rgb(0.3, 0.3, 0.3) });
+      y -= 16;
+    }
+    const location = event.location || '';
+    if (location) {
+      page.drawText(location, { x: 50, y, size: 11, font, color: rgb(0.3, 0.3, 0.3) });
+      y -= 22;
+    }
+
+    page.drawLine({ start: { x: 50, y }, end: { x: width - 50, y }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8) });
+    y -= 22;
 
     const details = [
-      { label: 'Datum:', value: formatDate(event.start_date) },
-      { label: 'Tijd:', value: formatTime(event.start_date) },
-      { label: 'Locatie:', value: event.location || '' },
       { label: 'Ordernummer:', value: order.order_number || '' },
       { label: 'Ticket:', value: ticket.ticket_types?.name || 'Ticket' },
       { label: 'Ticketnummer:', value: ticket.ticket_number || '' },
       { label: 'Naam:', value: ticket.holder_name || order.payer_name || '' },
-      { label: 'Email:', value: ticket.holder_email || order.payer_email || '' },
+      { label: 'E-mail:', value: ticket.holder_email || order.payer_email || '' },
     ];
 
     for (const d of details) {
       if (!d.value) continue;
-      texts.push({ text: d.label, x: M, y, font: 'bold', size: 11 });
-      texts.push({ text: d.value, x: M + 90, y, font: 'normal', size: 11 });
+      page.drawText(d.label, { x: 50, y, size: 10, font: boldFont, color: rgb(0.2, 0.2, 0.2) });
+      page.drawText(String(d.value), { x: 160, y, size: 10, font, color: rgb(0.2, 0.2, 0.2) });
       y -= 16;
     }
 
-    y -= 8;
-    lines.push({ x1: M, y1: y, x2: PW - M, y2: y });
-    y -= 16;
+    y -= 10;
+    page.drawLine({ start: { x: 50, y }, end: { x: width - 50, y }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8) });
+    y -= 20;
 
     const qrData = ticket.qr_data || ticket.token || ticket.id;
-    const qrRgb = await getQrRgbBytes(qrData);
-    const pageQr: (Uint8Array | null)[] = [];
-    if (qrRgb) {
-      const qrPts = 150;
-      const qrX = (PW - qrPts) / 2;
-      cmds.push(`%%IMAGE%%|${qrX}|${y - qrPts}|${qrPts}|${qrPts}`);
-      pageQr.push(qrRgb);
-      y -= qrPts + 14;
+    if (qrData) {
+      const pngBytes = await generateQrPngBytes(qrData);
+      if (pngBytes) {
+        try {
+          const qrImage = await pdfDoc.embedPng(pngBytes);
+          const qrSize = 160;
+          page.drawImage(qrImage, { x: (width - qrSize) / 2, y: y - qrSize, width: qrSize, height: qrSize });
+          y -= qrSize + 14;
+        } catch (e: any) {
+          console.error('[pdf] QR embed failed:', e.message);
+        }
+      }
     }
 
     const footerText = 'Toon deze QR-code bij de ingang. Elk ticket kan slechts 1x gescand worden.';
-    texts.push({ text: footerText, x: pdfCenterX(footerText, 8, PW), y, font: 'normal', size: 8, color: 120 });
+    page.drawText(footerText, { x: centerText(footerText, font, 8, width), y, size: 8, font, color: rgb(0.47, 0.47, 0.47) });
 
-    const pageCmds = buildPageLines(texts, lines);
-    allPages.push([...pageCmds, ...cmds]);
-    allQr.push(pageQr);
+    page.drawText('StageNation | Powered by Lumetrix', { x: centerText('StageNation | Powered by Lumetrix', font, 8, width), y: 30, size: 8, font, color: rgb(0.6, 0.6, 0.6) });
   }
 
-  return buildPurePdf(allPages, allQr);
+  const pdfBytes = await pdfDoc.save();
+  console.log('[pdf] buildTicketPdf done, size:', pdfBytes.length);
+  let binary = '';
+  for (let i = 0; i < pdfBytes.length; i++) binary += String.fromCharCode(pdfBytes[i]);
+  return btoa(binary);
 }
 
 async function buildSeatTicketPdf(order: any, event: any, seatTickets: any[]): Promise<string> {
-  const PW = 595.28;
-  const PH = 841.89;
-  const M = 56.69;
-  const allPages: string[][] = [];
-  const allQr: (Uint8Array | null)[][] = [];
+  console.log('[pdf] buildSeatTicketPdf start, tickets:', seatTickets?.length);
+  const pdfDoc = await PDFDocument.create();
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const monoFont = await pdfDoc.embedFont(StandardFonts.CourierBold);
 
   for (const ts of seatTickets) {
     const sectionName = ts.seats?.seat_sections?.name || '';
@@ -391,109 +212,104 @@ async function buildSeatTicketPdf(order: any, event: any, seatTickets: any[]): P
     const ticketCode = ts.ticket_code || '';
     const seatType = ts.seats?.seat_type || 'regular';
 
-    const texts: { text: string; x: number; y: number; font: string; size: number; color?: number }[] = [];
-    const lines: { x1: number; y1: number; x2: number; y2: number; gray?: number }[] = [];
-    const rects: { x: number; y: number; w: number; h: number }[] = [];
-    const cmds: string[] = [];
-    let y = PH - M;
+    const page = pdfDoc.addPage([595, 842]);
+    const { width, height } = page.getSize();
+    let y = height - 50;
 
-    const brand = 'STAGENATION';
-    texts.push({ text: brand, x: pdfCenterX(brand, 20, PW), y, font: 'bold', size: 20 });
-    y -= 18;
+    page.drawRectangle({ x: 0, y: height - 80, width, height: 80, color: rgb(0.02, 0.59, 0.41) });
+    const brandText = 'STAGENATION';
+    page.drawText(brandText, { x: centerText(brandText, boldFont, 26, width), y: height - 38, size: 26, font: boldFont, color: rgb(1, 1, 1) });
+    const subText = 'TOEGANGSTICKET';
+    page.drawText(subText, { x: centerText(subText, font, 12, width), y: height - 58, size: 12, font, color: rgb(1, 1, 1) });
 
-    const sub = 'TOEGANGSTICKET';
-    texts.push({ text: sub, x: pdfCenterX(sub, 11, PW), y, font: 'normal', size: 11, color: 120 });
-    y -= 14;
-
-    lines.push({ x1: M, y1: y, x2: PW - M, y2: y });
-    y -= 20;
+    y = height - 110;
 
     const eventName = event.name || 'Event';
-    texts.push({ text: eventName, x: pdfCenterX(eventName, 17, PW), y, font: 'bold', size: 17 });
-    y -= 16;
+    page.drawText(eventName, { x: 50, y, size: 20, font: boldFont, color: rgb(0.1, 0.1, 0.1) });
+    y -= 22;
 
     if (event.start_date) {
-      const dateTime = formatDate(event.start_date) + ' - ' + formatTime(event.start_date);
-      texts.push({ text: dateTime, x: pdfCenterX(dateTime, 10, PW), y, font: 'normal', size: 10, color: 80 });
-      y -= 14;
+      const dateTime = formatDate(event.start_date) + '  -  ' + formatTime(event.start_date);
+      page.drawText(dateTime, { x: 50, y, size: 11, font, color: rgb(0.3, 0.3, 0.3) });
+      y -= 16;
     }
     const venue = [event.venue_name, event.location].filter(Boolean).join(', ');
     if (venue) {
-      texts.push({ text: venue, x: pdfCenterX(venue, 10, PW), y, font: 'normal', size: 10, color: 80 });
-      y -= 18;
-    } else {
-      y -= 8;
+      page.drawText(venue, { x: 50, y, size: 11, font, color: rgb(0.3, 0.3, 0.3) });
+      y -= 22;
     }
 
-    const boxW = PW - M * 2 - 40;
-    const boxH = 80;
-    const boxX = M + 20;
-    rects.push({ x: boxX, y: y - boxH, w: boxW, h: boxH });
+    page.drawLine({ start: { x: 50, y }, end: { x: width - 50, y }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8) });
+    y -= 24;
 
-    let by = y - 18;
-    const labelX = boxX + 12;
-    const valX = labelX + 70;
+    const col1 = 50;
+    const col2 = 180;
+    const col3 = 280;
+    const col4 = 400;
 
-    texts.push({ text: 'Sectie:', x: labelX, y: by, font: 'bold', size: 11 });
-    texts.push({ text: sectionName, x: valX, y: by, font: 'normal', size: 11 });
-    by -= 16;
+    page.drawText('SECTIE', { x: col1, y, size: 9, font, color: rgb(0.5, 0.5, 0.5) });
+    page.drawText('RIJ', { x: col2, y, size: 9, font, color: rgb(0.5, 0.5, 0.5) });
+    page.drawText('STOEL', { x: col3, y, size: 9, font, color: rgb(0.5, 0.5, 0.5) });
+    page.drawText('PRIJS', { x: col4, y, size: 9, font, color: rgb(0.5, 0.5, 0.5) });
+    y -= 18;
 
-    texts.push({ text: 'Rij:', x: labelX, y: by, font: 'bold', size: 11 });
-    texts.push({ text: rowLabel, x: valX, y: by, font: 'normal', size: 11 });
-    by -= 16;
-
-    texts.push({ text: 'Stoel:', x: labelX, y: by, font: 'bold', size: 11 });
-    texts.push({ text: seatNumber, x: valX, y: by, font: 'normal', size: 11 });
-    by -= 16;
-
-    texts.push({ text: 'Prijs:', x: labelX, y: by, font: 'bold', size: 11 });
-    texts.push({ text: 'EUR ' + pricePaid, x: valX, y: by, font: 'normal', size: 11 });
+    page.drawText(sectionName, { x: col1, y, size: 16, font: boldFont, color: rgb(0.1, 0.1, 0.1) });
+    page.drawText(rowLabel, { x: col2, y, size: 16, font: boldFont, color: rgb(0.1, 0.1, 0.1) });
+    page.drawText(seatNumber, { x: col3, y, size: 16, font: boldFont, color: rgb(0.1, 0.1, 0.1) });
+    page.drawText('EUR ' + pricePaid, { x: col4, y, size: 16, font: boldFont, color: rgb(0.1, 0.1, 0.1) });
 
     if (seatType === 'vip') {
-      texts.push({ text: 'VIP', x: boxX + boxW - 30, y: y - 18, font: 'bold', size: 9, color: 160 });
+      page.drawText('VIP', { x: width - 80, y: y + 18, size: 10, font: boldFont, color: rgb(0.7, 0.47, 0) });
     }
-
-    y -= boxH + 16;
-
-    const qrValue = ts.qr_data || ticketCode || ts.id;
-    const qrRgb = await getQrRgbBytes(qrValue);
-    const pageQr: (Uint8Array | null)[] = [];
-    if (qrRgb) {
-      const qrPts = 140;
-      const qrX = (PW - qrPts) / 2;
-      cmds.push(`%%IMAGE%%|${qrX}|${y - qrPts}|${qrPts}|${qrPts}`);
-      pageQr.push(qrRgb);
-      y -= qrPts + 10;
-    }
+    y -= 30;
 
     if (ticketCode) {
-      texts.push({ text: ticketCode, x: pdfCenterX(ticketCode, 13, PW), y, font: 'mono', size: 13 });
+      page.drawText('TICKET CODE', { x: 50, y, size: 9, font, color: rgb(0.5, 0.5, 0.5) });
       y -= 20;
+      page.drawText(ticketCode, { x: 50, y, size: 18, font: monoFont, color: rgb(0.1, 0.1, 0.1) });
+      y -= 30;
     }
 
-    lines.push({ x1: M, y1: y, x2: PW - M, y2: y });
-    y -= 14;
+    page.drawLine({ start: { x: 50, y }, end: { x: width - 50, y }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8) });
+    y -= 20;
 
-    const orderLine = 'Bestelnummer: ' + (order.order_number || '');
-    texts.push({ text: orderLine, x: pdfCenterX(orderLine, 8, PW), y, font: 'normal', size: 8, color: 100 });
+    const qrValue = ts.qr_data || ticketCode || ts.id;
+    if (qrValue) {
+      const pngBytes = await generateQrPngBytes(qrValue);
+      if (pngBytes) {
+        try {
+          const qrImage = await pdfDoc.embedPng(pngBytes);
+          const qrSize = 160;
+          page.drawImage(qrImage, { x: (width - qrSize) / 2, y: y - qrSize, width: qrSize, height: qrSize });
+          y -= qrSize + 14;
+        } catch (e: any) {
+          console.error('[pdf] QR embed failed:', e.message);
+        }
+      }
+    }
+
+    page.drawLine({ start: { x: 50, y }, end: { x: width - 50, y }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8) });
+    y -= 16;
+
+    page.drawText('Bestelnummer: ' + (order.order_number || ''), { x: 50, y, size: 9, font, color: rgb(0.4, 0.4, 0.4) });
+    y -= 14;
+    page.drawText('Naam: ' + (order.payer_name || ''), { x: 50, y, size: 9, font, color: rgb(0.4, 0.4, 0.4) });
+    y -= 14;
+    page.drawText('E-mail: ' + (order.payer_email || ''), { x: 50, y, size: 9, font, color: rgb(0.4, 0.4, 0.4) });
+    y -= 20;
+
+    page.drawText('Dit ticket is uniek en kan slechts een keer gescand worden.', { x: 50, y, size: 8, font, color: rgb(0.5, 0.5, 0.5) });
     y -= 12;
+    page.drawText('Toon dit ticket bij de ingang op je telefoon of geprint.', { x: 50, y, size: 8, font, color: rgb(0.5, 0.5, 0.5) });
 
-    const nameLine = 'Naam: ' + (order.payer_name || '');
-    texts.push({ text: nameLine, x: pdfCenterX(nameLine, 8, PW), y, font: 'normal', size: 8, color: 100 });
-    y -= 14;
-
-    const f1 = 'Dit ticket is uniek en kan slechts een keer gescand worden.';
-    texts.push({ text: f1, x: pdfCenterX(f1, 7, PW), y, font: 'normal', size: 7, color: 100 });
-    y -= 10;
-    const f2 = 'Toon dit ticket bij de ingang op je telefoon of geprint.';
-    texts.push({ text: f2, x: pdfCenterX(f2, 7, PW), y, font: 'normal', size: 7, color: 100 });
-
-    const pageCmds = buildPageLines(texts, lines, rects);
-    allPages.push([...pageCmds, ...cmds]);
-    allQr.push(pageQr);
+    page.drawText('StageNation | Powered by Lumetrix', { x: centerText('StageNation | Powered by Lumetrix', font, 8, width), y: 30, size: 8, font, color: rgb(0.6, 0.6, 0.6) });
   }
 
-  return buildPurePdf(allPages, allQr);
+  const pdfBytes = await pdfDoc.save();
+  console.log('[pdf] buildSeatTicketPdf done, size:', pdfBytes.length);
+  let binary = '';
+  for (let i = 0; i < pdfBytes.length; i++) binary += String.fromCharCode(pdfBytes[i]);
+  return btoa(binary);
 }
 
 async function buildTableReservationEmail(order: any, event: any, tableBookings: any[], brand: any): Promise<string> {
