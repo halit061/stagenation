@@ -17,7 +17,11 @@ function isValidUUID(str: string): boolean {
 }
 
 async function generateQRCode(data: string): Promise<string> {
-  return await QRCode.toDataURL(data, { width: 300, margin: 2 });
+  try {
+    return await QRCode.toDataURL(data, { width: 300, margin: 2 });
+  } catch {
+    return '';
+  }
 }
 
 async function sendEmail({ to, subject, html, attachments }: { to: string; subject: string; html: string; attachments?: { filename: string; content: string }[] }): Promise<{ id: string }> {
@@ -96,13 +100,28 @@ function formatTime(dateString: string): string {
   });
 }
 
-async function generateQrPngBytes(data: string): Promise<Uint8Array | null> {
-  try {
-    const buf = await QRCode.toBuffer(data, { width: 300, margin: 2, type: 'png' });
-    return new Uint8Array(buf);
-  } catch (e: any) {
-    console.error('[pdf] QR PNG generation failed:', e.message);
-    return null;
+function drawQROnPage(page: any, qrData: string, x: number, y: number, size: number) {
+  const qrCode = QRCode.create(qrData, { errorCorrectionLevel: 'M' });
+  const modules = qrCode.modules;
+  const moduleCount = modules.size;
+  const margin = 2;
+  const totalModules = moduleCount + margin * 2;
+  const cellSize = size / totalModules;
+
+  page.drawRectangle({ x, y, width: size, height: size, color: rgb(1, 1, 1) });
+
+  for (let row = 0; row < moduleCount; row++) {
+    for (let col = 0; col < moduleCount; col++) {
+      if (modules.get(row, col)) {
+        page.drawRectangle({
+          x: x + (col + margin) * cellSize,
+          y: y + size - (row + margin + 1) * cellSize,
+          width: cellSize,
+          height: cellSize,
+          color: rgb(0, 0, 0),
+        });
+      }
+    }
   }
 }
 
@@ -170,16 +189,12 @@ async function buildTicketPdf(order: any, event: any, tickets: any[]): Promise<s
 
     const qrData = ticket.qr_data || ticket.token || ticket.id;
     if (qrData) {
-      const pngBytes = await generateQrPngBytes(qrData);
-      if (pngBytes) {
-        try {
-          const qrImage = await pdfDoc.embedPng(pngBytes);
-          const qrSize = 160;
-          page.drawImage(qrImage, { x: (width - qrSize) / 2, y: y - qrSize, width: qrSize, height: qrSize });
-          y -= qrSize + 14;
-        } catch (e: any) {
-          console.error('[pdf] QR embed failed:', e.message);
-        }
+      try {
+        const qrSize = 160;
+        drawQROnPage(page, qrData, (width - qrSize) / 2, y - qrSize, qrSize);
+        y -= qrSize + 14;
+      } catch (e: any) {
+        console.error('[pdf] QR draw failed:', e.message);
       }
     }
 
@@ -274,16 +289,12 @@ async function buildSeatTicketPdf(order: any, event: any, seatTickets: any[]): P
 
     const qrValue = ts.qr_data || ticketCode || ts.id;
     if (qrValue) {
-      const pngBytes = await generateQrPngBytes(qrValue);
-      if (pngBytes) {
-        try {
-          const qrImage = await pdfDoc.embedPng(pngBytes);
-          const qrSize = 160;
-          page.drawImage(qrImage, { x: (width - qrSize) / 2, y: y - qrSize, width: qrSize, height: qrSize });
-          y -= qrSize + 14;
-        } catch (e: any) {
-          console.error('[pdf] QR embed failed:', e.message);
-        }
+      try {
+        const qrSize = 160;
+        drawQROnPage(page, qrValue, (width - qrSize) / 2, y - qrSize, qrSize);
+        y -= qrSize + 14;
+      } catch (e: any) {
+        console.error('[pdf] QR draw failed:', e.message);
       }
     }
 

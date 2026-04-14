@@ -2,12 +2,13 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Search, X, Mail, Phone, ShoppingCart, CheckCircle,
   AlertTriangle, Send, Ban, Shield, ShieldCheck, Save, Loader2, Copy,
-  ChevronDown, ChevronUp, ExternalLink, FileText, Filter, Download,
+  ChevronDown, ChevronUp, ExternalLink, FileText, Filter, Download, Trash2,
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { callEdgeFunction } from '../lib/callEdge';
 import { useToast } from './Toast';
 import { generateTicketsPdf } from '../lib/generateTicketPdf';
+import { DeleteOrderModal } from './DeleteOrderModal';
 
 interface OrderRow {
   id: string;
@@ -97,6 +98,9 @@ export function AdminOrderSearch({ orders, events, onOrdersChange }: Props) {
   const [detailLoading, setDetailLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletedOrders, setDeletedOrders] = useState<any[]>([]);
   const [notesValue, setNotesValue] = useState('');
   const [notesSaving, setNotesSaving] = useState(false);
   const [verifyInput, setVerifyInput] = useState('');
@@ -234,10 +238,13 @@ export function AdminOrderSearch({ orders, events, onOrdersChange }: Props) {
     if (!selectedOrder) return;
     setResendLoading(true);
     try {
-      const result = await callEdgeFunction({
-        functionName: 'send-ticket-email',
-        body: { orderId: selectedOrder.id, resend: true, source: 'admin-resend' },
-      });
+      const isComped = selectedOrder.status === 'comped';
+      const functionName = isComped ? 'resend-guest-ticket-emails' : 'send-ticket-email';
+      const body = isComped
+        ? { order_id: selectedOrder.id }
+        : { orderId: selectedOrder.id, resend: true, source: 'admin-resend' };
+
+      const result = await callEdgeFunction({ functionName, body });
       if (result.ok) {
         showToast('Bevestigingsmail opnieuw verstuurd', 'success');
       } else {
@@ -337,6 +344,112 @@ export function AdminOrderSearch({ orders, events, onOrdersChange }: Props) {
     setDateFrom('');
     setDateTo('');
   }, []);
+
+  const loadDeletedOrders = useCallback(async () => {
+    const { data } = await supabase
+      .from('ticket_deletions')
+      .select('*')
+      .order('deleted_at', { ascending: false })
+      .limit(50);
+    setDeletedOrders(data || []);
+  }, []);
+
+  useEffect(() => {
+    loadDeletedOrders();
+  }, [loadDeletedOrders]);
+
+  const handleDeleteOrder = useCallback(async (reason: string, notes: string) => {
+    if (!selectedOrder) return;
+    setDeleteLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (selectedOrder.metadata?.product_type === 'seat' || ticketSeats.length > 0) {
+        const seatIds = ticketSeats.map(ts => ts.seat_id).filter(Boolean);
+        if (seatIds.length > 0) {
+          await supabase
+            .from('seats')
+            .update({ status: 'available', held_by: null, held_until: null })
+            .in('id', seatIds);
+        }
+
+        await supabase
+          .from('ticket_seats')
+          .delete()
+          .eq('order_id', selectedOrder.id);
+      }
+
+      const { data: orderTickets } = await supabase
+        .from('tickets')
+        .select('id, ticket_type_id')
+        .eq('order_id', selectedOrder.id);
+
+      if (orderTickets && orderTickets.length > 0) {
+        const typeCountMap: Record<string, number> = {};
+        for (const t of orderTickets) {
+          if (t.ticket_type_id) {
+            typeCountMap[t.ticket_type_id] = (typeCountMap[t.ticket_type_id] || 0) + 1;
+          }
+        }
+
+        for (const [typeId, count] of Object.entries(typeCountMap)) {
+          const { data: ttData } = await supabase
+            .from('ticket_types')
+            .select('quantity_sold')
+            .eq('id', typeId)
+            .maybeSingle();
+          if (ttData) {
+            const newSold = Math.max(0, (ttData.quantity_sold || 0) - count);
+            await supabase
+              .from('ticket_types')
+              .update({ quantity_sold: newSold })
+              .eq('id', typeId);
+          }
+        }
+
+        await supabase
+          .from('tickets')
+          .update({ status: 'revoked' })
+          .eq('order_id', selectedOrder.id);
+      }
+
+      await supabase
+        .from('orders')
+        .update({
+          status: 'refunded',
+          refunded_at: new Date().toISOString(),
+          refund_reason: reason,
+          refund_notes: notes || null,
+        })
+        .eq('id', selectedOrder.id);
+
+      await supabase
+        .from('ticket_deletions')
+        .insert({
+          order_id: selectedOrder.id,
+          event_id: selectedOrder.event_id,
+          order_number: selectedOrder.order_number,
+          payer_name: selectedOrder.payer_name,
+          payer_email: selectedOrder.payer_email,
+          total_amount: selectedOrder.total_amount,
+          ticket_count: orderTickets?.length || 0,
+          seat_count: ticketSeats.length,
+          reason,
+          notes: notes || '',
+          deleted_by: user?.id || null,
+        });
+
+      showToast(`Order ${selectedOrder.order_number} verwijderd`, 'success');
+      setSelectedOrder(null);
+      setShowDeleteModal(false);
+      onOrdersChange();
+      loadDeletedOrders();
+    } catch (err: any) {
+      showToast(err.message || 'Verwijderen mislukt', 'error');
+    } finally {
+      setDeleteLoading(false);
+    }
+  }, [selectedOrder, ticketSeats, showToast, onOrdersChange, loadDeletedOrders]);
 
   return (
     <div>
@@ -543,6 +656,7 @@ export function AdminOrderSearch({ orders, events, onOrdersChange }: Props) {
             onSaveNotes={handleSaveNotes}
             onVerify={handleVerify}
             onCopy={handleCopyOrder}
+            onDelete={() => setShowDeleteModal(true)}
             setNotesValue={setNotesValue}
             setVerifyInput={setVerifyInput}
             setShowCancelConfirm={setShowCancelConfirm}
@@ -550,6 +664,69 @@ export function AdminOrderSearch({ orders, events, onOrdersChange }: Props) {
           />
         )}
       </div>
+
+      {showDeleteModal && selectedOrder && (
+        <DeleteOrderModal
+          orderNumber={selectedOrder.order_number}
+          payerName={selectedOrder.payer_name}
+          payerEmail={selectedOrder.payer_email}
+          totalAmount={selectedOrder.total_amount}
+          ticketCount={0}
+          seatCount={ticketSeats.length}
+          eventName={selectedOrder.events?.name || ''}
+          loading={deleteLoading}
+          onConfirm={handleDeleteOrder}
+          onClose={() => setShowDeleteModal(false)}
+        />
+      )}
+
+      {deletedOrders.length > 0 && (
+        <div className="mt-8">
+          <h3 className="text-xl font-bold text-white mb-1">
+            Verwijderde <span className="text-red-400">Tickets</span>
+          </h3>
+          <p className="text-slate-400 text-sm mb-4">Overzicht van verwijderde bestellingen</p>
+          <div className="bg-slate-800/80 border border-slate-700 rounded-xl overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-slate-900 border-b border-slate-700">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-300">Order</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-300">Klant</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-300">Bedrag</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-300">Reden</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-300">Verwijderd op</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-700/50">
+                {deletedOrders.map(d => (
+                  <tr key={d.id} className="hover:bg-slate-700/20">
+                    <td className="px-4 py-3">
+                      <span className="font-mono text-red-400/70 text-xs">{d.order_number}</span>
+                      <div className="text-[10px] text-slate-500 mt-0.5">
+                        {d.seat_count > 0 ? `${d.seat_count} stoelen` : `${d.ticket_count} tickets`}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="text-slate-300 text-sm truncate max-w-[140px]">{d.payer_name}</div>
+                      <div className="text-xs text-slate-500 truncate max-w-[140px]">{d.payer_email}</div>
+                    </td>
+                    <td className="px-4 py-3 text-right text-slate-400 text-sm tabular-nums line-through">
+                      {'\u20AC'}{(d.total_amount / 100).toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs text-orange-400 bg-orange-400/10 px-2 py-0.5 rounded">{d.reason}</span>
+                      {d.notes && <div className="text-[10px] text-slate-500 mt-1 truncate max-w-[140px]">{d.notes}</div>}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-400">
+                      {new Date(d.deleted_at).toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -573,6 +750,7 @@ function OrderDetailPanel({
   onSaveNotes,
   onVerify,
   onCopy,
+  onDelete,
   setNotesValue,
   setVerifyInput,
   setShowCancelConfirm,
@@ -596,6 +774,7 @@ function OrderDetailPanel({
   onSaveNotes: () => void;
   onVerify: () => void;
   onCopy: () => void;
+  onDelete: () => void;
   setNotesValue: (v: string) => void;
   setVerifyInput: (v: string) => void;
   setShowCancelConfirm: (v: boolean) => void;
@@ -937,7 +1116,7 @@ function OrderDetailPanel({
                 </button>
               )}
 
-              {order.status === 'paid' && (
+              {(order.status === 'paid' || order.status === 'comped') && (
                 <button
                   onClick={onResend}
                   disabled={resendLoading}
@@ -984,6 +1163,16 @@ function OrderDetailPanel({
                     </button>
                   </div>
                 </div>
+              )}
+
+              {(order.status === 'paid' || order.status === 'comped') && (
+                <button
+                  onClick={onDelete}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-red-700/50 text-red-500 hover:bg-red-500/10 font-medium rounded-xl transition-colors text-sm"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Verwijder Tickets
+                </button>
               )}
             </div>
           </div>
