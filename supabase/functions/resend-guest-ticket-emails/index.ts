@@ -30,9 +30,13 @@ async function generateQRCode(data: string): Promise<string> {
   return await QRCode.toDataURL(data, { width: 300, margin: 2 });
 }
 
-async function generateQRImageBytes(data: string): Promise<Uint8Array> {
-  const buffer = await QRCode.toBuffer(data, { width: 400, margin: 2, type: 'png' });
-  return new Uint8Array(buffer);
+async function getQRPngBytes(data: string): Promise<Uint8Array> {
+  const dataUrl: string = await QRCode.toDataURL(data, { width: 400, margin: 2, type: 'image/png' });
+  const base64 = dataUrl.split(',')[1];
+  const binStr = atob(base64);
+  const bytes = new Uint8Array(binStr.length);
+  for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+  return bytes;
 }
 
 async function generateTicketsPDF(
@@ -48,326 +52,155 @@ async function generateTicketsPDF(
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const logoUrl = event.logo_url ? `${supabaseUrl}/storage/v1/object/public/${event.logo_url}` : null;
-
-  let logoImage = null;
-  if (logoUrl) {
-    try {
-      const logoResponse = await fetch(logoUrl);
-      if (logoResponse.ok) {
-        const logoBytes = await logoResponse.arrayBuffer();
-        const contentType = logoResponse.headers.get('content-type');
-        if (contentType?.includes('png')) {
-          logoImage = await pdfDoc.embedPng(new Uint8Array(logoBytes));
-        } else if (contentType?.includes('jpeg') || contentType?.includes('jpg')) {
-          logoImage = await pdfDoc.embedJpg(new Uint8Array(logoBytes));
-        }
-      }
-    } catch (e) {
-      console.error('Could not embed logo:', e);
-    }
-  }
-
   for (let i = 0; i < qrEntries.length; i++) {
     const qr = qrEntries[i];
     const page = pdfDoc.addPage([595, 842]);
     const { width, height } = page.getSize();
 
-    let yPosition = height - 60;
+    let yPos = height - 60;
 
-    if (logoImage) {
-      const logoScale = 0.3;
-      const logoWidth = logoImage.width * logoScale;
-      const logoHeight = logoImage.height * logoScale;
-      page.drawImage(logoImage, {
-        x: (width - logoWidth) / 2,
-        y: yPosition - logoHeight,
-        width: logoWidth,
-        height: logoHeight,
-      });
-      yPosition -= logoHeight + 30;
-    } else {
-      page.drawText(event.name, {
-        x: 50,
-        y: yPosition,
-        size: 24,
-        font: boldFont,
-        color: rgb(0.86, 0.15, 0.15),
-      });
-      yPosition -= 40;
-    }
+    page.drawText(event.name || 'Event', {
+      x: 50, y: yPos, size: 24, font: boldFont, color: rgb(0.86, 0.15, 0.15),
+    });
+    yPos -= 40;
 
     if (event.brand_name) {
-      page.drawText(event.brand_name, {
-        x: 50,
-        y: yPosition,
-        size: 12,
-        font: boldFont,
-        color: rgb(0.4, 0.4, 0.4),
+      page.drawText(String(event.brand_name), {
+        x: 50, y: yPos, size: 12, font: boldFont, color: rgb(0.4, 0.4, 0.4),
       });
-      yPosition -= 25;
+      yPos -= 25;
     }
 
     page.drawText('Guest Ticket', {
-      x: 50,
-      y: yPosition,
-      size: 20,
-      font: boldFont,
-      color: rgb(0.2, 0.2, 0.2),
+      x: 50, y: yPos, size: 20, font: boldFont, color: rgb(0.2, 0.2, 0.2),
     });
-    yPosition -= 30;
+    yPos -= 30;
 
     if (qrEntries.length > 1) {
       page.drawText(`Ticket ${qr.person_index} van ${qrEntries.length}`, {
-        x: 50,
-        y: yPosition,
-        size: 14,
-        font: font,
-        color: rgb(0.4, 0.4, 0.4),
+        x: 50, y: yPos, size: 14, font, color: rgb(0.4, 0.4, 0.4),
       });
-      yPosition -= 40;
+      yPos -= 35;
     }
 
     page.drawText(`Voor: ${recipientName}`, {
-      x: 50,
-      y: yPosition,
-      size: 12,
-      font: font,
-      color: rgb(0.3, 0.3, 0.3),
+      x: 50, y: yPos, size: 12, font, color: rgb(0.3, 0.3, 0.3),
     });
-    yPosition -= 20;
+    yPos -= 20;
 
     const eventDate = formatDate(event.start_date);
     const eventTime = formatTime(event.start_date);
     page.drawText(`Datum: ${eventDate}`, {
-      x: 50,
-      y: yPosition,
-      size: 12,
-      font: font,
-      color: rgb(0.3, 0.3, 0.3),
+      x: 50, y: yPos, size: 12, font, color: rgb(0.3, 0.3, 0.3),
     });
-    yPosition -= 20;
+    yPos -= 20;
 
     page.drawText(`Tijd: ${eventTime}`, {
-      x: 50,
-      y: yPosition,
-      size: 12,
-      font: font,
-      color: rgb(0.3, 0.3, 0.3),
+      x: 50, y: yPos, size: 12, font, color: rgb(0.3, 0.3, 0.3),
     });
-    yPosition -= 20;
+    yPos -= 20;
+
+    if (event.venue_name) {
+      page.drawText(`Venue: ${String(event.venue_name)}`, {
+        x: 50, y: yPos, size: 12, font: boldFont, color: rgb(0.3, 0.3, 0.3),
+      });
+      yPos -= 20;
+    }
 
     if (event.location) {
-      page.drawText(`Locatie: ${event.location}`, {
-        x: 50,
-        y: yPosition,
-        size: 12,
-        font: font,
-        color: rgb(0.3, 0.3, 0.3),
+      page.drawText(`Locatie: ${String(event.location)}`, {
+        x: 50, y: yPos, size: 12, font, color: rgb(0.3, 0.3, 0.3),
       });
-      yPosition -= 20;
+      yPos -= 20;
     }
 
     if (event.location_address) {
-      page.drawText(`Adres: ${event.location_address}`, {
-        x: 50,
-        y: yPosition,
-        size: 12,
-        font: font,
-        color: rgb(0.3, 0.3, 0.3),
+      page.drawText(`Adres: ${String(event.location_address)}`, {
+        x: 50, y: yPos, size: 12, font, color: rgb(0.3, 0.3, 0.3),
       });
-      yPosition -= 30;
+      yPos -= 30;
     } else {
-      yPosition -= 10;
+      yPos -= 10;
     }
 
     try {
-      const qrImageBytes = await generateQRImageBytes(qr.qr_token);
-      const qrImage = await pdfDoc.embedPng(qrImageBytes);
+      const qrPngBytes = await getQRPngBytes(qr.qr_token);
+      const qrImage = await pdfDoc.embedPng(qrPngBytes);
       const qrSize = 280;
-
       page.drawImage(qrImage, {
         x: (width - qrSize) / 2,
-        y: yPosition - qrSize - 20,
+        y: yPos - qrSize - 20,
         width: qrSize,
         height: qrSize,
       });
-      yPosition = yPosition - qrSize - 40;
+      yPos = yPos - qrSize - 40;
     } catch (e) {
-      console.error('Failed to embed QR code:', e);
+      console.error('Failed to embed QR in PDF:', e);
       page.drawText('QR code kon niet worden gegenereerd', {
-        x: 50,
-        y: yPosition - 30,
-        size: 10,
-        font: font,
-        color: rgb(0.8, 0.2, 0.2),
+        x: 50, y: yPos - 30, size: 10, font, color: rgb(0.8, 0.2, 0.2),
       });
-      yPosition -= 60;
+      yPos -= 60;
     }
 
     if (qr.seat) {
       page.drawRectangle({
-        x: 40,
-        y: yPosition - 55,
-        width: width - 80,
-        height: 50,
-        color: rgb(0.95, 0.97, 1.0),
-        borderColor: rgb(0.2, 0.45, 0.8),
-        borderWidth: 1,
+        x: 40, y: yPos - 55, width: width - 80, height: 50,
+        color: rgb(0.95, 0.97, 1.0), borderColor: rgb(0.2, 0.45, 0.8), borderWidth: 1,
       });
-
       page.drawText(`Sectie: ${qr.seat.section_name}   |   Rij: ${qr.seat.row_label}   |   Stoel: ${qr.seat.seat_number}`, {
-        x: 55,
-        y: yPosition - 25,
-        size: 14,
-        font: boldFont,
-        color: rgb(0.1, 0.2, 0.5),
+        x: 55, y: yPos - 25, size: 14, font: boldFont, color: rgb(0.1, 0.2, 0.5),
       });
-
       page.drawText('Gereserveerde zitplaats', {
-        x: 55,
-        y: yPosition - 43,
-        size: 9,
-        font: font,
-        color: rgb(0.4, 0.5, 0.7),
+        x: 55, y: yPos - 43, size: 9, font, color: rgb(0.4, 0.5, 0.7),
       });
-      yPosition -= 65;
+      yPos -= 65;
     } else {
       page.drawText('Vrije toegang', {
-        x: 50,
-        y: yPosition,
-        size: 12,
-        font: boldFont,
-        color: rgb(0.3, 0.3, 0.3),
+        x: 50, y: yPos, size: 12, font: boldFont, color: rgb(0.3, 0.3, 0.3),
       });
-      yPosition -= 25;
+      yPos -= 25;
     }
 
     page.drawText(`Ticket nummer: ${orderNumber}-${qr.person_index}`, {
-      x: 50,
-      y: yPosition,
-      size: 10,
-      font: font,
-      color: rgb(0.5, 0.5, 0.5),
+      x: 50, y: yPos, size: 10, font, color: rgb(0.5, 0.5, 0.5),
     });
-    yPosition -= 25;
+    yPos -= 25;
 
     if (tableInfo) {
-      const tableType = tableInfo.table_type === 'seating' ? 'Zittafel' : 'Sta-tafel';
-      page.drawText(`Tafel: ${tableInfo.table_number} (${tableType}, ${tableInfo.capacity} pers.)`, {
-        x: 50,
-        y: yPosition,
-        size: 11,
-        font: boldFont,
-        color: rgb(0.03, 0.57, 0.7),
+      const tType = tableInfo.table_type === 'seating' ? 'Zittafel' : 'Sta-tafel';
+      page.drawText(`Tafel: ${tableInfo.table_number} (${tType}, ${tableInfo.capacity} pers.)`, {
+        x: 50, y: yPos, size: 11, font: boldFont, color: rgb(0.03, 0.57, 0.7),
       });
-      yPosition -= 20;
-
+      yPos -= 20;
       if (tableNote) {
-        const maxWidth = 490;
-        const words = tableNote.split(' ');
-        let line = '';
-
-        for (const word of words) {
-          const testLine = line + (line ? ' ' : '') + word;
-          const lineWidth = font.widthOfTextAtSize(testLine, 10);
-
-          if (lineWidth > maxWidth && line) {
-            page.drawText(line, {
-              x: 50,
-              y: yPosition,
-              size: 10,
-              font: font,
-              color: rgb(0.03, 0.57, 0.7),
-            });
-            yPosition -= 15;
-            line = word;
-          } else {
-            line = testLine;
-          }
-        }
-
-        if (line) {
-          page.drawText(line, {
-            x: 50,
-            y: yPosition,
-            size: 10,
-            font: font,
-            color: rgb(0.03, 0.57, 0.7),
-          });
-          yPosition -= 25;
-        }
+        page.drawText(String(tableNote).substring(0, 80), {
+          x: 50, y: yPos, size: 10, font, color: rgb(0.03, 0.57, 0.7),
+        });
+        yPos -= 25;
       }
     }
 
     if (guestNotes) {
       page.drawText('Notitie:', {
-        x: 50,
-        y: yPosition,
-        size: 11,
-        font: boldFont,
-        color: rgb(0.6, 0.3, 0.05),
+        x: 50, y: yPos, size: 11, font: boldFont, color: rgb(0.6, 0.3, 0.05),
       });
-      yPosition -= 18;
-
-      const maxWidth = 490;
-      const words = guestNotes.split(' ');
-      let line = '';
-
-      for (const word of words) {
-        const testLine = line + (line ? ' ' : '') + word;
-        const lineWidth = font.widthOfTextAtSize(testLine, 10);
-
-        if (lineWidth > maxWidth && line) {
-          page.drawText(line, {
-            x: 50,
-            y: yPosition,
-            size: 10,
-            font: font,
-            color: rgb(0.6, 0.3, 0.05),
-          });
-          yPosition -= 15;
-          line = word;
-        } else {
-          line = testLine;
-        }
-      }
-
-      if (line) {
-        page.drawText(line, {
-          x: 50,
-          y: yPosition,
-          size: 10,
-          font: font,
-          color: rgb(0.6, 0.3, 0.05),
-        });
-        yPosition -= 25;
-      }
+      yPos -= 18;
+      page.drawText(String(guestNotes).substring(0, 80), {
+        x: 50, y: yPos, size: 10, font, color: rgb(0.6, 0.3, 0.05),
+      });
+      yPos -= 25;
     }
 
     page.drawText('Toon deze QR code bij de ingang van het evenement.', {
-      x: 50,
-      y: yPosition,
-      size: 10,
-      font: boldFont,
-      color: rgb(0.2, 0.2, 0.2),
+      x: 50, y: yPos, size: 10, font: boldFont, color: rgb(0.2, 0.2, 0.2),
     });
-    yPosition -= 15;
+    yPos -= 15;
     page.drawText('Dit ticket is geldig voor 1 persoon.', {
-      x: 50,
-      y: yPosition,
-      size: 10,
-      font: font,
-      color: rgb(0.4, 0.4, 0.4),
+      x: 50, y: yPos, size: 10, font, color: rgb(0.4, 0.4, 0.4),
     });
 
     page.drawText('Powered by Lumetrix', {
-      x: width - 150,
-      y: 30,
-      size: 8,
-      font: font,
-      color: rgb(0.6, 0.6, 0.6),
+      x: width - 150, y: 30, size: 8, font, color: rgb(0.6, 0.6, 0.6),
     });
   }
 
