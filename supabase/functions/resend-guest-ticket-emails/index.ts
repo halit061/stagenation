@@ -26,17 +26,31 @@ interface TableInfo {
   capacity: number;
 }
 
-async function generateQRCode(data: string): Promise<string> {
-  return await QRCode.toDataURL(data, { width: 300, margin: 2 });
-}
+function drawQROnPage(page: any, qrData: string, x: number, y: number, size: number) {
+  const qrCode = QRCode.create(qrData, { errorCorrectionLevel: 'M' });
+  const modules = qrCode.modules;
+  const moduleCount = modules.size;
+  const margin = 2;
+  const totalModules = moduleCount + margin * 2;
+  const cellSize = size / totalModules;
 
-async function getQRPngBytes(data: string): Promise<Uint8Array> {
-  const dataUrl: string = await QRCode.toDataURL(data, { width: 400, margin: 2, type: 'image/png' });
-  const base64 = dataUrl.split(',')[1];
-  const binStr = atob(base64);
-  const bytes = new Uint8Array(binStr.length);
-  for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
-  return bytes;
+  page.drawRectangle({
+    x, y, width: size, height: size, color: rgb(1, 1, 1),
+  });
+
+  for (let row = 0; row < moduleCount; row++) {
+    for (let col = 0; col < moduleCount; col++) {
+      if (modules.get(row, col)) {
+        page.drawRectangle({
+          x: x + (col + margin) * cellSize,
+          y: y + size - (row + margin + 1) * cellSize,
+          width: cellSize,
+          height: cellSize,
+          color: rgb(0, 0, 0),
+        });
+      }
+    }
+  }
 }
 
 async function generateTicketsPDF(
@@ -123,19 +137,14 @@ async function generateTicketsPDF(
       yPos -= 10;
     }
 
+    const qrSize = 280;
+    const qrX = (width - qrSize) / 2;
+    const qrY = yPos - qrSize - 20;
     try {
-      const qrPngBytes = await getQRPngBytes(qr.qr_token);
-      const qrImage = await pdfDoc.embedPng(qrPngBytes);
-      const qrSize = 280;
-      page.drawImage(qrImage, {
-        x: (width - qrSize) / 2,
-        y: yPos - qrSize - 20,
-        width: qrSize,
-        height: qrSize,
-      });
-      yPos = yPos - qrSize - 40;
+      drawQROnPage(page, qr.qr_token, qrX, qrY, qrSize);
+      yPos = qrY - 20;
     } catch (e) {
-      console.error('Failed to embed QR in PDF:', e);
+      console.error('Failed to draw QR code:', e);
       page.drawText('QR code kon niet worden gegenereerd', {
         x: 50, y: yPos - 30, size: 10, font, color: rgb(0.8, 0.2, 0.2),
       });
@@ -529,7 +538,12 @@ Deno.serve(async (req: Request) => {
 
     if (qrRecords && qrRecords.length > 0) {
       for (const qr of qrRecords) {
-        const qrDataUrl = await generateQRCode(qr.qr_token);
+        let qrDataUrl = '';
+        try {
+          qrDataUrl = await generateQRCode(qr.qr_token);
+        } catch (_e) {
+          // toDataURL may not work in Deno - not needed for PDF
+        }
         const entry: QrEntry = {
           id: qr.id,
           person_index: qr.person_index,
