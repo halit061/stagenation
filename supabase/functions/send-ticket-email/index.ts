@@ -43,7 +43,6 @@ async function sendEmail({ to, subject, html, attachments }: { to: string; subje
       emailPayload.attachments = attachments.map(a => ({
         filename: a.filename,
         content: a.content,
-        content_type: 'application/pdf',
       }));
     }
     const result = await resend.emails.send(emailPayload);
@@ -1052,7 +1051,7 @@ Deno.serve(async (req: Request) => {
     if (order.product_type === 'seat' || order.product_type === 'seats') {
       const { data: seatData, error: seatError } = await adminClient
         .from('ticket_seats')
-        .select('*, seats(id, row_label, seat_number, section_id, seat_sections(id, name, color, price_category, price_amount))')
+        .select('*, seats(id, row_label, seat_number, seat_type, section_id, seat_sections(id, name, color, price_category, price_amount))')
         .eq('order_id', orderId);
 
       if (seatError) {
@@ -1115,19 +1114,31 @@ Deno.serve(async (req: Request) => {
     let pdfAttachments: { filename: string; content: string }[] = [];
     if (hasSeatTickets && seatTickets.length > 0) {
       try {
+        console.log('[pdf] Generating seat ticket PDF for', seatTickets.length, 'seats, order:', order.order_number);
         const pdfBase64 = await buildSeatTicketPdf(order, event, seatTickets);
+        const pdfSizeBytes = Math.ceil(pdfBase64.length * 3 / 4);
+        console.log('[pdf] Seat ticket PDF generated, base64 length:', pdfBase64.length, 'estimated bytes:', pdfSizeBytes);
+        if (pdfSizeBytes < 1000) {
+          console.error('[pdf] WARNING: PDF is suspiciously small (' + pdfSizeBytes + ' bytes), may be empty');
+        }
         const filename = `StageNation-Tickets-${order.order_number || 'tickets'}.pdf`;
         pdfAttachments = [{ filename, content: pdfBase64 }];
       } catch (pdfErr: any) {
-        console.error('PDF: Seat ticket generation failed, sending without attachment:', pdfErr.message);
+        console.error('PDF: Seat ticket generation failed, sending without attachment:', pdfErr.message, pdfErr.stack);
       }
     } else if (hasTickets && tickets.length > 0) {
       try {
+        console.log('[pdf] Generating ticket PDF for', tickets.length, 'tickets, order:', order.order_number);
         const pdfBase64 = await buildTicketPdf(order, event, tickets);
+        const pdfSizeBytes = Math.ceil(pdfBase64.length * 3 / 4);
+        console.log('[pdf] Ticket PDF generated, base64 length:', pdfBase64.length, 'estimated bytes:', pdfSizeBytes);
+        if (pdfSizeBytes < 1000) {
+          console.error('[pdf] WARNING: PDF is suspiciously small (' + pdfSizeBytes + ' bytes), may be empty');
+        }
         const filename = `StageNation-Tickets-${order.order_number || 'tickets'}.pdf`;
         pdfAttachments = [{ filename, content: pdfBase64 }];
       } catch (pdfErr: any) {
-        console.error('PDF: Generation failed, sending without attachment:', pdfErr.message);
+        console.error('PDF: Generation failed, sending without attachment:', pdfErr.message, pdfErr.stack);
       }
     }
 
