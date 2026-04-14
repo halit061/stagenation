@@ -1,12 +1,15 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { getCorsHeaders, handleCorsOptions } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers":
-    "Content-Type, Authorization, X-Client-Info, Apikey",
-};
+let _corsHeaders: Record<string, string> = {};
+
+function jsonRes(body: Record<string, unknown>, status: number) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ..._corsHeaders, "Content-Type": "application/json" },
+  });
+}
 
 const ALLOWED_ORIGINS = [
   "https://stagenation.be",
@@ -14,11 +17,20 @@ const ALLOWED_ORIGINS = [
   "http://localhost:5173",
 ];
 
-function jsonRes(body: Record<string, unknown>, status: number) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_WINDOW = 60000;
+const RATE_LIMIT_MAX = 5;
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const key = ip || "unknown";
+  const entry = rateLimitMap.get(key);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+    return true;
+  }
+  entry.count++;
+  return entry.count <= RATE_LIMIT_MAX;
 }
 
 async function mollieWithRetry(
@@ -64,13 +76,19 @@ async function mollieWithRetry(
 }
 
 Deno.serve(async (req: Request) => {
+  _corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 200, headers: corsHeaders });
+    return handleCorsOptions(req);
   }
 
   try {
     if (req.method !== "POST") {
       return jsonRes({ error: "Method not allowed" }, 405);
+    }
+
+    const clientIp = req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || "unknown";
+    if (!checkRateLimit(clientIp)) {
+      return jsonRes({ error: "Te veel verzoeken. Probeer het over een minuut opnieuw." }, 429);
     }
 
     const body = await req.json();
@@ -207,11 +225,9 @@ Deno.serve(async (req: Request) => {
     );
 
     if (!mollieResponse.ok) {
-      const errBody = await mollieResponse.text();
       console.error(
         "[create-seat-order] Mollie error:",
         mollieResponse.status,
-        errBody,
       );
       return jsonRes(
         { error: "Payment creation failed. Please retry." },
@@ -236,9 +252,9 @@ Deno.serve(async (req: Request) => {
       200,
     );
   } catch (err: any) {
-    console.error("[create-seat-order] Exception:", err);
+    console.error("[create-seat-order] Exception:", err.message);
     return jsonRes(
-      { error: err.message || "Internal server error" },
+      { error: "Er ging iets mis. Probeer het opnieuw." },
       500,
     );
   }

@@ -29,7 +29,8 @@ export function HourlySalesChart({ eventId }: HourlySalesChartProps) {
         .select('created_at, total_amount, status')
         .eq('event_id', eventId)
         .eq('status', 'paid')
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true })
+        .limit(10000);
 
       if (error) throw error;
 

@@ -61,7 +61,8 @@ export function Queue({ onNavigate }: QueueProps) {
           return;
         }
       } catch (err: any) {
-        setError(err.message || 'Connection error');
+        console.error('[Queue] Poll error:', err.message);
+        setError('Verbindingsprobleem. We proberen opnieuw...');
         delay = Math.min(delay * 2, QUEUE_POLL_MAX);
       }
       if (!cancelled) {

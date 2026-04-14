@@ -33,7 +33,8 @@ export async function checkUploadPermission(): Promise<{ allowed: boolean; email
       .from('user_roles')
       .select('role, is_active')
       .eq('user_id', user.id)
-      .eq('is_active', true);
+      .eq('is_active', true)
+      .limit(10000);
 
     const allowed = roles?.some(
       (r: { role: string }) => r.role === 'admin' || r.role === 'super_admin'

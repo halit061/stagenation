@@ -35,7 +35,8 @@ export function Archive({ onNavigate }: ArchiveProps) {
         .select('*')
         .eq('is_active', true)
         .lt('start_date', now)
-        .order('start_date', { ascending: false });
+        .order('start_date', { ascending: false })
+        .limit(10000);
 
       if (error) throw error;
       setEvents(data || []);

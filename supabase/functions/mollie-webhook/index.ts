@@ -391,47 +391,38 @@ Deno.serve(async (req: Request) => {
         });
 
         if (!emailResponse.ok) {
-          const errorText = await emailResponse.text();
-          console.error('❌ Email function returned error!');
-          console.error('   Status:', emailResponse.status);
-          console.error('   Error:', errorText);
+          console.error('[webhook] Email function failed:', emailResponse.status);
 
           await supabase.from('orders').update({
-            email_error: `Email function failed: ${errorText}`
+            email_error: `Email function failed: status ${emailResponse.status}`
           }).eq('id', order.id);
         }
       } catch (emailError) {
-        console.error('❌ Email send exception:', emailError);
-        console.error('   Error type:', emailError.constructor.name);
-        console.error('   Error message:', emailError.message);
+        console.error('[webhook] Email send exception:', emailError.message);
 
         try {
           await supabase.from('orders').update({
             email_error: `Email exception: ${emailError.message}`
           }).eq('id', order.id);
         } catch (updateError) {
-          console.error('❌ Failed to update order with email error:', updateError);
+          console.error('[webhook] Failed to update order with email error');
         }
       }
 
-      // Send WhatsApp notification to organizer (non-blocking, fire-and-forget)
       if (order.product_type !== 'TABLE') {
         try {
-          console.log('📱 Calling WhatsApp notification function...');
           const waUrl = `${supabaseUrl}/functions/v1/send-whatsapp-notification`;
-          console.log('📱 WhatsApp URL:', waUrl);
           const waResponse = await fetch(waUrl, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${supabaseServiceKey}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({ orderId: order.id, eventId: order.event_id }),
           });
-          const waBody = await waResponse.text();
-          console.log('📱 WhatsApp response:', waResponse.status, waBody);
+          if (!waResponse.ok) {
+            console.error('[webhook] WhatsApp notification failed:', waResponse.status);
+          }
         } catch (waError) {
-          console.error('❌ WhatsApp notification exception:', waError.message);
+          console.error('[webhook] WhatsApp notification exception');
         }
-      } else {
-        console.log('📱 WhatsApp skipped: product_type is TABLE');
       }
     } else if (payment.status === 'failed' || payment.status === 'canceled' || payment.status === 'expired') {
       const statusMap: Record<string, string> = {

@@ -72,13 +72,15 @@ export function SharedLogin() {
           !error.message.toLowerCase().includes('too many');
 
         if (isRealError) {
-          setResetError(error.message);
+          console.error('[SharedLogin] Reset error:', error.message);
+          setResetError('Er is een fout opgetreden. Probeer het later opnieuw.');
           return;
         }
       }
       setResetSent(true);
     } catch (err: any) {
-      setResetError(err.message || 'Er is een fout opgetreden');
+      console.error('[SharedLogin] Reset exception:', err.message);
+      setResetError('Er is een fout opgetreden. Probeer het later opnieuw.');
     } finally {
       setResetSending(false);
     }

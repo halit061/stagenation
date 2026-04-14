@@ -5,6 +5,13 @@ import { PDFDocument, rgb, StandardFonts } from 'npm:pdf-lib@1.17.1';
 import QRCode from 'npm:qrcode@1.5.4';
 import { getCorsHeaders } from "../_shared/cors.ts";
 
+interface SeatAssignment {
+  seat_id: string;
+  section_name: string;
+  row_label: string;
+  seat_number: number;
+}
+
 interface SendGuestTicketRequest {
   event_id: string;
   ticket_type_id: string;
@@ -14,6 +21,8 @@ interface SendGuestTicketRequest {
   assigned_table_id?: string;
   table_note?: string;
   persons_count?: number;
+  assign_seats?: boolean;
+  seat_assignments?: SeatAssignment[];
 }
 
 interface TableInfo {
@@ -28,6 +37,7 @@ interface QrEntry {
   person_index: number;
   qr_token: string;
   qr_data_url: string;
+  seat?: SeatAssignment;
 }
 
 // SECURITY: Escape HTML to prevent HTML injection in emails
@@ -236,6 +246,44 @@ async function generateTicketsPDF(
       yPosition -= 60;
     }
 
+    if (qr.seat) {
+      page.drawRectangle({
+        x: 40,
+        y: yPosition - 55,
+        width: width - 80,
+        height: 50,
+        color: rgb(0.95, 0.97, 1.0),
+        borderColor: rgb(0.2, 0.45, 0.8),
+        borderWidth: 1,
+      });
+
+      page.drawText(`Sectie: ${qr.seat.section_name}   |   Rij: ${qr.seat.row_label}   |   Stoel: ${qr.seat.seat_number}`, {
+        x: 55,
+        y: yPosition - 25,
+        size: 14,
+        font: boldFont,
+        color: rgb(0.1, 0.2, 0.5),
+      });
+
+      page.drawText('Gereserveerde zitplaats', {
+        x: 55,
+        y: yPosition - 43,
+        size: 9,
+        font: font,
+        color: rgb(0.4, 0.5, 0.7),
+      });
+      yPosition -= 65;
+    } else {
+      page.drawText('Vrije toegang', {
+        x: 50,
+        y: yPosition,
+        size: 12,
+        font: boldFont,
+        color: rgb(0.3, 0.3, 0.3),
+      });
+      yPosition -= 25;
+    }
+
     page.drawText(`Ticket nummer: ${orderNumber}-${qr.person_index}`, {
       x: 50,
       y: yPosition,
@@ -434,7 +482,7 @@ function formatTime(dateString: string): string {
   });
 }
 
-function buildMultiPersonEmail(event: any, recipientName: string, ticketCount: number, tableInfo: TableInfo | null, tableNote: string | null, guestNotes: string | null, publicToken: string): string {
+function buildMultiPersonEmail(event: any, recipientName: string, ticketCount: number, tableInfo: TableInfo | null, tableNote: string | null, guestNotes: string | null, publicToken: string, seatAssignments?: SeatAssignment[]): string {
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const logoUrl = event.logo_url
     ? `${supabaseUrl}/storage/v1/object/public/${event.logo_url}`
@@ -487,6 +535,17 @@ function buildMultiPersonEmail(event: any, recipientName: string, ticketCount: n
           ${event.location_address ? `<strong style="color: #0f172a;">Adres:</strong> ${event.location_address}<br />` : ''}
         </p>
       </div>
+
+      ${seatAssignments && seatAssignments.length > 0 ? `
+      <div style="background-color: #eff6ff; border: 2px solid #3b82f6; border-radius: 12px; padding: 20px; margin-bottom: 32px;">
+        <h3 style="color: #1e40af; margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">Toegewezen zitplaatsen</h3>
+        ${seatAssignments.map((s, idx) => `
+        <div style="background-color: #ffffff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 14px; margin-bottom: ${idx < seatAssignments.length - 1 ? '8' : '0'}px;">
+          <span style="color: #1e40af; font-weight: 600; font-size: 14px;">Ticket ${idx + 1}:</span>
+          <span style="color: #1e3a5f; font-size: 14px;"> ${escapeHtml(s.section_name)} &mdash; Rij ${escapeHtml(s.row_label)} &mdash; Stoel ${s.seat_number}</span>
+        </div>`).join('')}
+      </div>
+      ` : ''}
 
       <div style="background-color: #dcfce7; border: 2px solid #16a34a; border-radius: 12px; padding: 24px; margin-bottom: 32px; text-align: center;">
         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin: 0 auto 16px auto; display: block;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
@@ -622,6 +681,8 @@ Deno.serve(async (req: Request) => {
       assigned_table_id,
       table_note,
       persons_count = 1,
+      assign_seats = false,
+      seat_assignments = [],
     } = body;
 
     if (!event_id || !ticket_type_id || !recipient_email || !recipient_name) {
@@ -745,21 +806,68 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    if (assign_seats && seat_assignments.length > 0) {
+      if (seat_assignments.length !== validatedPersonsCount) {
+        return new Response(
+          JSON.stringify({ success: false, error: `Aantal stoelen (${seat_assignments.length}) komt niet overeen met aantal tickets (${validatedPersonsCount})` }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const seatIds = seat_assignments.map(s => s.seat_id);
+      const { data: seatRows } = await adminClient
+        .from('seats')
+        .select('id, status')
+        .in('id', seatIds);
+
+      const unavailable = seatRows?.filter(s => s.status !== 'available');
+      if (unavailable && unavailable.length > 0) {
+        return new Response(
+          JSON.stringify({ success: false, error: `${unavailable.length} stoel(en) zijn niet meer beschikbaar. Vernieuw de pagina.` }),
+          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    const assignedSeatIds: string[] = [];
     const qrEntries: QrEntry[] = [];
 
     for (let i = 1; i <= validatedPersonsCount; i++) {
       const qrToken = generateSecureToken();
+      const seatInfo = assign_seats && seat_assignments[i - 1] ? seat_assignments[i - 1] : null;
+
+      if (seatInfo) {
+        const { error: seatUpdateError } = await adminClient
+          .from('seats')
+          .update({ status: 'sold' })
+          .eq('id', seatInfo.seat_id)
+          .eq('status', 'available');
+
+        if (seatUpdateError) {
+          console.error(`Failed to reserve seat ${seatInfo.seat_id}:`, seatUpdateError);
+        } else {
+          assignedSeatIds.push(seatInfo.seat_id);
+        }
+      }
+
+      const insertPayload: Record<string, unknown> = {
+        event_id,
+        order_id: order.id,
+        person_index: i,
+        name: null,
+        email: null,
+        qr_token: qrToken,
+      };
+      if (seatInfo) {
+        insertPayload.seat_id = seatInfo.seat_id;
+        insertPayload.section_name = seatInfo.section_name;
+        insertPayload.row_label = seatInfo.row_label;
+        insertPayload.seat_number = seatInfo.seat_number;
+      }
 
       const { data: qrEntry, error: qrError } = await adminClient
         .from('guest_ticket_qrs')
-        .insert({
-          event_id,
-          order_id: order.id,
-          person_index: i,
-          name: null,
-          email: null,
-          qr_token: qrToken
-        })
+        .insert(insertPayload)
         .select()
         .single();
 
@@ -774,7 +882,8 @@ Deno.serve(async (req: Request) => {
         id: qrEntry.id,
         person_index: i,
         qr_token: qrToken,
-        qr_data_url: qrDataUrl
+        qr_data_url: qrDataUrl,
+        seat: seatInfo || undefined,
       });
     }
 
@@ -810,6 +919,28 @@ Deno.serve(async (req: Request) => {
 
     if (ticketError) {
       console.error('Failed to create ticket record:', ticketError);
+    }
+
+    if (ticket?.id && assign_seats && seat_assignments.length > 0) {
+      const ticketSeatRows = qrEntries
+        .filter(qr => qr.seat)
+        .map(qr => ({
+          ticket_id: ticket.id,
+          seat_id: qr.seat!.seat_id,
+          event_id,
+          price_paid: 0,
+          order_id: order.id,
+        }));
+
+      if (ticketSeatRows.length > 0) {
+        const { error: tsSeatErr } = await adminClient
+          .from('ticket_seats')
+          .insert(ticketSeatRows);
+
+        if (tsSeatErr) {
+          console.error('Failed to create ticket_seats records:', tsSeatErr);
+        }
+      }
     }
 
     await adminClient
@@ -850,7 +981,8 @@ Deno.serve(async (req: Request) => {
       tableInfo,
       table_note || null,
       notes || null,
-      publicToken
+      publicToken,
+      assign_seats ? seat_assignments : undefined
     );
 
     await sendEmail({
@@ -893,14 +1025,30 @@ Deno.serve(async (req: Request) => {
       try {
         const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
         const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-        const adminClient = createClient(supabaseUrl, supabaseServiceKey);
+        const rollbackClient = createClient(supabaseUrl, supabaseServiceKey);
 
-        await adminClient.from('guest_ticket_qrs').delete().eq('order_id', orderId);
-        await adminClient.from('tickets').delete().eq('order_id', orderId);
-        await adminClient.from('guest_ticket_audit_log').delete().eq('order_id', orderId);
-        // Delete email_logs before order (FK RESTRICT)
-        await adminClient.from('email_logs').delete().eq('order_id', orderId);
-        await adminClient.from('orders').delete().eq('id', orderId);
+        const { data: qrsToRollback } = await rollbackClient
+          .from('guest_ticket_qrs')
+          .select('seat_id')
+          .eq('order_id', orderId)
+          .not('seat_id', 'is', null);
+
+        if (qrsToRollback && qrsToRollback.length > 0) {
+          const seatIdsToRestore = qrsToRollback.map(q => q.seat_id).filter(Boolean);
+          if (seatIdsToRestore.length > 0) {
+            await rollbackClient
+              .from('seats')
+              .update({ status: 'available' })
+              .in('id', seatIdsToRestore);
+          }
+        }
+
+        await rollbackClient.from('ticket_seats').delete().eq('order_id', orderId);
+        await rollbackClient.from('guest_ticket_qrs').delete().eq('order_id', orderId);
+        await rollbackClient.from('tickets').delete().eq('order_id', orderId);
+        await rollbackClient.from('guest_ticket_audit_log').delete().eq('order_id', orderId);
+        await rollbackClient.from('email_logs').delete().eq('order_id', orderId);
+        await rollbackClient.from('orders').delete().eq('id', orderId);
       } catch (rollbackError) {
         console.error('Rollback failed:', rollbackError);
       }

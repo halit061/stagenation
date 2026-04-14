@@ -110,34 +110,39 @@ export function DrinksManager() {
         const { data, error } = await supabase
           .from('drink_categories')
           .select('*')
-          .order('sort_order');
+          .order('sort_order')
+          .limit(10000);
         if (error) throw error;
         setCategories(data || []);
       } else if (view === 'drinks') {
         const { data, error } = await supabase
           .from('drinks')
           .select('*')
-          .order('name');
+          .order('name')
+          .limit(10000);
         if (error) throw error;
         setDrinks(data || []);
 
         const { data: categoriesData } = await supabase
           .from('drink_categories')
           .select('*')
-          .order('sort_order');
+          .order('sort_order')
+          .limit(10000);
         setCategories(categoriesData || []);
       } else if (view === 'stock') {
         const { data: eventsData } = await supabase
           .from('events')
           .select('id, name')
-          .order('start_date', { ascending: false });
+          .order('start_date', { ascending: false })
+          .limit(10000);
         setEvents(eventsData || []);
 
         if (selectedEventId) {
           const { data: stockData, error: stockError } = await supabase
             .from('drink_stock')
             .select('*, drinks(*)')
-            .eq('event_id', selectedEventId);
+            .eq('event_id', selectedEventId)
+            .limit(10000);
           if (stockError) throw stockError;
           setStock(stockData || []);
         }
@@ -146,7 +151,8 @@ export function DrinksManager() {
           .from('drinks')
           .select('*')
           .eq('is_active', true)
-          .order('name');
+          .order('name')
+          .limit(10000);
         setDrinks(drinksData || []);
       }
     } catch (error: any) {
@@ -182,10 +188,8 @@ export function DrinksManager() {
       });
 
       if (!result.ok) {
-        const errorMsg = result.error || 'Failed to save category';
-        const details = result.details ? `\n\nDetails: ${result.details}` : '';
-        const debugInfo = `\n\nDebug Info:\nStatus: ${result.status}\nCode: ${result.code || 'N/A'}\nSupabase URL: ${import.meta.env.VITE_SUPABASE_URL}`;
-        throw new Error(errorMsg + details + debugInfo);
+        console.error('[DrinksManager] Category save error:', result.status, result.code, result.error);
+        throw new Error(result.error || 'Failed to save category');
       }
 
       showToast('Categorie opgeslagen!', 'success');
@@ -195,7 +199,7 @@ export function DrinksManager() {
       loadData();
     } catch (error: any) {
       console.error('[DrinksManager] Error saving category:', error);
-      showToast(`Fout bij opslaan categorie:\n${error.message}`, 'error');
+      showToast('Fout bij opslaan categorie. Probeer het opnieuw.', 'error');
     }
   };
 
@@ -215,10 +219,8 @@ export function DrinksManager() {
       });
 
       if (!result.ok) {
-        const errorMsg = result.error || 'Failed to save drink';
-        const details = result.details ? `\n\nDetails: ${result.details}` : '';
-        const debugInfo = `\n\nDebug Info:\nStatus: ${result.status}\nCode: ${result.code || 'N/A'}`;
-        throw new Error(errorMsg + details + debugInfo);
+        console.error('[DrinksManager] Drink save error:', result.status, result.code, result.error);
+        throw new Error(result.error || 'Failed to save drink');
       }
 
       showToast('Drankje opgeslagen!', 'success');
@@ -228,7 +230,7 @@ export function DrinksManager() {
       loadData();
     } catch (error: any) {
       console.error('Error saving drink:', error);
-      showToast(`Fout bij opslaan drankje:\n${error.message}`, 'error');
+      showToast('Fout bij opslaan drankje. Probeer het opnieuw.', 'error');
     }
   };
 

@@ -1,12 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers":
-    "Content-Type, Authorization, X-Client-Info, Apikey",
-};
+import { getCorsHeaders, handleCorsOptions } from "../_shared/cors.ts";
 
 interface HoldRequest {
   seat_ids: string[];
@@ -21,8 +15,9 @@ interface ReleaseRequest {
 }
 
 Deno.serve(async (req: Request) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 200, headers: corsHeaders });
+    return handleCorsOptions(req);
   }
 
   try {
@@ -61,6 +56,19 @@ Deno.serve(async (req: Request) => {
       }
 
       await supabase.rpc("release_expired_holds");
+
+      const { count: totalSessionHolds } = await supabase
+        .from("seat_holds")
+        .select("id", { count: "exact", head: true })
+        .eq("session_id", session_id)
+        .eq("status", "held");
+
+      if ((totalSessionHolds ?? 0) >= 10) {
+        return new Response(
+          JSON.stringify({ error: "Maximum 10 stoelen per sessie" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
 
       const { data: existingHolds } = await supabase
         .from("seat_holds")

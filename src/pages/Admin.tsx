@@ -15,6 +15,8 @@ import { callEdgeFunction } from '../lib/callEdge';
 import { adminFetch } from '../lib/adminApi';
 import { useToast } from '../components/Toast';
 import { AdminOrderSearch } from '../components/AdminOrderSearch';
+import { GuestTicketSeatSelector } from '../components/GuestTicketSeatSelector';
+import type { SeatAssignment } from '../components/GuestTicketSeatSelector';
 import { getAllLayouts, saveLayout, getTemplates, copyTemplateForEvent } from '../services/seatService';
 import type { VenueLayout } from '../types/seats';
 
@@ -95,6 +97,7 @@ export function Admin({ onNavigate }: AdminProps = {}) {
   const [selectedGuestTicket, setSelectedGuestTicket] = useState<any>(null);
   const [resendingGuestTicket, setResendingGuestTicket] = useState(false);
   const [tableAssignmentCounts, setTableAssignmentCounts] = useState<Record<string, number>>({});
+  const [guestSeatAssignments, setGuestSeatAssignments] = useState<SeatAssignment[]>([]);
 
   // Refund protection admin state
   const [rpSelectedEventId, setRpSelectedEventId] = useState('');
@@ -245,20 +248,23 @@ export function Admin({ onNavigate }: AdminProps = {}) {
       const { data: ttData } = await supabase
         .from('ticket_types')
         .select('id, name, price, quantity_total, quantity_sold, is_active, color')
-        .order('name');
+        .order('name')
+        .limit(10000);
       if (ttData) setDashboardTicketTypes(ttData);
 
       // Fetch ALL sold order IDs (paid + comped/guest tickets)
       const { data: allPaidOrders } = await supabase
         .from('orders')
         .select('id')
-        .in('status', ['paid', 'comped']);
+        .in('status', ['paid', 'comped'])
+        .limit(10000);
       const allPaidOrderIds = (allPaidOrders || []).map((o: any) => o.id);
       if (allPaidOrderIds.length > 0) {
         const { data: ticketsData } = await supabase
           .from('tickets')
           .select('id, ticket_type_id')
-          .in('order_id', allPaidOrderIds);
+          .in('order_id', allPaidOrderIds)
+          .limit(10000);
         if (ticketsData) setPaidTickets(ticketsData);
       } else {
         setPaidTickets([]);
@@ -464,9 +470,19 @@ export function Admin({ onNavigate }: AdminProps = {}) {
       return;
     }
 
+    const assignSeats = guestSeatAssignments.length > 0;
+    if (assignSeats && guestSeatAssignments.length !== guestTicketForm.persons_count) {
+      showToast(`Wijs ${guestTicketForm.persons_count} stoel(en) toe of schakel stoeltoewijzing uit`, 'error');
+      return;
+    }
+
     try {
       const { data, error } = await supabase.functions.invoke('send-guest-ticket', {
-        body: guestTicketForm,
+        body: {
+          ...guestTicketForm,
+          assign_seats: assignSeats,
+          seat_assignments: assignSeats ? guestSeatAssignments : [],
+        },
       });
 
       if (error) {
@@ -492,6 +508,7 @@ export function Admin({ onNavigate }: AdminProps = {}) {
       setGuestTicketTypes([]);
       setGuestTicketTables([]);
       setTableAssignmentCounts({});
+      setGuestSeatAssignments([]);
       await loadGuestTickets();
     } catch (error: any) {
       console.error('Error sending guest ticket:', error);
@@ -1346,6 +1363,14 @@ export function Admin({ onNavigate }: AdminProps = {}) {
                         <p className="mt-1 text-sm text-slate-400">Alle QR codes worden in 1 email verstuurd</p>
                       </div>
 
+                      <GuestTicketSeatSelector
+                        eventId={guestTicketForm.event_id}
+                        ticketTypeId={guestTicketForm.ticket_type_id || undefined}
+                        personsCount={guestTicketForm.persons_count}
+                        assignments={guestSeatAssignments}
+                        onChange={setGuestSeatAssignments}
+                      />
+
                       <div>
                         <label className="block text-sm font-medium mb-2 text-white">Naam *</label>
                         <input
@@ -1434,6 +1459,7 @@ export function Admin({ onNavigate }: AdminProps = {}) {
                             setGuestTicketTypes([]);
                             setGuestTicketTables([]);
                             setTableAssignmentCounts({});
+                            setGuestSeatAssignments([]);
                           }}
                           className="flex-1 bg-slate-600 hover:bg-slate-500 text-white py-3 rounded-xl font-semibold transition-colors"
                         >
@@ -1452,6 +1478,7 @@ export function Admin({ onNavigate }: AdminProps = {}) {
                       <th className="px-6 py-4 text-left text-sm font-semibold text-white">Gast</th>
                       <th className="px-6 py-4 text-left text-sm font-semibold text-white">Event</th>
                       <th className="px-6 py-4 text-left text-sm font-semibold text-white">Ticket</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-white">Zitplaats</th>
                       <th className="px-6 py-4 text-left text-sm font-semibold text-white">Personen</th>
                       <th className="px-6 py-4 text-left text-sm font-semibold text-white">Verstuurd door</th>
                       <th className="px-6 py-4 text-left text-sm font-semibold text-white">Datum</th>
@@ -1461,7 +1488,7 @@ export function Admin({ onNavigate }: AdminProps = {}) {
                   <tbody className="divide-y divide-slate-700">
                     {guestTickets.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-6 py-12 text-center">
+                        <td colSpan={8} className="px-6 py-12 text-center">
                           <Ticket className="w-12 h-12 mx-auto mb-4 text-slate-600" />
                           <p className="text-slate-400">Geen guest tickets gevonden</p>
                         </td>
@@ -1481,6 +1508,17 @@ export function Admin({ onNavigate }: AdminProps = {}) {
                             <td className="px-6 py-4 text-white">{ticket.events?.name}</td>
                             <td className="px-6 py-4 text-white font-mono text-sm">
                               {ticket.tickets?.[0]?.ticket_number || '-'}
+                            </td>
+                            <td className="px-6 py-4 text-sm">
+                              {(() => {
+                                const qrsWithSeats = (ticket.guest_ticket_qrs || []).filter((q: any) => q.seat_id);
+                                if (qrsWithSeats.length === 0) return <span className="text-slate-500">-</span>;
+                                if (qrsWithSeats.length === 1) {
+                                  const q = qrsWithSeats[0];
+                                  return <span className="text-blue-400">{q.section_name} - Rij {q.row_label} - Stoel {q.seat_number}</span>;
+                                }
+                                return <span className="text-blue-400">{qrsWithSeats.length} stoelen</span>;
+                              })()}
                             </td>
                             <td className="px-6 py-4">
                               {hasMultiQrs ? (
@@ -1584,6 +1622,11 @@ export function Admin({ onNavigate }: AdminProps = {}) {
                                 <div className="flex items-center gap-3">
                                   <span className="text-slate-400 font-medium">#{qr.person_index}</span>
                                   <span className="text-white">{qr.name || `Persoon ${qr.person_index}`}</span>
+                                  {qr.seat_id && (
+                                    <span className="text-blue-400 text-xs bg-blue-500/10 px-2 py-0.5 rounded">
+                                      {qr.section_name} - Rij {qr.row_label} - Stoel {qr.seat_number}
+                                    </span>
+                                  )}
                                 </div>
                                 <div>
                                   {qr.used_at ? (
@@ -1835,7 +1878,8 @@ export function Admin({ onNavigate }: AdminProps = {}) {
                       .from('refund_claims')
                       .select('*, orders(order_number, payer_email, payer_name, total_amount)')
                       .eq('event_id', evId)
-                      .order('created_at', { ascending: false });
+                      .order('created_at', { ascending: false })
+                      .limit(10000);
                     setRpClaims(claims || []);
                   }
                 }}

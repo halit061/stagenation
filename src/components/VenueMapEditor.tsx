@@ -108,8 +108,8 @@ export function VenueMapEditor({ events }: { events: Event[] }) {
     setError('');
     try {
       const [{ data: zoneData, error: e1 }, { data: ttData, error: e2 }, { data: evData, error: e3 }] = await Promise.all([
-        supabase.from('venue_zones').select('*').eq('event_id', eventId).order('sort_order'),
-        supabase.from('ticket_types').select('id, name, color, price').eq('event_id', eventId).eq('is_active', true).order('price'),
+        supabase.from('venue_zones').select('*').eq('event_id', eventId).order('sort_order').limit(10000),
+        supabase.from('ticket_types').select('id, name, color, price').eq('event_id', eventId).eq('is_active', true).order('price').limit(10000),
         supabase.from('events').select('venue_map_config').eq('id', eventId).single(),
       ]);
       if (e1) throw e1;

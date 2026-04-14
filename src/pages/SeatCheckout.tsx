@@ -191,7 +191,8 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
           .select('id, seat_id')
           .eq('session_id', sessionId)
           .eq('event_id', eventId)
-          .eq('status', 'held');
+          .eq('status', 'held')
+          .limit(10000);
 
         if (cancelled) return;
         if (!activeHolds || activeHolds.length === 0) {
@@ -377,7 +378,8 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
         .select('id, seat_id')
         .eq('session_id', sessionId)
         .eq('event_id', eventId)
-        .eq('status', 'held');
+        .eq('status', 'held')
+        .limit(10000);
 
       if (!activeHolds || activeHolds.length === 0) {
         setHoldExpired(true);

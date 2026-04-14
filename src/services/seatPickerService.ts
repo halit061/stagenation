@@ -103,7 +103,8 @@ export async function fetchFloorplanObjects(eventId: string): Promise<FloorplanO
     .eq('is_active', true)
     .eq('is_visible', true)
     .or(`event_id.eq.${eventId},event_id.is.null`)
-    .order('display_order', { ascending: true });
+    .order('display_order', { ascending: true })
+    .limit(10000);
   if (error) throw error;
   return (data ?? []).map((o: any) => ({
     ...o,
@@ -128,7 +129,8 @@ export async function fetchSections(layoutId: string): Promise<SeatSection[]> {
     .select('*')
     .eq('layout_id', layoutId)
     .eq('is_active', true)
-    .order('sort_order', { ascending: true });
+    .order('sort_order', { ascending: true })
+    .limit(10000);
   if (error) throw error;
   return data ?? [];
 }
@@ -189,7 +191,7 @@ export async function holdSeatsAtomic(
     p_user_id: null,
     p_session_id: sessionId,
     p_hold_minutes: 10,
-  });
+  }).limit(10000);
 
   if (error) throw error;
   return data as HoldResult;
@@ -201,7 +203,7 @@ export async function extendHolds(eventId: string): Promise<{ success: boolean; 
     p_session_id: sessionId,
     p_event_id: eventId,
     p_extra_minutes: 5,
-  });
+  }).limit(10000);
   if (error) throw error;
   return data as { success: boolean; expires_at?: string };
 }
@@ -211,7 +213,7 @@ export async function releaseSessionHolds(eventId: string): Promise<void> {
   await supabase.rpc('release_session_holds', {
     p_session_id: sessionId,
     p_event_id: eventId,
-  });
+  }).limit(10000);
   clearHoldStorage();
 }
 
@@ -255,7 +257,8 @@ export async function fetchTicketTypePricesForSections(sectionIds: string[]): Pr
   const { data, error } = await supabase
     .from('ticket_type_sections')
     .select('section_id, ticket_type_id, ticket_types(id, name, price)')
-    .in('section_id', sectionIds);
+    .in('section_id', sectionIds)
+    .limit(10000);
   if (error) return new Map();
   const result = new Map<string, { ttName: string; price: number }>();
   for (const row of (data ?? []) as any[]) {
@@ -271,7 +274,8 @@ export async function fetchLinkedSectionIds(ticketTypeId: string): Promise<strin
   const { data, error } = await supabase
     .from('ticket_type_sections')
     .select('section_id')
-    .eq('ticket_type_id', ticketTypeId);
+    .eq('ticket_type_id', ticketTypeId)
+    .limit(10000);
   if (error) throw error;
   return (data ?? []).map(r => r.section_id);
 }
@@ -288,7 +292,8 @@ export async function fetchTicketTypeColorsForEvent(eventId: string): Promise<Ti
     .from('ticket_types')
     .select('id, name, color, price')
     .eq('event_id', eventId)
-    .eq('is_active', true);
+    .eq('is_active', true)
+    .limit(10000);
   if (error) return [];
   return (data ?? []).map((tt: any) => ({
     id: tt.id,

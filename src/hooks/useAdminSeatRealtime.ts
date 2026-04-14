@@ -115,17 +115,20 @@ export function useAdminSeatRealtime(
         supabase
           .from('ticket_seats')
           .select('id, price_paid')
-          .eq('event_id', eventId),
+          .eq('event_id', eventId)
+          .limit(10000),
         supabase
           .from('orders')
           .select('id')
           .eq('event_id', eventId)
-          .eq('product_type', 'seat'),
+          .eq('product_type', 'seat')
+          .limit(10000),
         supabase
           .from('seat_holds')
           .select('id')
           .eq('event_id', eventId)
-          .eq('status', 'held'),
+          .eq('status', 'held')
+          .limit(10000),
       ]);
 
       const ticketSeats = seatsRes.data ?? [];

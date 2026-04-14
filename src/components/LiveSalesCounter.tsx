@@ -40,16 +40,19 @@ export function LiveSalesCounter({ eventId, eventName }: LiveSalesCounterProps) 
           .from('orders')
           .select('id, total_amount')
           .eq('event_id', eventId)
-          .eq('status', 'paid'),
+          .eq('status', 'paid')
+          .limit(10000),
         supabase
           .from('orders')
           .select('id')
           .eq('event_id', eventId)
-          .in('status', ['paid', 'comped']),
+          .in('status', ['paid', 'comped'])
+          .limit(10000),
         supabase
           .from('ticket_types')
           .select('id, quantity_total')
-          .eq('event_id', eventId),
+          .eq('event_id', eventId)
+          .limit(10000),
       ]);
 
       const paidOrders = paidOrdersRes.data || [];
@@ -65,7 +68,8 @@ export function LiveSalesCounter({ eventId, eventName }: LiveSalesCounterProps) 
         const { data: ticketsData } = await supabase
           .from('tickets')
           .select('id')
-          .in('order_id', allSoldOrderIds);
+          .in('order_id', allSoldOrderIds)
+          .limit(10000);
         totalTicketsSold = ticketsData?.length || 0;
       }
 
@@ -79,7 +83,8 @@ export function LiveSalesCounter({ eventId, eventName }: LiveSalesCounterProps) 
         .from('orders')
         .select('total_amount, service_fee_total_cents, net_revenue_cents')
         .eq('event_id', eventId)
-        .in('status', ['paid', 'comped']);
+        .in('status', ['paid', 'comped'])
+        .limit(10000);
 
       if (breakdownOrders) {
         const totalAmount = breakdownOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);

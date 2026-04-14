@@ -317,7 +317,8 @@ export function useSeatPickerState(eventId: string, ticketTypeId?: string) {
         setLoading(false);
       } catch (err: any) {
         if (cancelled) return;
-        setError(err.message || 'Er is een fout opgetreden');
+        console.error('[SeatPicker] Load error:', err.message);
+        setError('Er is een fout opgetreden bij het laden. Probeer de pagina te vernieuwen.');
         setLoading(false);
       }
     }
@@ -428,7 +429,8 @@ export function useSeatPickerState(eventId: string, ticketTypeId?: string) {
         setHoldError(result.error || 'Er ging iets mis bij het reserveren');
       }
     } catch (err: any) {
-      setHoldError(err.message || 'Er ging iets mis bij het reserveren. Probeer het opnieuw.');
+      console.error('[SeatPicker] Hold error:', err.message);
+      setHoldError('Er ging iets mis bij het reserveren. Probeer het opnieuw.');
     }
     setHoldLoading(false);
   }, [selectedIds, eventId, seatMap]);

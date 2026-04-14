@@ -90,14 +90,15 @@ export function Login({ onNavigate }: LoginProps) {
           !error.message.toLowerCase().includes('too many');
 
         if (isRealError) {
-          setResetError(error.message);
+          console.error('[Login] Reset error:', error.message);
+          setResetError('Er is een fout opgetreden. Probeer het later opnieuw.');
           return;
         }
       }
-      // SECURITY: Always show success to prevent email enumeration
       setResetSent(true);
     } catch (err: any) {
-      setResetError(err.message || 'Er is een fout opgetreden');
+      console.error('[Login] Reset exception:', err.message);
+      setResetError('Er is een fout opgetreden. Probeer het later opnieuw.');
     } finally {
       setResetSending(false);
     }

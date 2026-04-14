@@ -58,7 +58,8 @@ export function TableReservation({ onNavigate: _onNavigate }: TableReservationPr
         .select('*')
         .eq('is_active', true)
         .gte('start_date', new Date().toISOString())
-        .order('start_date', { ascending: true });
+        .order('start_date', { ascending: true })
+        .limit(10000);
 
       if (error) {
         console.error('Safari-safe Supabase query failed', error);

@@ -49,7 +49,8 @@ export function Home({ onNavigate }: HomeProps) {
         .select('image_url')
         .eq('category', 'hero')
         .eq('is_active', true)
-        .order('display_order', { ascending: true });
+        .order('display_order', { ascending: true })
+        .limit(10000);
       if (data && data.length > 0) {
         setHeroImages(data.map(d => d.image_url));
       }

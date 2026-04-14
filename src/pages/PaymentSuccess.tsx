@@ -151,7 +151,8 @@ export default function PaymentSuccess() {
       const { data: ticketsData } = await supabase
         .from('tickets')
         .select('*, ticket_types(name)')
-        .eq('order_id', orderId);
+        .eq('order_id', orderId)
+        .limit(10000);
 
       if (ticketsData) {
         setTickets(ticketsData);

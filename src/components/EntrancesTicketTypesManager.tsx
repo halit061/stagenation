@@ -92,8 +92,8 @@ export function EntrancesTicketTypesManager({ events }: Props) {
     setError('');
     try {
       const [{ data: ents, error: e1 }, { data: tts, error: e2 }, { data: layoutRow }] = await Promise.all([
-        supabase.from('entrances').select('*').eq('event_id', eventId).order('created_at'),
-        supabase.from('ticket_types').select('id, event_id, name, entrance_id, color, phase_group, phase_order, created_at').eq('event_id', eventId).order('phase_group', { ascending: true, nullsFirst: true }).order('phase_order').order('created_at'),
+        supabase.from('entrances').select('*').eq('event_id', eventId).order('created_at').limit(10000),
+        supabase.from('ticket_types').select('id, event_id, name, entrance_id, color, phase_group, phase_order, created_at').eq('event_id', eventId).order('phase_group', { ascending: true, nullsFirst: true }).order('phase_order').order('created_at').limit(10000),
         supabase.from('venue_layouts').select('id').eq('event_id', eventId).maybeSingle(),
       ]);
       if (e1) throw e1;

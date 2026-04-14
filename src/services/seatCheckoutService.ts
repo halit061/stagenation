@@ -34,7 +34,8 @@ export async function validateHoldsActive(sessionId: string, eventId: string): P
     .select('id, seat_id')
     .eq('session_id', sessionId)
     .eq('event_id', eventId)
-    .eq('status', 'held');
+    .eq('status', 'held')
+    .limit(10000);
 
   if (error) throw error;
   const active = data ?? [];
@@ -105,7 +106,8 @@ export async function fetchServiceFeeForSections(sectionIds: string[], eventId: 
   const { data: ttSections } = await supabase
     .from('ticket_type_sections')
     .select('ticket_type_id')
-    .in('section_id', sectionIds);
+    .in('section_id', sectionIds)
+    .limit(10000);
 
   if (!ttSections || ttSections.length === 0) {
     return { feePerTicket: 0, feeMode: 'none' };
@@ -159,7 +161,8 @@ export async function fetchOrderSeats(orderId: string) {
   const { data, error } = await supabase
     .from('ticket_seats')
     .select('id, seat_id, event_id, price_paid, assigned_at, ticket_code, ticket_number, qr_data, qr_token')
-    .eq('order_id', orderId);
+    .eq('order_id', orderId)
+    .limit(10000);
 
   if (error) throw error;
   return data ?? [];
@@ -170,7 +173,8 @@ export async function fetchSeatsForOrder(seatIds: string[]) {
   const { data, error } = await supabase
     .from('seats')
     .select('id, row_label, seat_number, seat_type, section_id, ticket_type_id')
-    .in('id', seatIds);
+    .in('id', seatIds)
+    .limit(10000);
 
   if (error) throw error;
   return data ?? [];
@@ -181,7 +185,8 @@ export async function fetchSectionsForOrder(sectionIds: string[]) {
   const { data, error } = await supabase
     .from('seat_sections')
     .select('id, name, color, price_category, price_amount')
-    .in('id', sectionIds);
+    .in('id', sectionIds)
+    .limit(10000);
 
   if (error) throw error;
   return data ?? [];

@@ -15,6 +15,8 @@ import { SharedLogin } from '../components/SharedLogin';
 import { TicketActions } from '../components/TicketActions';
 import { EventAnalytics } from '../components/EventAnalytics';
 import { PromoCodesManager } from '../components/PromoCodesManager';
+import { GuestTicketSeatSelector } from '../components/GuestTicketSeatSelector';
+import type { SeatAssignment } from '../components/GuestTicketSeatSelector';
 
 type Event = Database['public']['Tables']['events']['Row'];
 type TicketType = Database['public']['Tables']['ticket_types']['Row'];
@@ -80,6 +82,7 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
   const [availableTables, setAvailableTables] = useState<FloorplanTable[]>([]);
   const [tableAssignmentCounts, setTableAssignmentCounts] = useState<Record<string, number>>({});
   const [loadingTables, setLoadingTables] = useState(false);
+  const [guestSeatAssignments, setGuestSeatAssignments] = useState<SeatAssignment[]>([]);
   const [tableGuests, setTableGuests] = useState<any[]>([]);
   const [showTableGuestForm, setShowTableGuestForm] = useState(false);
   const [tableGuestForm, setTableGuestForm] = useState({
@@ -457,13 +460,14 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
       // SECURITY: Do not log user PII to browser console
 
       // Fetch real ticket counts from paid + comped orders (quantity_sold in DB may be stale)
-      const { data: allPaidOrders } = await supabase.from('orders').select('id').in('status', ['paid', 'comped']);
+      const { data: allPaidOrders } = await supabase.from('orders').select('id').in('status', ['paid', 'comped']).limit(10000);
       const allPaidOrderIds = (allPaidOrders || []).map((o: any) => o.id);
       if (allPaidOrderIds.length > 0) {
         const { data: paidTicketsData } = await supabase
           .from('tickets')
           .select('id, ticket_type_id')
-          .in('order_id', allPaidOrderIds);
+          .in('order_id', allPaidOrderIds)
+          .limit(10000);
         const counts: Record<string, number> = {};
         (paidTicketsData || []).forEach((t: any) => {
           counts[t.ticket_type_id] = (counts[t.ticket_type_id] || 0) + 1;
@@ -472,8 +476,8 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
       }
 
       if (role === 'admin') {
-        const eventsRes = await supabase.from('events').select('*').order('start_date', { ascending: false });
-        const ticketTypesRes = await supabase.from('ticket_types').select('*, events(name)').order('created_at', { ascending: false });
+        const eventsRes = await supabase.from('events').select('*').order('start_date', { ascending: false }).limit(10000);
+        const ticketTypesRes = await supabase.from('ticket_types').select('*, events(name)').order('created_at', { ascending: false }).limit(10000);
         if (eventsRes.data) setEvents(eventsRes.data);
         if (ticketTypesRes.data) setTicketTypes(ticketTypesRes.data);
         await loadGuestTickets();
@@ -482,10 +486,10 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
       }
 
       const [eventsRes, ticketTypesRes, ordersRes, bookingsRes] = await Promise.all([
-        supabase.from('events').select('*').order('start_date', { ascending: false }),
-        supabase.from('ticket_types').select('*, events(name)').order('created_at', { ascending: false }),
-        supabase.from('orders').select('*, events(name)').order('created_at', { ascending: false }),
-        supabase.from('table_bookings').select('*, events(name), floorplan_tables(table_number, capacity, table_type)').order('created_at', { ascending: false }),
+        supabase.from('events').select('*').order('start_date', { ascending: false }).limit(10000),
+        supabase.from('ticket_types').select('*, events(name)').order('created_at', { ascending: false }).limit(10000),
+        supabase.from('orders').select('*, events(name)').order('created_at', { ascending: false }).limit(10000),
+        supabase.from('table_bookings').select('*, events(name), floorplan_tables(table_number, capacity, table_type)').order('created_at', { ascending: false }).limit(10000),
       ]);
 
       try {
@@ -494,12 +498,12 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
           setUserRoles(rolesWithEmail);
         } else {
           console.error('[SuperAdmin] RPC error:', rpcError);
-          const fallback = await supabase.from('user_roles').select('*').order('created_at', { ascending: false });
+          const fallback = await supabase.from('user_roles').select('*').order('created_at', { ascending: false }).limit(10000);
           if (fallback.data) setUserRoles(fallback.data);
         }
       } catch (err) {
         console.error('[SuperAdmin] Error fetching roles with emails:', err);
-        const fallback = await supabase.from('user_roles').select('*').order('created_at', { ascending: false });
+        const fallback = await supabase.from('user_roles').select('*').order('created_at', { ascending: false }).limit(10000);
         if (fallback.data) setUserRoles(fallback.data);
       }
 
@@ -510,7 +514,8 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
         const { data: ticketsData } = await supabase
           .from('tickets')
           .select('id, order_id, ticket_type_id, ticket_number, status, qr_data, holder_name, event_id, ticket_types(id, name, price)')
-          .in('order_id', orderIds);
+          .in('order_id', orderIds)
+          .limit(10000);
 
         const enrichedOrders = ordersRes.data.map(order => {
           const orderTickets = (ticketsData || []).filter(t => t.order_id === order.id);
@@ -551,7 +556,7 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
       if (role === 'super_admin') {
         await loadGuestAuditLog();
         // Load gallery images
-        const { data: galleryData } = await supabase.from('gallery_images').select('*').order('display_order', { ascending: true });
+        const { data: galleryData } = await supabase.from('gallery_images').select('*').order('display_order', { ascending: true }).limit(10000);
         if (galleryData) setGalleryImages(galleryData);
       }
     } catch (error) {
@@ -736,7 +741,8 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
         .from('orders')
         .select('id, order_number, event_id, payer_email, payer_name, payer_phone, total_amount, status, created_at, paid_at, service_fee_total_cents, platform_fee_total_cents, provider_fee_total_cents, net_revenue_cents, events(name)')
         .in('status', ['paid', 'pending'])
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(10000);
 
       if (ordersError) throw ordersError;
 
@@ -744,7 +750,8 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
         .from('tickets')
         .select('id, order_id, ticket_type_id, ticket_types(name, price, service_fee_mode, service_fee_fixed, service_fee_percent)')
         .in('order_id', (ordersData || []).map(o => o.id))
-        .in('status', ['valid', 'used']);
+        .in('status', ['valid', 'used'])
+        .limit(10000);
 
       const csvRows = [];
       csvRows.push([
@@ -957,7 +964,8 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
         .from('orders')
         .select('id, order_number, event_id, payer_email, payer_name, created_at, metadata, events(name)')
         .eq('status', 'comped')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(10000);
 
       if (ordersError) throw ordersError;
 
@@ -965,7 +973,8 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
       const { data: ticketsData } = await supabase
         .from('tickets')
         .select('id, order_id, ticket_number, ticket_types(name)')
-        .in('order_id', orderIds);
+        .in('order_id', orderIds)
+        .limit(10000);
 
       const csvRows = [];
       csvRows.push(['Event ID', 'Event Name', 'Ticket ID', 'Ticket Number', 'Guest Name', 'Guest Email', 'Sent By Admin', 'Sent At', 'Notes'].join(','));
@@ -1033,7 +1042,8 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
         .from('orders')
         .select('*, events(name)')
         .eq('status', 'comped')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(10000);
 
       if (ordersError) throw ordersError;
 
@@ -1041,7 +1051,8 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
       const { data: ticketsData, error: ticketsError } = await supabase
         .from('tickets')
         .select('*, ticket_types(name), floorplan_tables(id, table_number, table_type, capacity)')
-        .in('order_id', orderIds);
+        .in('order_id', orderIds)
+        .limit(10000);
 
       if (ticketsError) throw ticketsError;
 
@@ -1075,7 +1086,8 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
       const { data, error } = await supabase
         .from('guest_ticket_audit_log')
         .select('*, events(name)')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(10000);
 
       if (error) throw error;
       setGuestAuditLog(data || []);
@@ -1094,7 +1106,8 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
         .from('ticket_types')
         .select('*')
         .eq('event_id', eventId)
-        .order('name');
+        .order('name')
+        .limit(10000);
 
       if (error) throw error;
       setGuestTicketTypes(data || []);
@@ -1116,7 +1129,8 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
         .from('floorplan_tables')
         .select('*')
         .eq('is_active', true)
-        .order('table_number');
+        .order('table_number')
+        .limit(10000);
 
       if (tablesError) throw tablesError;
       setAvailableTables(tables || []);
@@ -1125,7 +1139,8 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
         .from('tickets')
         .select('assigned_table_id')
         .eq('event_id', eventId)
-        .not('assigned_table_id', 'is', null);
+        .not('assigned_table_id', 'is', null)
+        .limit(10000);
 
       if (assignmentsError) throw assignmentsError;
 
@@ -1150,7 +1165,8 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
       const { data, error } = await supabase
         .from('table_guests')
         .select('*, events(name), table_bookings(id, floorplan_tables(id, table_number, table_type, capacity))')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(10000);
 
       if (error) {
         console.error('LOAD_TABLE_GUESTS: Query error:', error);
@@ -1234,7 +1250,8 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
         .from('floorplan_tables')
         .select('*')
         .eq('is_active', true)
-        .order('table_number');
+        .order('table_number')
+        .limit(10000);
 
       if (tablesError) throw tablesError;
       setTableGuestTables(tables || []);
@@ -1243,7 +1260,8 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
         .from('table_guests')
         .select('assigned_table_id')
         .eq('event_id', eventId)
-        .eq('status', 'valid');
+        .eq('status', 'valid')
+        .limit(10000);
 
       if (assignmentsError) throw assignmentsError;
 
@@ -1328,7 +1346,10 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
 
     try {
       const { data, error } = await supabase.functions.invoke('send-guest-ticket', {
-        body: guestTicketForm,
+        body: {
+          ...guestTicketForm,
+          seat_assignments: guestSeatAssignments.length > 0 ? guestSeatAssignments : undefined,
+        },
       });
 
       if (error) {
@@ -1357,6 +1378,7 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
       setGuestTicketTypes([]);
       setAvailableTables([]);
       setTableAssignmentCounts({});
+      setGuestSeatAssignments([]);
       await loadGuestTickets();
       if (role === 'super_admin') {
         await loadGuestAuditLog();
@@ -1406,7 +1428,8 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
         .from('orders')
         .select('id, event_id, total_amount, created_at, status, events(id, name, start_date)')
         .in('status', ['paid', 'comped'])
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(10000);
 
       if (error) throw error;
 
@@ -1433,7 +1456,8 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
 
       const { data: ticketCounts } = await supabase
         .from('tickets')
-        .select('order_id, event_id');
+        .select('order_id, event_id')
+        .limit(10000);
 
       (ticketCounts || []).forEach((ticket: any) => {
         const order = ordersData?.find(o => o.id === ticket.order_id);
@@ -1461,14 +1485,16 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
         .select('id, order_number, event_id, payer_email, payer_name, payer_phone, total_amount, status, created_at, paid_at')
         .eq('event_id', eventId)
         .in('status', ['paid', 'comped'])
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(10000);
 
       if (error) throw error;
 
       const { data: ticketsData } = await supabase
         .from('tickets')
         .select('id, order_id, ticket_type_id, ticket_types(id, name, price)')
-        .in('order_id', (ordersData || []).map(o => o.id));
+        .in('order_id', (ordersData || []).map(o => o.id))
+        .limit(10000);
 
       const enrichedOrders = (ordersData || []).map(order => {
         const orderTickets = (ticketsData || []).filter(t => t.order_id === order.id);
@@ -2244,6 +2270,7 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
       const { data, error } = await supabase
         .from('tickets')
         .select('*')
+        .limit(10000)
         .csv();
 
       if (error) throw error;
@@ -2706,6 +2733,14 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
                       </p>
                     </div>
 
+                    <GuestTicketSeatSelector
+                      eventId={guestTicketForm.event_id}
+                      ticketTypeId={guestTicketForm.ticket_type_id || undefined}
+                      personsCount={guestTicketForm.persons_count}
+                      assignments={guestSeatAssignments}
+                      onChange={setGuestSeatAssignments}
+                    />
+
                     <div>
                       <label className="block text-sm font-medium mb-2 text-white">Naam</label>
                       <input
@@ -2795,6 +2830,7 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
                         setGuestTicketTypes([]);
                         setAvailableTables([]);
                         setTableAssignmentCounts({});
+                        setGuestSeatAssignments([]);
                       }}
                       className="flex-1 bg-slate-600 hover:bg-slate-500 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
                     >
@@ -5148,7 +5184,7 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
                         setMediaFile(null);
                         setMediaPreview(null);
                         // Reload gallery images
-                        const { data } = await supabase.from('gallery_images').select('*').order('display_order', { ascending: true });
+                        const { data } = await supabase.from('gallery_images').select('*').order('display_order', { ascending: true }).limit(10000);
                         setGalleryImages(data || []);
                       } catch (err: any) {
                         showToast(err.message || 'Fout bij opslaan', 'error');

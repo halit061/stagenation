@@ -121,7 +121,8 @@ export function FloorPlan({ eventId, onTableSelect, readOnly = false }: FloorPla
         .from('floorplan_tables')
         .select('*')
         .eq('is_active', true)
-        .order('table_number', { ascending: true});
+        .order('table_number', { ascending: true})
+        .limit(10000);
 
       if (tablesError) {
         console.error('Safari-safe Supabase query failed', tablesError);
@@ -135,7 +136,8 @@ export function FloorPlan({ eventId, onTableSelect, readOnly = false }: FloorPla
         .select('*')
         .eq('is_active', true)
         .eq('is_visible', true)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true })
+        .limit(10000);
 
       if (objectsError) {
         console.error('Safari-safe Supabase query failed', objectsError);
@@ -148,7 +150,8 @@ export function FloorPlan({ eventId, onTableSelect, readOnly = false }: FloorPla
           .from('table_bookings')
           .select('*')
           .eq('event_id', eventId)
-          .eq('status', 'PAID');
+          .eq('status', 'PAID')
+          .limit(10000);
 
         if (bookingsError) {
           console.error('Safari-safe Supabase query failed', bookingsError);
@@ -163,7 +166,8 @@ export function FloorPlan({ eventId, onTableSelect, readOnly = false }: FloorPla
           .from('visual_standing_tables')
           .select('*')
           .eq('event_id', eventId)
-          .eq('is_visible', true);
+          .eq('is_visible', true)
+          .limit(10000);
 
         if (visualTablesError) {
           console.error('Safari-safe Supabase query failed', visualTablesError);

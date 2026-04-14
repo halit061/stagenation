@@ -89,7 +89,7 @@ Deno.serve(async (req: Request) => {
         const { data } = await authClient
           .from("orders")
           .select(
-            "*, events(name), tickets(id, ticket_number, ticket_types(name)), guest_ticket_qrs(id, person_index, used_at, name)"
+            "*, events(name), tickets(id, ticket_number, ticket_types(name)), guest_ticket_qrs(id, person_index, used_at, name, seat_id, section_name, row_label, seat_number)"
           )
           .eq("status", "comped")
           .order("created_at", { ascending: false });

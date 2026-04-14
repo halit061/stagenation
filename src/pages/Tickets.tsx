@@ -7,7 +7,14 @@ import { checkoutWithRetry, reserveTickets } from '../lib/checkoutClient';
 import { cachedQuery } from '../lib/queryCache';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { VenueMap } from '../components/VenueMap';
-import { fetchSeats as fetchSeatsFromService } from '../services/seatPickerService';
+import {
+  fetchSeats as fetchSeatsFromService,
+  fetchSections as fetchSectionsFromService,
+  fetchFloorplanObjects as fetchFpObjects,
+  fetchTicketTypeColorsForEvent,
+} from '../services/seatPickerService';
+import type { FloorplanObject, TicketTypeColor } from '../services/seatPickerService';
+import type { Seat, SeatSection } from '../types/seats';
 
 type TicketType = Database['public']['Tables']['ticket_types']['Row'];
 
@@ -106,10 +113,10 @@ export function Tickets({ onNavigate }: TicketsProps) {
   const [reservationExpired, setReservationExpired] = useState(false);
   const [reserving, setReserving] = useState(false);
 
-  const [floorplanObjects, setFloorplanObjects] = useState<any[]>([]);
-  const [floorplanSections, setFloorplanSections] = useState<any[]>([]);
-  const [floorplanSeatDots, setFloorplanSeatDots] = useState<any[]>([]);
-  const [floorplanTicketTypes, setFloorplanTicketTypes] = useState<{ id: string; name: string; color: string | null; price: number }[]>([]);
+  const [floorplanObjects, setFloorplanObjects] = useState<FloorplanObject[]>([]);
+  const [floorplanSections, setFloorplanSections] = useState<SeatSection[]>([]);
+  const [floorplanSeatDots, setFloorplanSeatDots] = useState<Seat[]>([]);
+  const [floorplanTicketTypes, setFloorplanTicketTypes] = useState<TicketTypeColor[]>([]);
 
   // Refund protection state
   const [refundProtectionConfig, setRefundProtectionConfig] = useState<{
@@ -150,7 +157,7 @@ export function Tickets({ onNavigate }: TicketsProps) {
             query = query.eq('events.slug', eventSlug);
           }
 
-          const { data: rows, error } = await query.order('price', { ascending: true });
+          const { data: rows, error } = await query.order('price', { ascending: true }).limit(10000);
           if (error) throw error;
           return rows || [];
         },
@@ -172,27 +179,21 @@ export function Tickets({ onNavigate }: TicketsProps) {
           try { await supabase.rpc('release_expired_reservations', { p_event_id: evId }); } catch (_) {}
 
           if (eventData?.floorplan_enabled) {
-            const [{ data: fpObjects }, { data: layouts }, { data: ttColors }] = await Promise.all([
-              supabase.from('floorplan_objects').select('*').eq('is_active', true).eq('is_visible', true).or(`event_id.eq.${evId},event_id.is.null`).order('created_at'),
+            const [fpObjects, ttColors, { data: layouts }] = await Promise.all([
+              fetchFpObjects(evId),
+              fetchTicketTypeColorsForEvent(evId),
               supabase.from('venue_layouts').select('id').eq('event_id', evId).limit(1),
-              supabase.from('ticket_types').select('id, name, color, price').eq('event_id', evId).eq('is_active', true),
             ]);
-            if (fpObjects) setFloorplanObjects(fpObjects);
-            if (ttColors) setFloorplanTicketTypes(ttColors.map((tt: any) => ({ id: tt.id, name: tt.name, color: tt.color || null, price: (tt.price || 0) / 100 })));
+            setFloorplanObjects(fpObjects);
+            setFloorplanTicketTypes(ttColors);
             const layoutId = layouts?.[0]?.id;
             if (layoutId) {
-              const { data: secs } = await supabase
-                .from('seat_sections')
-                .select('id, name, color, position_x, position_y, width, height, rotation')
-                .eq('layout_id', layoutId)
-                .eq('is_active', true);
-              if (secs) {
-                setFloorplanSections(secs);
-                const sectionIds = secs.map((s: any) => s.id);
-                if (sectionIds.length > 0) {
-                  const allSeats = await fetchSeatsFromService(sectionIds);
-                  setFloorplanSeatDots(allSeats);
-                }
+              const secs = await fetchSectionsFromService(layoutId);
+              setFloorplanSections(secs);
+              const sectionIds = secs.map(s => s.id);
+              if (sectionIds.length > 0) {
+                const allSeats = await fetchSeatsFromService(sectionIds);
+                setFloorplanSeatDots(allSeats);
               }
             }
           }
@@ -219,7 +220,8 @@ export function Tickets({ onNavigate }: TicketsProps) {
             const { data: ttSections } = await supabase
               .from('ticket_type_sections')
               .select('ticket_type_id, section_id, seat_sections(name)')
-              .in('ticket_type_id', data.map((t: any) => t.id));
+              .in('ticket_type_id', data.map((t: any) => t.id))
+              .limit(10000);
             if (ttSections) {
               const nameMap: Record<string, string[]> = {};
               const sectionMap: Record<string, string[]> = {};
@@ -243,7 +245,8 @@ export function Tickets({ onNavigate }: TicketsProps) {
                     .select('id, section_id, status')
                     .in('section_id', allSectionIds)
                     .eq('is_active', true)
-                    .eq('status', 'available');
+                    .eq('status', 'available')
+                    .limit(10000);
                   if (seats) {
                     const avail: Record<string, number> = {};
                     for (const ttId of Object.keys(sectionMap)) {
@@ -269,13 +272,15 @@ export function Tickets({ onNavigate }: TicketsProps) {
             .from('orders')
             .select('id')
             .eq('event_id', evId)
-            .in('status', ['paid', 'comped']);
+            .in('status', ['paid', 'comped'])
+            .limit(10000);
           const paidOrderIds = (paidOrders || []).map((o: any) => o.id);
           if (paidOrderIds.length > 0) {
             const { data: paidTickets } = await supabase
               .from('tickets')
               .select('id, ticket_type_id')
-              .in('order_id', paidOrderIds);
+              .in('order_id', paidOrderIds)
+              .limit(10000);
             const countByType: Record<string, number> = {};
             (paidTickets || []).forEach((t: any) => {
               countByType[t.ticket_type_id] = (countByType[t.ticket_type_id] || 0) + 1;
@@ -984,10 +989,10 @@ export function Tickets({ onNavigate }: TicketsProps) {
             {/* Venue Map - from admin FloorPlan Editor */}
             {eventFloorplanEnabled && (floorplanObjects.length > 0 || floorplanSections.length > 0) && (
               <VenueMap
-                objects={floorplanObjects}
                 sections={floorplanSections}
-                seatDots={floorplanSeatDots}
-                ticketTypes={floorplanTicketTypes}
+                seats={floorplanSeatDots}
+                floorplanObjects={floorplanObjects}
+                ticketTypeColors={floorplanTicketTypes}
                 onNavigateToSeatPicker={eventId ? () => onNavigate?.(`seat-picker?event=${eventId}`) : undefined}
               />
             )}

@@ -55,7 +55,8 @@ export function PromoCodesManager({ events, showToast }: PromoCodesManagerProps)
       .from('promo_codes')
       .select('*')
       .eq('event_id', eventId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(10000);
     if (error) {
       showToast(`Fout bij laden promo codes: ${error.message}`, 'error');
     } else {
@@ -74,7 +75,8 @@ export function PromoCodesManager({ events, showToast }: PromoCodesManagerProps)
       .select('*')
       .eq('event_id', eventId)
       .eq('is_active', true)
-      .order('name');
+      .order('name')
+      .limit(10000);
     setTicketTypes((data ?? []) as TicketType[]);
   }, []);
 

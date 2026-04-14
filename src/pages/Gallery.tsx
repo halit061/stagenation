@@ -58,7 +58,8 @@ export function Gallery() {
           .eq('is_active', true)
           .eq('category', 'hero')
           .eq('show_in_gallery', true)
-          .order('display_order', { ascending: true });
+          .order('display_order', { ascending: true })
+          .limit(10000);
         if (!heroError && heroData) heroGalleryImages = heroData;
       } catch {
         // show_in_gallery column may not exist yet — silently skip

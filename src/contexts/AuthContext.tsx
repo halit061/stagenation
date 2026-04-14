@@ -99,7 +99,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .from('user_roles')
       .select('role, is_active')
       .eq('user_id', userId)
-      .eq('is_active', true);
+      .eq('is_active', true)
+      .limit(10000);
 
     if (error || !roleResults || roleResults.length === 0) {
       return null;

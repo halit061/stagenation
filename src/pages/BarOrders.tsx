@@ -90,7 +90,8 @@ export function BarOrders() {
       const { data: eventsData } = await supabase
         .from('events')
         .select('id, name')
-        .order('start_date', { ascending: false });
+        .order('start_date', { ascending: false })
+        .limit(10000);
 
       setEvents(eventsData || []);
       if (eventsData && eventsData.length > 0) {
@@ -116,7 +117,8 @@ export function BarOrders() {
         .select('*, table_bookings(table_number)')
         .eq('event_id', selectedEventId)
         .in('status', statusFilters)
-        .order('paid_at', { ascending: true });
+        .order('paid_at', { ascending: true })
+        .limit(10000);
 
       if (error) throw error;
       setOrders(data || []);
@@ -152,7 +154,8 @@ export function BarOrders() {
       const { data, error } = await supabase
         .from('drink_order_items')
         .select('*, drinks(name, sku)')
-        .eq('drink_order_id', orderId);
+        .eq('drink_order_id', orderId)
+        .limit(10000);
 
       if (error) throw error;
       setOrderItems(data || []);

@@ -253,7 +253,8 @@ export function useSeatDraw(
       const { data, error } = await supabase
         .from('seats')
         .insert(newSeats)
-        .select();
+        .select()
+        .limit(10000);
 
       if (error) {
         showToast(`Fout bij plaatsen stoelen: ${error.message}`, 'error');

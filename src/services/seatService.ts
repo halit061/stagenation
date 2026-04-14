@@ -28,7 +28,8 @@ export async function getActiveBrands(): Promise<Brand[]> {
     .from('brands')
     .select('*')
     .eq('is_active', true)
-    .order('name');
+    .order('name')
+    .limit(10000);
   if (error) throw error;
   return data ?? [];
 }
@@ -52,7 +53,8 @@ export async function getAllLayouts(): Promise<VenueLayout[]> {
   const { data, error } = await supabase
     .from('venue_layouts')
     .select('*')
-    .order('updated_at', { ascending: false });
+    .order('updated_at', { ascending: false })
+    .limit(10000);
   if (error) throw error;
   return data ?? [];
 }
@@ -62,7 +64,8 @@ export async function getLayoutsByBrand(brandId: string): Promise<VenueLayout[]>
     .from('venue_layouts')
     .select('*')
     .eq('brand_id', brandId)
-    .order('updated_at', { ascending: false });
+    .order('updated_at', { ascending: false })
+    .limit(10000);
   if (error) throw error;
   return data ?? [];
 }
@@ -74,7 +77,7 @@ export async function getTemplates(brandId?: string): Promise<VenueLayout[]> {
     .eq('is_template', true)
     .order('name');
   if (brandId) query = query.eq('brand_id', brandId);
-  const { data, error } = await query;
+  const { data, error } = await query.limit(10000);
   if (error) throw error;
   return data ?? [];
 }
@@ -87,7 +90,7 @@ export async function getEventLayouts(brandId?: string): Promise<VenueLayout[]> 
     .not('event_id', 'is', null)
     .order('updated_at', { ascending: false });
   if (brandId) query = query.eq('brand_id', brandId);
-  const { data, error } = await query;
+  const { data, error } = await query.limit(10000);
   if (error) throw error;
   return data ?? [];
 }
@@ -111,7 +114,8 @@ export async function getEventsList(): Promise<Array<{ id: string; name: string;
   const { data, error } = await supabase
     .from('events')
     .select('id, name, start_date, slug')
-    .order('start_date', { ascending: false });
+    .order('start_date', { ascending: false })
+    .limit(10000);
   if (error) throw error;
   return data ?? [];
 }
@@ -122,7 +126,8 @@ export async function getTicketTypesForEvent(eventId: string): Promise<TicketTyp
     .select('*')
     .eq('event_id', eventId)
     .eq('is_active', true)
-    .order('name');
+    .order('name')
+    .limit(10000);
   if (error) throw error;
   return (data ?? []) as TicketType[];
 }
@@ -325,7 +330,8 @@ export async function getSectionsByLayout(layoutId: string): Promise<SeatSection
     .select('*')
     .eq('layout_id', layoutId)
     .eq('is_active', true)
-    .order('sort_order', { ascending: true });
+    .order('sort_order', { ascending: true })
+    .limit(10000);
   if (error) throw error;
   return data ?? [];
 }
@@ -378,7 +384,8 @@ export async function getSeatsBySection(sectionId: string): Promise<Seat[]> {
     .eq('section_id', sectionId)
     .eq('is_active', true)
     .order('row_label', { ascending: true })
-    .order('seat_number', { ascending: true });
+    .order('seat_number', { ascending: true })
+    .limit(10000);
   if (error) throw error;
   return data ?? [];
 }
@@ -388,7 +395,8 @@ export async function getSeatsByLayout(layoutId: string): Promise<SeatWithSectio
     .from('seat_sections')
     .select('id')
     .eq('layout_id', layoutId)
-    .eq('is_active', true);
+    .eq('is_active', true)
+    .limit(10000);
   if (secErr) throw secErr;
   if (!sections || sections.length === 0) return [];
 
@@ -400,7 +408,8 @@ export async function getSeatsByLayout(layoutId: string): Promise<SeatWithSectio
     .in('section_id', sectionIds)
     .eq('is_active', true)
     .order('row_label', { ascending: true })
-    .order('seat_number', { ascending: true });
+    .order('seat_number', { ascending: true })
+    .limit(10000);
   if (seatErr) throw seatErr;
   return (seats ?? []) as SeatWithSection[];
 }
@@ -576,7 +585,8 @@ export async function generateSeats(config: GenerateSeatsConfig): Promise<Seat[]
     const { data, error } = await supabase
       .from('seats')
       .insert(batch)
-      .select();
+      .select()
+      .limit(10000);
     if (error) throw error;
     if (data) allInserted.push(...data);
   }
@@ -653,7 +663,8 @@ export async function insertSeats(
   const { data, error } = await supabase
     .from('seats')
     .insert(seats)
-    .select();
+    .select()
+    .limit(10000);
   if (error) throw error;
   return data ?? [];
 }
@@ -730,7 +741,8 @@ export async function holdSeats(
     .from('seats')
     .select('id, status')
     .in('id', seatIds)
-    .eq('is_active', true);
+    .eq('is_active', true)
+    .limit(10000);
   if (checkErr) throw checkErr;
 
   const unavailable = (seats ?? []).filter((s) => s.status !== 'available');
@@ -756,7 +768,8 @@ export async function holdSeats(
   const { data: holdData, error: holdErr } = await supabase
     .from('seat_holds')
     .insert(holds)
-    .select();
+    .select()
+    .limit(10000);
   if (holdErr) throw holdErr;
 
   const { error: statusErr } = await supabase
@@ -773,7 +786,8 @@ export async function releaseHolds(holdIds: string[]): Promise<void> {
     .from('seat_holds')
     .select('seat_id')
     .in('id', holdIds)
-    .eq('status', 'held');
+    .eq('status', 'held')
+    .limit(10000);
   if (fetchErr) throw fetchErr;
 
   const seatIds = (holds ?? []).map((h) => h.seat_id);
@@ -806,7 +820,8 @@ export async function findBestAvailable(
     .from('seat_sections')
     .select('*')
     .eq('layout_id', layoutId)
-    .eq('is_active', true);
+    .eq('is_active', true)
+    .limit(10000);
   if (secErr) throw secErr;
   if (!sections || sections.length === 0) return [];
 
@@ -829,7 +844,8 @@ export async function findBestAvailable(
     .eq('status', 'available')
     .eq('is_active', true)
     .order('row_label', { ascending: true })
-    .order('seat_number', { ascending: true });
+    .order('seat_number', { ascending: true })
+    .limit(10000);
   if (seatErr) throw seatErr;
   if (!seats || seats.length === 0) return [];
 
@@ -911,7 +927,8 @@ export async function getSectionsForTicketType(ticketTypeId: string): Promise<Ti
   const { data, error } = await supabase
     .from('ticket_type_sections')
     .select('*')
-    .eq('ticket_type_id', ticketTypeId);
+    .eq('ticket_type_id', ticketTypeId)
+    .limit(10000);
   if (error) throw error;
   return data ?? [];
 }
@@ -920,7 +937,8 @@ export async function getLinkedSectionIds(ticketTypeId: string): Promise<string[
   const { data, error } = await supabase
     .from('ticket_type_sections')
     .select('section_id')
-    .eq('ticket_type_id', ticketTypeId);
+    .eq('ticket_type_id', ticketTypeId)
+    .limit(10000);
   if (error) throw error;
   return (data ?? []).map(r => r.section_id);
 }
@@ -965,7 +983,8 @@ export async function getAllTicketTypeSectionsForEvent(eventId: string): Promise
   const { data: ttRows, error: ttErr } = await supabase
     .from('ticket_types')
     .select('id')
-    .eq('event_id', eventId);
+    .eq('event_id', eventId)
+    .limit(10000);
   if (ttErr) throw ttErr;
   const ttIds = (ttRows ?? []).map(r => r.id);
   if (ttIds.length === 0) return [];
@@ -973,7 +992,8 @@ export async function getAllTicketTypeSectionsForEvent(eventId: string): Promise
   const { data, error } = await supabase
     .from('ticket_type_sections')
     .select('id, ticket_type_id, section_id, created_at')
-    .in('ticket_type_id', ttIds);
+    .in('ticket_type_id', ttIds)
+    .limit(10000);
   if (error) throw error;
   return (data ?? []) as TicketTypeSection[];
 }

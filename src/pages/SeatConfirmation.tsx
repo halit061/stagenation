@@ -150,7 +150,8 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
           const { data: ttData } = await sb
             .from('ticket_types')
             .select('id, name')
-            .in('id', ttIds);
+            .in('id', ttIds)
+            .limit(10000);
           if (ttData) ttMap = new Map(ttData.map((t: any) => [t.id, t.name]));
         }
 

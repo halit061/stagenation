@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { Plus, Edit2, Trash2, Save, X, Package, DollarSign, Users } from 'lucide-react';
+import { Plus, CreditCard as Edit2, Trash2, Save, X, Package, DollarSign, Users } from 'lucide-react';
 
 interface TablePackage {
   id: string;
@@ -53,7 +53,8 @@ export function TablePackagesManager() {
       const { data, error } = await supabase
         .from('table_packages')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(10000);
 
       if (error) throw error;
       setPackages(data || []);

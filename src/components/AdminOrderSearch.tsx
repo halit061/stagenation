@@ -206,7 +206,8 @@ export function AdminOrderSearch({ orders, events, onOrdersChange }: Props) {
             seat_sections(name, color)
           )
         `)
-        .eq('order_id', order.id);
+        .eq('order_id', order.id)
+        .limit(10000);
 
       if (error) throw error;
 

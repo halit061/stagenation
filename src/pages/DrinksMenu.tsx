@@ -69,7 +69,8 @@ export function DrinksMenu() {
         .select('id, name, slug')
         .eq('is_active', true)
         .gte('end_date', new Date().toISOString())
-        .order('start_date');
+        .order('start_date')
+        .limit(10000);
 
       if (error) throw error;
       setEvents(data || []);
@@ -88,7 +89,8 @@ export function DrinksMenu() {
         .from('drink_categories')
         .select('*')
         .eq('is_active', true)
-        .order('sort_order');
+        .order('sort_order')
+        .limit(10000);
 
       if (catError) throw catError;
       setCategories(categoriesData || []);
@@ -97,7 +99,8 @@ export function DrinksMenu() {
         .from('drinks')
         .select('*')
         .eq('is_active', true)
-        .order('name');
+        .order('name')
+        .limit(10000);
 
       if (drinksError) throw drinksError;
       setDrinks(drinksData || []);
@@ -105,7 +108,8 @@ export function DrinksMenu() {
       const { data: stockData, error: stockError } = await supabase
         .from('drink_stock')
         .select('drink_id, stock_current')
-        .eq('event_id', selectedEventId);
+        .eq('event_id', selectedEventId)
+        .limit(10000);
 
       if (stockError) throw stockError;
 
@@ -228,7 +232,7 @@ export function DrinksMenu() {
       window.location.href = data.payment_url;
     } catch (error: any) {
       console.error('Checkout error:', error);
-      showToast(txt(language, { nl: `Fout: ${error.message}`, tr: `Hata: ${error.message}`, fr: `Erreur : ${error.message}`, de: `Fehler: ${error.message}` }), 'error');
+      showToast(txt(language, { nl: 'Er ging iets mis. Probeer het opnieuw.', tr: 'Bir hata oluştu. Tekrar deneyin.', fr: 'Une erreur est survenue. Veuillez réessayer.', de: 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.' }), 'error');
     } finally {
       setProcessing(false);
     }

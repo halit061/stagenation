@@ -56,7 +56,8 @@ export function SalesByCountry({ eventId }: SalesByCountryProps) {
           .from('orders')
           .select('id, billing_country')
           .eq('event_id', eventId)
-          .in('status', ['paid', 'comped']);
+          .in('status', ['paid', 'comped'])
+          .limit(10000);
 
         if (!orders || orders.length === 0) {
           setRows([]);
@@ -70,7 +71,8 @@ export function SalesByCountry({ eventId }: SalesByCountryProps) {
         const { data: tickets } = await supabase
           .from('tickets')
           .select('id, order_id')
-          .in('order_id', orderIds);
+          .in('order_id', orderIds)
+          .limit(10000);
 
         const orderMap = new Map<string, string | null>();
         for (const o of orders) {

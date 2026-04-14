@@ -1087,7 +1087,8 @@ export function FloorPlanEditor() {
     const { data, error } = await supabase
       .from('floorplan_tables')
       .select('*')
-      .order('table_number', { ascending: true });
+      .order('table_number', { ascending: true })
+      .limit(10000);
     if (error) { console.error('loadTables error:', error); return; }
     setTables((data as FloorplanTable[]) || []);
   }
@@ -1096,7 +1097,8 @@ export function FloorPlanEditor() {
     const { data, error } = await supabase
       .from('floorplan_objects')
       .select('*')
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true })
+      .limit(10000);
     if (error) { console.error('loadObjects error:', error); return; }
     const normalized = (data || []).map((o: any) => ({
       ...o,
@@ -1111,7 +1113,8 @@ export function FloorPlanEditor() {
       .from('table_packages')
       .select('id, name, base_price')
       .eq('is_active', true)
-      .order('name', { ascending: true });
+      .order('name', { ascending: true })
+      .limit(10000);
     setPackages((data as TablePackage[]) || []);
   }
 

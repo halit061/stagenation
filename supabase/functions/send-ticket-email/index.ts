@@ -347,17 +347,17 @@ async function buildTableReservationEmail(order: any, event: any, tableBookings:
       ({ booking, qrDataUrl }) => `
     <div style="background-color: #ffffff; border: 2px solid #e2e8f0; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
       <h3 style="color: #0f172a; margin-top: 0; margin-bottom: 16px; font-size: 18px; text-align: center;">
-        Tafel ${booking.floorplan_tables?.table_number || 'N/A'}
+        Tafel ${escapeHtml(String(booking.floorplan_tables?.table_number || 'N/A'))}
       </h3>
       <div style="text-align: center; margin: 20px 0;">
-        <img src="${qrDataUrl}" width="220" height="220" alt="QR Code ${booking.booking_code}" style="display: block; margin: 0 auto; width: 220px; height: 220px; border: 1px solid #cbd5e1; border-radius: 8px;" />
+        <img src="${qrDataUrl}" width="220" height="220" alt="QR Code ${escapeHtml(booking.booking_code)}" style="display: block; margin: 0 auto; width: 220px; height: 220px; border: 1px solid #cbd5e1; border-radius: 8px;" />
       </div>
       <div style="background-color: #f1f5f9; border-radius: 8px; padding: 16px; margin: 16px 0; text-align: center;">
         <p style="color: #64748b; font-size: 12px; margin: 0 0 4px 0; text-transform: uppercase; letter-spacing: 0.5px;">
           Reservatiecode
         </p>
         <p style="color: #0f172a; font-size: 18px; font-weight: 700; margin: 0; font-family: 'Courier New', monospace; letter-spacing: 1px;">
-          ${booking.booking_code}
+          ${escapeHtml(booking.booking_code)}
         </p>
         <p style="color: #64748b; font-size: 11px; margin: 8px 0 0 0;">
           Toon deze code aan de ingang als de QR niet laadt
@@ -388,7 +388,7 @@ async function buildTableReservationEmail(order: any, event: any, tableBookings:
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Je tafelreservatie voor ${event.name}</title>
+  <title>Je tafelreservatie voor ${escapeHtml(event.name)}</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #0f172a; color: #1e293b;">
   <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
@@ -396,10 +396,10 @@ async function buildTableReservationEmail(order: any, event: any, tableBookings:
     <!-- Header -->
     <div style="background: linear-gradient(135deg, #0e7490 0%, #0369a1 100%); padding: 40px 24px; text-align: center;">
       ${event.logo_url ? `<div style="margin-bottom: 20px;">
-        <img src="${logoUrl}" alt="${event.name}" style="max-width: 200px; height: auto; display: inline-block;" />
+        <img src="${logoUrl}" alt="${escapeHtml(event.name)}" style="max-width: 200px; height: auto; display: inline-block;" />
       </div>` : ''}
       <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">
-        Je tafelreservatie voor ${event.name}
+        Je tafelreservatie voor ${escapeHtml(event.name)}
       </h1>
       <p style="color: #e0f2fe; margin: 12px 0 0 0; font-size: 16px;">
         Bedankt voor je reservatie bij StageNation
@@ -415,8 +415,8 @@ async function buildTableReservationEmail(order: any, event: any, tableBookings:
           Event Details
         </h2>
         <p style="color: #475569; margin: 8px 0; font-size: 15px; line-height: 1.6;">
-          <strong style="color: #0f172a;">Locatie:</strong> ${event.location}<br />
-          ${event.location_address ? `<span style="color: #64748b; font-size: 14px;">${event.location_address}</span><br />` : ''}
+          <strong style="color: #0f172a;">Locatie:</strong> ${escapeHtml(event.location || '')}<br />
+          ${event.location_address ? `<span style="color: #64748b; font-size: 14px;">${escapeHtml(event.location_address)}</span><br />` : ''}
           <strong style="color: #0f172a;">Datum:</strong> ${formatDate(event.start_date)}<br />
           <strong style="color: #0f172a;">Tijd:</strong> ${formatTime(event.start_date)}
         </p>
@@ -425,7 +425,7 @@ async function buildTableReservationEmail(order: any, event: any, tableBookings:
       <!-- Order Summary -->
       <div style="margin-bottom: 32px;">
         <h2 style="color: #0f172a; margin-bottom: 16px; font-size: 20px;">
-          Ordernummer: ${order.order_number}
+          Ordernummer: ${escapeHtml(order.order_number)}
         </h2>
         <p style="color: #64748b; font-size: 14px; margin: 8px 0;">
           <strong>Email:</strong> ${escapeHtml(order.payer_email)}<br />
@@ -456,10 +456,10 @@ async function buildTableReservationEmail(order: any, event: any, tableBookings:
     <div style="background-color: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;">
       <p style="color: #64748b; margin: 0; font-size: 14px; line-height: 1.6;">
         Met vriendelijke groeten,<br />
-        <strong style="color: #0f172a;">${footerName}</strong>
+        <strong style="color: #0f172a;">${escapeHtml(footerName)}</strong>
       </p>
       ${footerEmail ? `<p style="color: #94a3b8; margin: 16px 0 0 0; font-size: 12px;">
-        Voor vragen, neem contact met ons op via <a href="mailto:${footerEmail}" style="color: #0e7490; text-decoration: none;">${footerEmail}</a>
+        Voor vragen, neem contact met ons op via <a href="mailto:${escapeHtml(footerEmail)}" style="color: #0e7490; text-decoration: none;">${escapeHtml(footerEmail)}</a>
       </p>` : ''}
     </div>
 
@@ -670,17 +670,17 @@ async function buildTicketEmail(order: any, event: any, tickets: any[], brand: a
     <div style="background-color: ${cardBg}; border: 2px solid ${cardBorder}; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
       ${badgeHtml}
       <h3 style="color: #0f172a; margin-top: 0; margin-bottom: 16px; font-size: 18px; text-align: center;">
-        ${ticket.ticket_types?.name || 'Ticket'}
+        ${escapeHtml(ticket.ticket_types?.name || 'Ticket')}
       </h3>
       <div style="text-align: center; margin: 20px 0;">
-        <img src="${qrDataUrl}" width="220" height="220" alt="QR Code ${ticket.ticket_number}" style="display: block; margin: 0 auto; width: 220px; height: 220px; border: 1px solid #cbd5e1; border-radius: 8px;" />
+        <img src="${qrDataUrl}" width="220" height="220" alt="QR Code ${escapeHtml(ticket.ticket_number)}" style="display: block; margin: 0 auto; width: 220px; height: 220px; border: 1px solid #cbd5e1; border-radius: 8px;" />
       </div>
       <div style="background-color: #f1f5f9; border-radius: 8px; padding: 16px; margin: 16px 0; text-align: center;">
         <p style="color: #64748b; font-size: 12px; margin: 0 0 4px 0; text-transform: uppercase; letter-spacing: 0.5px;">
           Ticket Nummer
         </p>
         <p style="color: #0f172a; font-size: 18px; font-weight: 700; margin: 0; font-family: 'Courier New', monospace; letter-spacing: 1px;">
-          ${ticket.ticket_number}
+          ${escapeHtml(ticket.ticket_number)}
         </p>
       </div>
       <div style="text-align: center; margin: 12px 0; padding: 12px; background-color: #f8fafc; border-radius: 6px;">
@@ -713,7 +713,7 @@ async function buildTicketEmail(order: any, event: any, tickets: any[], brand: a
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Je tickets voor ${event.name}</title>
+  <title>Je tickets voor ${escapeHtml(event.name)}</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #0f172a; color: #1e293b;">
   <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
@@ -721,10 +721,10 @@ async function buildTicketEmail(order: any, event: any, tickets: any[], brand: a
     <!-- Header -->
     <div style="background: ${emailHeaderBg}; padding: 40px 24px; text-align: center;">
       ${event.logo_url ? `<div style="margin-bottom: 20px;">
-        <img src="${logoUrl}" alt="${event.name}" style="max-width: 200px; height: auto; display: inline-block;" />
+        <img src="${logoUrl}" alt="${escapeHtml(event.name)}" style="max-width: 200px; height: auto; display: inline-block;" />
       </div>` : ''}
       <h1 style="color: ${emailHeaderText}; margin: 0; font-size: 28px; font-weight: 700;">
-        Je tickets voor ${event.name}
+        Je tickets voor ${escapeHtml(event.name)}
       </h1>
       <p style="color: ${emailHeaderText}; opacity: 0.85; margin: 12px 0 0 0; font-size: 16px;">
         Bedankt voor je aankoop bij StageNation
@@ -740,8 +740,8 @@ async function buildTicketEmail(order: any, event: any, tickets: any[], brand: a
           Event Details
         </h2>
         <p style="color: #475569; margin: 8px 0; font-size: 15px; line-height: 1.6;">
-          <strong style="color: #0f172a;">Locatie:</strong> ${event.location}<br />
-          ${event.location_address ? `<span style="color: #64748b; font-size: 14px;">${event.location_address}</span><br />` : ''}
+          <strong style="color: #0f172a;">Locatie:</strong> ${escapeHtml(event.location || '')}<br />
+          ${event.location_address ? `<span style="color: #64748b; font-size: 14px;">${escapeHtml(event.location_address)}</span><br />` : ''}
           <strong style="color: #0f172a;">Datum:</strong> ${formatDate(event.start_date)}<br />
           <strong style="color: #0f172a;">Tijd:</strong> ${formatTime(event.start_date)}
         </p>
@@ -750,7 +750,7 @@ async function buildTicketEmail(order: any, event: any, tickets: any[], brand: a
       <!-- Order Summary -->
       <div style="margin-bottom: 32px;">
         <h2 style="color: #0f172a; margin-bottom: 16px; font-size: 20px;">
-          Ordernummer: ${order.order_number}
+          Ordernummer: ${escapeHtml(order.order_number)}
         </h2>
         <p style="color: #64748b; font-size: 14px; margin: 8px 0;">
           <strong>Email:</strong> ${escapeHtml(order.payer_email)}<br />
@@ -780,10 +780,10 @@ async function buildTicketEmail(order: any, event: any, tickets: any[], brand: a
     <div style="background-color: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;">
       <p style="color: #64748b; margin: 0; font-size: 14px; line-height: 1.6;">
         Met vriendelijke groeten,<br />
-        <strong style="color: #0f172a;">${footerName}</strong>
+        <strong style="color: #0f172a;">${escapeHtml(footerName)}</strong>
       </p>
       ${footerEmail ? `<p style="color: #94a3b8; margin: 16px 0 0 0; font-size: 12px;">
-        Voor vragen, neem contact met ons op via <a href="mailto:${footerEmail}" style="color: #0e7490; text-decoration: none;">${footerEmail}</a>
+        Voor vragen, neem contact met ons op via <a href="mailto:${escapeHtml(footerEmail)}" style="color: #0e7490; text-decoration: none;">${escapeHtml(footerEmail)}</a>
       </p>` : ''}
     </div>
 
