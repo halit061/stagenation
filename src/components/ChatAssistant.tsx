@@ -183,6 +183,48 @@ const faqData: Record<Language, FAQ[]> = {
       answer: 'Unsere AGB finden Sie auf der Seite "Allgemeine Geschäftsbedingungen" am Ende unserer Website. Dort finden Sie alle Regeln zu Tickets, Stornierungen, Haftung und mehr.',
     },
   ],
+  en: [
+    {
+      question: 'How can I buy tickets?',
+      answer: 'You can buy tickets through our website. Go to the "Tickets" page, choose the event and ticket type you want, and follow the order process. Payment is possible via various online payment methods.',
+    },
+    {
+      question: 'Can I cancel my ticket?',
+      answer: 'Cancellations are possible up to 14 days before the event. Contact us via the contact page or send an email with your order number. After this period, cancellation is unfortunately no longer possible.',
+    },
+    {
+      question: 'How can I transfer my ticket?',
+      answer: 'Want to transfer your ticket to someone else? Send us an email with your order number and the full name and email address of the new ticket holder. We\'ll take care of the transfer.',
+    },
+    {
+      question: 'I didn\'t receive a confirmation email',
+      answer: 'First check your spam/junk mail folder. The confirmation email is sent immediately after payment. If you haven\'t received anything after 15 minutes, contact us with your order number.',
+    },
+    {
+      question: 'My QR code doesn\'t work',
+      answer: 'Make sure your QR code is clearly visible on your screen (turn up brightness). Preferably use the original email or digital ticket. Don\'t take a screenshot of a screenshot. If the problem persists, contact us before the event.',
+    },
+    {
+      question: 'What payment methods are available?',
+      answer: 'We accept various online payment methods including Bancontact, iDEAL, credit card (Visa/Mastercard) and other common payment methods. All transactions are secure.',
+    },
+    {
+      question: 'Where do the events take place?',
+      answer: 'Our events take place in Genk. Visit the "Location" page on our website for the exact address, directions and parking options.',
+    },
+    {
+      question: 'Can I change my order?',
+      answer: 'Changes to your order (such as ticket type) are possible up to 14 days before the event, depending on availability. Contact us with your order number and the desired change.',
+    },
+    {
+      question: 'How can I contact you?',
+      answer: 'You can contact us via the contact page on our website. Fill in the contact form or send us an email. We respond as quickly as possible, usually within 24 hours.',
+    },
+    {
+      question: 'What are the terms and conditions?',
+      answer: 'Our terms and conditions can be found on the "Terms & Conditions" page at the bottom of our website. There you\'ll find all rules regarding tickets, cancellations, liability and more.',
+    },
+  ],
 };
 
 const chatLabels: Record<Language, {
@@ -224,6 +266,14 @@ const chatLabels: Record<Language, {
     suggestedTitle: 'Wählen Sie eine Frage:',
     backToFaq: 'Zurück zu den Fragen',
     poweredBy: 'KI-Assistent',
+  },
+  en: {
+    title: 'StageNation Assistant',
+    subtitle: 'How can we help you?',
+    greeting: 'Hello! I\'m the StageNation assistant. Choose a question below and I\'ll be happy to help!',
+    suggestedTitle: 'Choose a question:',
+    backToFaq: 'Back to questions',
+    poweredBy: 'AI Assistant',
   },
 };
 
