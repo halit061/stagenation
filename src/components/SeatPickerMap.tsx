@@ -640,18 +640,29 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                   </text>
                 )}
 
-                {!isRestricted && section.price_category && (
-                  <text
-                    x={section.position_x + section.width / 2}
-                    y={section.position_y + section.height - 6}
-                    textAnchor="middle"
-                    fill="#94a3b8"
-                    fontSize="9"
-                    fontWeight="500"
-                    style={{ pointerEvents: 'none' }}
-                  >
-                    {section.price_category} - EUR {Number(section.price_amount).toFixed(2)}
-                  </text>
+                {!isRestricted && (
+                  <g style={{ pointerEvents: 'none' }}>
+                    <rect
+                      x={section.position_x + section.width / 2 - 36}
+                      y={section.position_y + 22}
+                      width={72}
+                      height={18}
+                      rx={9}
+                      fill={color}
+                      fillOpacity={0.12}
+                    />
+                    <text
+                      x={section.position_x + section.width / 2}
+                      y={section.position_y + 33}
+                      textAnchor="middle"
+                      fill={color}
+                      fillOpacity={0.8}
+                      fontSize="10"
+                      fontWeight="700"
+                    >
+                      EUR {Number(section.price_amount).toFixed(2)}
+                    </text>
+                  </g>
                 )}
 
                 {!isRestricted && rowLabels.map(rl => (

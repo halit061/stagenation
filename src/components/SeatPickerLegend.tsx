@@ -28,9 +28,7 @@ export const SeatPickerLegend = memo(function SeatPickerLegend({ compact, ticket
               />
               <span className="text-xs text-slate-500 font-medium">
                 {tt.name}
-                {tt.price > 0 && !compact && (
-                  <span className="text-slate-600 ml-1">EUR {tt.price.toFixed(2)}</span>
-                )}
+                <span className="text-slate-600 ml-1">EUR {tt.price.toFixed(2)}</span>
               </span>
             </div>
           ))}
