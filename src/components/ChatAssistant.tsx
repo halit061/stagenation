@@ -18,211 +18,191 @@ const faqData: Record<Language, FAQ[]> = {
   nl: [
     {
       question: 'Hoe kan ik tickets kopen?',
-      answer: 'Je kunt tickets kopen via onze website. Ga naar de "Tickets" pagina, kies het gewenste evenement en tickettype, en volg het bestelproces. Betaling is mogelijk via verschillende online betaalmethoden.',
+      answer: 'Ga naar stagenation.be, kies het evenement en klik op "Tickets Boeken". Kies je tickettype, selecteer je stoelen op de plattegrond en reken af via Bancontact, iDEAL of creditcard. Na betaling ontvang je direct een bevestigingsmail met je tickets en QR-codes.',
     },
     {
-      question: 'Kan ik mijn ticket annuleren?',
-      answer: 'Annuleringen zijn mogelijk tot 14 dagen voor het evenement. Neem hiervoor contact met ons op via de contactpagina of stuur een e-mail met je ordernummer. Na deze termijn is annulering helaas niet meer mogelijk.',
+      question: 'Kan ik mijn ticket annuleren of terugbetalen?',
+      answer: 'Nee, tickets worden niet terugbetaald. Volgens de Europese consumentenwetgeving geldt geen herroepingsrecht voor evenementen met een vaste datum. Je aankoop is definitief na betaling. In uitzonderlijke gevallen (zoals overlijden of hospitalisatie) kun je een verzoek indienen via info@stagenation.be met officieel bewijs.',
     },
     {
-      question: 'Hoe kan ik mijn ticket overdragen?',
-      answer: 'Wil je je ticket overdragen aan iemand anders? Stuur ons een e-mail met je ordernummer en de volledige naam en e-mailadres van de nieuwe tickethouder. Wij regelen de overdracht voor je.',
+      question: 'Kan ik mijn stoel kiezen?',
+      answer: 'Ja! Bij evenementen met een zaalplan kun je via ons pick-a-seat systeem zelf je stoelen kiezen op de plattegrond. Je ziet direct welke stoelen beschikbaar zijn.',
     },
     {
       question: 'Ik heb geen bevestigingsmail ontvangen',
-      answer: 'Controleer eerst je spam/ongewenste mail folder. De bevestigingsmail wordt direct na de betaling verzonden. Heb je na 15 minuten nog niets ontvangen? Neem dan contact met ons op met je ordernummer.',
+      answer: 'Check eerst je spam/junk map. De mail komt van tickets@lumetrix.be of noreply@stagenation.be. Als je na 15 minuten nog niets hebt ontvangen, neem dan contact op via info@stagenation.be met je naam en het e-mailadres waarmee je besteld hebt. We sturen je tickets dan opnieuw.',
     },
     {
-      question: 'Mijn QR-code werkt niet',
-      answer: 'Zorg ervoor dat je QR-code goed zichtbaar is op je scherm (helderheid omhoog). Gebruik bij voorkeur de originele e-mail of het digitale ticket. Maak geen screenshot van een screenshot. Bij aanhoudende problemen, neem contact op vóór het evenement.',
+      question: 'Hoe werkt de QR-code?',
+      answer: 'Elke ticket bevat een unieke QR-code. Toon deze bij de ingang op je telefoon of geprint. De QR-code wordt gescand en kan slechts één keer worden gebruikt. Deel je QR-code dus niet met anderen.',
+    },
+    {
+      question: 'Kan ik mijn ticket overdragen aan iemand anders?',
+      answer: 'Ja, je kunt je ticket eenmalig en kosteloos overdragen aan een andere persoon. Stuur de QR-code door naar die persoon. Commerciële doorverkoop of doorverkoop boven de oorspronkelijke prijs is niet toegestaan.',
     },
     {
       question: 'Wat zijn de betaalmethoden?',
-      answer: 'Wij accepteren diverse online betaalmethoden waaronder Bancontact, iDEAL, creditcard (Visa/Mastercard) en andere gangbare betaalmethoden. Alle transacties verlopen beveiligd.',
+      answer: 'Je kunt betalen met Bancontact, iDEAL en creditcard (Visa/Mastercard). Alle betalingen verlopen via de beveiligde betalingsprovider Mollie.',
     },
     {
-      question: 'Waar vinden de evenementen plaats?',
-      answer: 'Onze evenementen vinden plaats in Genk. Ga naar de "Locatie" pagina op onze website voor het exacte adres, routebeschrijving en parkeermogelijkheden.',
-    },
-    {
-      question: 'Kan ik mijn bestelling wijzigen?',
-      answer: 'Wijzigingen aan je bestelling (zoals tickettype) zijn mogelijk tot 14 dagen voor het evenement, afhankelijk van beschikbaarheid. Neem contact met ons op met je ordernummer en de gewenste wijziging.',
+      question: 'Het evenement is verplaatst. Wat nu?',
+      answer: 'Bij verplaatsing blijven je tickets automatisch geldig voor de nieuwe datum. Je hoeft niets te doen. Je ontvangt een e-mail met de nieuwe datum.',
     },
     {
       question: 'Hoe neem ik contact op?',
-      answer: 'Je kunt contact met ons opnemen via de contactpagina op onze website. Vul het contactformulier in of stuur ons een e-mail. We reageren zo snel mogelijk, meestal binnen 24 uur.',
-    },
-    {
-      question: 'Wat zijn de algemene voorwaarden?',
-      answer: 'Onze algemene voorwaarden vind je op de pagina "Algemene Voorwaarden" onderaan onze website. Hier staan alle regels over tickets, annuleringen, aansprakelijkheid en meer.',
+      answer: 'Je kunt ons bereiken via e-mail: info@stagenation.be. We proberen alle berichten zo snel mogelijk te beantwoorden.',
     },
   ],
   tr: [
     {
       question: 'Bilet nasıl satın alabilirim?',
-      answer: 'Web sitemiz üzerinden bilet satın alabilirsiniz. "Biletler" sayfasına gidin, istediğiniz etkinlik ve bilet türünü seçin ve sipariş sürecini takip edin. Çeşitli online ödeme yöntemleriyle ödeme yapabilirsiniz.',
+      answer: 'stagenation.be adresine gidin, etkinliği seçin ve "Bilet Al" butonuna tıklayın. Bilet türünüzü seçin, oturma planından koltuğunuzu belirleyin ve Bancontact, iDEAL veya kredi kartıyla ödeme yapın. Ödeme sonrası biletleriniz ve QR kodlarınız e-posta ile gönderilir.',
     },
     {
       question: 'Biletimi iptal edebilir miyim?',
-      answer: 'İptaller etkinlikten 14 gün öncesine kadar mümkündür. Bunun için iletişim sayfamız üzerinden veya sipariş numaranızla birlikte e-posta göndererek bize ulaşın. Bu süre sonrasında maalesef iptal mümkün değildir.',
+      answer: 'Hayır, biletler iade edilmez. Avrupa tüketici mevzuatına göre, belirli bir tarihte gerçekleşen etkinlikler için cayma hakkı bulunmamaktadır. Satın alma işlemi ödeme sonrası kesinleşir. İstisnai durumlarda (vefat veya hastaneye yatış gibi) resmi belge ile info@stagenation.be adresine başvurabilirsiniz.',
     },
     {
-      question: 'Biletimi başkasına devredebilir miyim?',
-      answer: 'Biletinizi başka birine devretmek mi istiyorsunuz? Sipariş numaranız ve yeni bilet sahibinin tam adı ve e-posta adresiyle bize e-posta gönderin. Devir işlemini sizin için hallederiz.',
+      question: 'Koltuğumu seçebilir miyim?',
+      answer: 'Evet! Salon planı olan etkinliklerde pick-a-seat sistemimiz ile haritadan kendi koltuğunuzu seçebilirsiniz. Hangi koltukların müsait olduğunu anında görebilirsiniz.',
     },
     {
       question: 'Onay e-postası almadım',
-      answer: 'Önce spam/istenmeyen posta klasörünüzü kontrol edin. Onay e-postası ödeme sonrası hemen gönderilir. 15 dakika sonra hâlâ almadıysanız, sipariş numaranızla bizimle iletişime geçin.',
+      answer: 'Önce spam/istenmeyen posta klasörünüzü kontrol edin. E-posta tickets@lumetrix.be veya noreply@stagenation.be adresinden gelir. 15 dakika sonra hâlâ almadıysanız, adınız ve sipariş e-posta adresinizle info@stagenation.be adresine ulaşın. Biletlerinizi tekrar göndeririz.',
     },
     {
-      question: 'QR kodum çalışmıyor',
-      answer: 'QR kodunuzun ekranınızda net göründüğünden emin olun (parlaklığı artırın). Orijinal e-postayı veya dijital bileti kullanın. Ekran görüntüsünün ekran görüntüsünü çekmeyin. Sorun devam ederse etkinlik öncesi bizimle iletişime geçin.',
+      question: 'QR kodu nasıl çalışır?',
+      answer: 'Her bilet benzersiz bir QR kodu içerir. Girişte telefonunuzdan veya çıktı olarak gösterin. QR kodu taranır ve yalnızca bir kez kullanılabilir. QR kodunuzu başkalarıyla paylaşmayın.',
+    },
+    {
+      question: 'Biletimi başkasına devredebilir miyim?',
+      answer: 'Evet, biletinizi bir kereye mahsus ve ücretsiz olarak başka birine devredebilirsiniz. QR kodunu o kişiye iletin. Ticari amaçlı satış veya orijinal fiyatın üzerinde satış yasaktır.',
     },
     {
       question: 'Ödeme yöntemleri nelerdir?',
-      answer: 'Bancontact, iDEAL, kredi kartı (Visa/Mastercard) ve diğer yaygın ödeme yöntemlerini kabul ediyoruz. Tüm işlemler güvenli olarak gerçekleştirilir.',
+      answer: 'Bancontact, iDEAL ve kredi kartı (Visa/Mastercard) ile ödeme yapabilirsiniz. Tüm ödemeler güvenli ödeme sağlayıcısı Mollie üzerinden gerçekleştirilir.',
     },
     {
-      question: 'Etkinlikler nerede düzenleniyor?',
-      answer: 'Etkinliklerimiz Genk\'te düzenlenmektedir. Tam adres, yol tarifi ve park olanakları için web sitemizdeki "Konum" sayfasını ziyaret edin.',
-    },
-    {
-      question: 'Siparişimi değiştirebilir miyim?',
-      answer: 'Siparişinizdeki değişiklikler (bilet türü gibi) etkinlikten 14 gün öncesine kadar, müsaitlik durumuna bağlı olarak mümkündür. Sipariş numaranız ve istediğiniz değişiklikle bizimle iletişime geçin.',
+      question: 'Etkinlik ertelendi. Ne yapmalıyım?',
+      answer: 'Erteleme durumunda biletleriniz yeni tarih için otomatik olarak geçerli kalır. Herhangi bir işlem yapmanıza gerek yoktur. Yeni tarih hakkında e-posta ile bilgilendirilirsiniz.',
     },
     {
       question: 'Nasıl iletişime geçebilirim?',
-      answer: 'Web sitemizdeki iletişim sayfası üzerinden bizimle iletişime geçebilirsiniz. İletişim formunu doldurun veya bize e-posta gönderin. En kısa sürede, genellikle 24 saat içinde yanıt veririz.',
-    },
-    {
-      question: 'Genel şartlar nelerdir?',
-      answer: 'Genel şartlarımızı web sitemizin alt kısmındaki "Genel Şartlar" sayfasında bulabilirsiniz. Burada biletler, iptaller, sorumluluk ve daha fazlası hakkındaki tüm kurallar yer almaktadır.',
+      answer: 'Bize e-posta ile ulaşabilirsiniz: info@stagenation.be. Tüm mesajları en kısa sürede yanıtlamaya çalışıyoruz.',
     },
   ],
   fr: [
     {
       question: 'Comment acheter des tickets ?',
-      answer: 'Vous pouvez acheter des tickets via notre site web. Rendez-vous sur la page "Tickets", choisissez l\'événement et le type de ticket souhaité, puis suivez le processus de commande. Le paiement est possible via différentes méthodes de paiement en ligne.',
+      answer: 'Rendez-vous sur stagenation.be, choisissez l\'événement et cliquez sur "Acheter des tickets". Sélectionnez votre type de ticket, choisissez vos places sur le plan de salle et payez par Bancontact, iDEAL ou carte de crédit. Après paiement, vous recevez immédiatement un e-mail de confirmation avec vos tickets et codes QR.',
     },
     {
-      question: 'Puis-je annuler mon ticket ?',
-      answer: 'Les annulations sont possibles jusqu\'à 14 jours avant l\'événement. Contactez-nous via la page de contact ou envoyez un e-mail avec votre numéro de commande. Passé ce délai, l\'annulation n\'est malheureusement plus possible.',
+      question: 'Puis-je annuler ou me faire rembourser ?',
+      answer: 'Non, les tickets ne sont pas remboursables. Conformément à la législation européenne sur la protection des consommateurs, le droit de rétractation ne s\'applique pas aux événements à date fixe. Votre achat est définitif après paiement. Dans des cas exceptionnels (décès ou hospitalisation), vous pouvez soumettre une demande à info@stagenation.be avec un justificatif officiel.',
     },
     {
-      question: 'Comment transférer mon ticket ?',
-      answer: 'Vous souhaitez transférer votre ticket à quelqu\'un d\'autre ? Envoyez-nous un e-mail avec votre numéro de commande ainsi que le nom complet et l\'adresse e-mail du nouveau titulaire. Nous nous occupons du transfert.',
+      question: 'Puis-je choisir ma place ?',
+      answer: 'Oui ! Pour les événements avec plan de salle, vous pouvez choisir vos places vous-même sur le plan grâce à notre système pick-a-seat. Vous voyez immédiatement quelles places sont disponibles.',
     },
     {
       question: 'Je n\'ai pas reçu d\'e-mail de confirmation',
-      answer: 'Vérifiez d\'abord votre dossier spam/courrier indésirable. L\'e-mail de confirmation est envoyé immédiatement après le paiement. Si vous n\'avez rien reçu après 15 minutes, contactez-nous avec votre numéro de commande.',
+      answer: 'Vérifiez d\'abord votre dossier spam/courrier indésirable. L\'e-mail provient de tickets@lumetrix.be ou noreply@stagenation.be. Si vous n\'avez rien reçu après 15 minutes, contactez-nous à info@stagenation.be avec votre nom et l\'adresse e-mail utilisée pour la commande. Nous vous renverrons vos tickets.',
     },
     {
-      question: 'Mon QR code ne fonctionne pas',
-      answer: 'Assurez-vous que votre QR code est bien visible sur votre écran (augmentez la luminosité). Utilisez de préférence l\'e-mail original ou le ticket numérique. Ne faites pas de capture d\'écran d\'une capture d\'écran. En cas de problème persistant, contactez-nous avant l\'événement.',
+      question: 'Comment fonctionne le code QR ?',
+      answer: 'Chaque ticket contient un code QR unique. Présentez-le à l\'entrée sur votre téléphone ou imprimé. Le code QR est scanné et ne peut être utilisé qu\'une seule fois. Ne partagez donc pas votre code QR avec d\'autres personnes.',
+    },
+    {
+      question: 'Puis-je transférer mon ticket ?',
+      answer: 'Oui, vous pouvez transférer votre ticket une fois et gratuitement à une autre personne. Transmettez le code QR à cette personne. La revente commerciale ou au-dessus du prix original n\'est pas autorisée.',
     },
     {
       question: 'Quels sont les modes de paiement ?',
-      answer: 'Nous acceptons divers modes de paiement en ligne, notamment Bancontact, iDEAL, carte de crédit (Visa/Mastercard) et d\'autres méthodes courantes. Toutes les transactions sont sécurisées.',
+      answer: 'Vous pouvez payer par Bancontact, iDEAL et carte de crédit (Visa/Mastercard). Tous les paiements sont traités via le prestataire de paiement sécurisé Mollie.',
     },
     {
-      question: 'Où se déroulent les événements ?',
-      answer: 'Nos événements se déroulent à Genk. Consultez la page "Lieu" de notre site web pour l\'adresse exacte, l\'itinéraire et les possibilités de stationnement.',
+      question: 'L\'événement a été reporté. Que faire ?',
+      answer: 'En cas de report, vos tickets restent automatiquement valables pour la nouvelle date. Vous n\'avez rien à faire. Vous recevrez un e-mail avec la nouvelle date.',
     },
     {
-      question: 'Puis-je modifier ma commande ?',
-      answer: 'Les modifications de votre commande (comme le type de ticket) sont possibles jusqu\'à 14 jours avant l\'événement, sous réserve de disponibilité. Contactez-nous avec votre numéro de commande et la modification souhaitée.',
-    },
-    {
-      question: 'Comment vous contacter ?',
-      answer: 'Vous pouvez nous contacter via la page de contact de notre site web. Remplissez le formulaire de contact ou envoyez-nous un e-mail. Nous répondons le plus rapidement possible, généralement dans les 24 heures.',
-    },
-    {
-      question: 'Quelles sont les conditions générales ?',
-      answer: 'Nos conditions générales sont disponibles sur la page "Conditions Générales" en bas de notre site web. Vous y trouverez toutes les règles concernant les tickets, annulations, responsabilité et plus encore.',
+      question: 'Comment nous contacter ?',
+      answer: 'Vous pouvez nous joindre par e-mail : info@stagenation.be. Nous essayons de répondre à tous les messages dans les plus brefs délais.',
     },
   ],
   de: [
     {
       question: 'Wie kann ich Tickets kaufen?',
-      answer: 'Sie können Tickets über unsere Website kaufen. Gehen Sie zur Seite "Tickets", wählen Sie die gewünschte Veranstaltung und den Tickettyp und folgen Sie dem Bestellvorgang. Die Zahlung ist über verschiedene Online-Zahlungsmethoden möglich.',
+      answer: 'Gehen Sie zu stagenation.be, wählen Sie die Veranstaltung und klicken Sie auf "Tickets buchen". Wählen Sie Ihren Tickettyp, wählen Sie Ihre Plätze auf dem Saalplan und bezahlen Sie mit Bancontact, iDEAL oder Kreditkarte. Nach der Zahlung erhalten Sie sofort eine Bestätigungs-E-Mail mit Ihren Tickets und QR-Codes.',
     },
     {
-      question: 'Kann ich mein Ticket stornieren?',
-      answer: 'Stornierungen sind bis 14 Tage vor der Veranstaltung möglich. Kontaktieren Sie uns über die Kontaktseite oder senden Sie eine E-Mail mit Ihrer Bestellnummer. Nach diesem Zeitraum ist eine Stornierung leider nicht mehr möglich.',
+      question: 'Kann ich mein Ticket stornieren oder erstatten lassen?',
+      answer: 'Nein, Tickets werden nicht erstattet. Gemäß dem europäischen Verbraucherrecht gilt kein Widerrufsrecht für Veranstaltungen mit festem Datum. Ihr Kauf ist nach der Zahlung endgültig. In Ausnahmefällen (wie Todesfall oder Krankenhausaufenthalt) können Sie einen Antrag mit offiziellem Nachweis an info@stagenation.be senden.',
     },
     {
-      question: 'Wie kann ich mein Ticket übertragen?',
-      answer: 'Möchten Sie Ihr Ticket an jemand anderen übertragen? Senden Sie uns eine E-Mail mit Ihrer Bestellnummer und dem vollständigen Namen und der E-Mail-Adresse des neuen Ticketinhabers. Wir kümmern uns um die Übertragung.',
+      question: 'Kann ich meinen Sitzplatz wählen?',
+      answer: 'Ja! Bei Veranstaltungen mit Saalplan können Sie über unser Pick-a-Seat-System Ihre Plätze selbst auf dem Plan auswählen. Sie sehen sofort, welche Plätze verfügbar sind.',
     },
     {
       question: 'Ich habe keine Bestätigungs-E-Mail erhalten',
-      answer: 'Überprüfen Sie zuerst Ihren Spam-/Junk-Mail-Ordner. Die Bestätigungs-E-Mail wird sofort nach der Zahlung gesendet. Wenn Sie nach 15 Minuten nichts erhalten haben, kontaktieren Sie uns mit Ihrer Bestellnummer.',
+      answer: 'Überprüfen Sie zuerst Ihren Spam-/Junk-Ordner. Die E-Mail kommt von tickets@lumetrix.be oder noreply@stagenation.be. Wenn Sie nach 15 Minuten nichts erhalten haben, kontaktieren Sie uns unter info@stagenation.be mit Ihrem Namen und der E-Mail-Adresse, mit der Sie bestellt haben. Wir senden Ihnen Ihre Tickets erneut zu.',
     },
     {
-      question: 'Mein QR-Code funktioniert nicht',
-      answer: 'Stellen Sie sicher, dass Ihr QR-Code auf Ihrem Bildschirm gut sichtbar ist (Helligkeit erhöhen). Verwenden Sie vorzugsweise die Original-E-Mail oder das digitale Ticket. Machen Sie keinen Screenshot von einem Screenshot. Bei anhaltenden Problemen kontaktieren Sie uns vor der Veranstaltung.',
+      question: 'Wie funktioniert der QR-Code?',
+      answer: 'Jedes Ticket enthält einen einzigartigen QR-Code. Zeigen Sie diesen am Eingang auf Ihrem Telefon oder ausgedruckt vor. Der QR-Code wird gescannt und kann nur einmal verwendet werden. Teilen Sie Ihren QR-Code nicht mit anderen.',
+    },
+    {
+      question: 'Kann ich mein Ticket übertragen?',
+      answer: 'Ja, Sie können Ihr Ticket einmalig und kostenlos an eine andere Person übertragen. Leiten Sie den QR-Code an diese Person weiter. Kommerzieller Weiterverkauf oder Verkauf über dem Originalpreis ist nicht gestattet.',
     },
     {
       question: 'Welche Zahlungsmethoden gibt es?',
-      answer: 'Wir akzeptieren verschiedene Online-Zahlungsmethoden, darunter Bancontact, iDEAL, Kreditkarte (Visa/Mastercard) und andere gängige Zahlungsmethoden. Alle Transaktionen sind gesichert.',
+      answer: 'Sie können mit Bancontact, iDEAL und Kreditkarte (Visa/Mastercard) bezahlen. Alle Zahlungen werden über den sicheren Zahlungsanbieter Mollie abgewickelt.',
     },
     {
-      question: 'Wo finden die Veranstaltungen statt?',
-      answer: 'Unsere Veranstaltungen finden in Genk statt. Besuchen Sie die Seite "Standort" auf unserer Website für die genaue Adresse, Wegbeschreibung und Parkmöglichkeiten.',
-    },
-    {
-      question: 'Kann ich meine Bestellung ändern?',
-      answer: 'Änderungen an Ihrer Bestellung (wie Tickettyp) sind bis 14 Tage vor der Veranstaltung möglich, je nach Verfügbarkeit. Kontaktieren Sie uns mit Ihrer Bestellnummer und der gewünschten Änderung.',
+      question: 'Die Veranstaltung wurde verschoben. Was nun?',
+      answer: 'Bei Verschiebung bleiben Ihre Tickets automatisch für das neue Datum gültig. Sie müssen nichts unternehmen. Sie erhalten eine E-Mail mit dem neuen Datum.',
     },
     {
       question: 'Wie kann ich Sie kontaktieren?',
-      answer: 'Sie können uns über die Kontaktseite auf unserer Website kontaktieren. Füllen Sie das Kontaktformular aus oder senden Sie uns eine E-Mail. Wir antworten so schnell wie möglich, in der Regel innerhalb von 24 Stunden.',
-    },
-    {
-      question: 'Was sind die Allgemeinen Geschäftsbedingungen?',
-      answer: 'Unsere AGB finden Sie auf der Seite "Allgemeine Geschäftsbedingungen" am Ende unserer Website. Dort finden Sie alle Regeln zu Tickets, Stornierungen, Haftung und mehr.',
+      answer: 'Sie können uns per E-Mail erreichen: info@stagenation.be. Wir versuchen, alle Nachrichten so schnell wie möglich zu beantworten.',
     },
   ],
   en: [
     {
       question: 'How can I buy tickets?',
-      answer: 'You can buy tickets through our website. Go to the "Tickets" page, choose the event and ticket type you want, and follow the order process. Payment is possible via various online payment methods.',
+      answer: 'Go to stagenation.be, choose the event and click "Buy Tickets". Select your ticket type, choose your seats on the seating plan and pay with Bancontact, iDEAL or credit card. After payment, you\'ll immediately receive a confirmation email with your tickets and QR codes.',
     },
     {
-      question: 'Can I cancel my ticket?',
-      answer: 'Cancellations are possible up to 14 days before the event. Contact us via the contact page or send an email with your order number. After this period, cancellation is unfortunately no longer possible.',
+      question: 'Can I cancel or get a refund?',
+      answer: 'No, tickets are non-refundable. Under European consumer legislation, the right of withdrawal does not apply to events with a fixed date. Your purchase is final after payment. In exceptional cases (such as death or hospitalisation), you can submit a request to info@stagenation.be with official documentation.',
     },
     {
-      question: 'How can I transfer my ticket?',
-      answer: 'Want to transfer your ticket to someone else? Send us an email with your order number and the full name and email address of the new ticket holder. We\'ll take care of the transfer.',
+      question: 'Can I choose my seat?',
+      answer: 'Yes! For events with a seating plan, you can choose your own seats on the map using our pick-a-seat system. You can see which seats are available in real time.',
     },
     {
       question: 'I didn\'t receive a confirmation email',
-      answer: 'First check your spam/junk mail folder. The confirmation email is sent immediately after payment. If you haven\'t received anything after 15 minutes, contact us with your order number.',
+      answer: 'First check your spam/junk folder. The email comes from tickets@lumetrix.be or noreply@stagenation.be. If you haven\'t received anything after 15 minutes, contact us at info@stagenation.be with your name and the email address you used to order. We\'ll resend your tickets.',
     },
     {
-      question: 'My QR code doesn\'t work',
-      answer: 'Make sure your QR code is clearly visible on your screen (turn up brightness). Preferably use the original email or digital ticket. Don\'t take a screenshot of a screenshot. If the problem persists, contact us before the event.',
+      question: 'How does the QR code work?',
+      answer: 'Each ticket contains a unique QR code. Show it at the entrance on your phone or printed. The QR code is scanned and can only be used once. Don\'t share your QR code with others.',
+    },
+    {
+      question: 'Can I transfer my ticket to someone else?',
+      answer: 'Yes, you can transfer your ticket once and free of charge to another person. Forward the QR code to that person. Commercial resale or resale above the original price is not permitted.',
     },
     {
       question: 'What payment methods are available?',
-      answer: 'We accept various online payment methods including Bancontact, iDEAL, credit card (Visa/Mastercard) and other common payment methods. All transactions are secure.',
+      answer: 'You can pay with Bancontact, iDEAL and credit card (Visa/Mastercard). All payments are processed through the secure payment provider Mollie.',
     },
     {
-      question: 'Where do the events take place?',
-      answer: 'Our events take place in Genk. Visit the "Location" page on our website for the exact address, directions and parking options.',
-    },
-    {
-      question: 'Can I change my order?',
-      answer: 'Changes to your order (such as ticket type) are possible up to 14 days before the event, depending on availability. Contact us with your order number and the desired change.',
+      question: 'The event has been rescheduled. What now?',
+      answer: 'In case of rescheduling, your tickets automatically remain valid for the new date. You don\'t need to do anything. You\'ll receive an email with the new date.',
     },
     {
       question: 'How can I contact you?',
-      answer: 'You can contact us via the contact page on our website. Fill in the contact form or send us an email. We respond as quickly as possible, usually within 24 hours.',
-    },
-    {
-      question: 'What are the terms and conditions?',
-      answer: 'Our terms and conditions can be found on the "Terms & Conditions" page at the bottom of our website. There you\'ll find all rules regarding tickets, cancellations, liability and more.',
+      answer: 'You can reach us by email: info@stagenation.be. We try to respond to all messages as quickly as possible.',
     },
   ],
 };
@@ -262,7 +242,7 @@ const chatLabels: Record<Language, {
   de: {
     title: 'StageNation Assistent',
     subtitle: 'Wie können wir Ihnen helfen?',
-    greeting: 'Hallo! Ich bin der StageNation Assistent. Wählen Sie eine Frage unten und ich helfe Ihnen gerne!',
+    greeting: 'Hallo! Ich bin der StageNation Assistent. Wählen Sie eine Frage und ich helfe Ihnen gerne!',
     suggestedTitle: 'Wählen Sie eine Frage:',
     backToFaq: 'Zurück zu den Fragen',
     poweredBy: 'KI-Assistent',
