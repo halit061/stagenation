@@ -45,7 +45,13 @@ export function TicketView({ token }: TicketViewProps) {
             start_date: ticketData.event_start_date,
             end_date: ticketData.event_end_date,
             location: ticketData.event_location,
+            venue_name: ticketData.event_venue_name,
           },
+          seat: ticketData.seat_section_name ? {
+            section_name: ticketData.seat_section_name,
+            row_label: ticketData.seat_row_label,
+            seat_number: ticketData.seat_number,
+          } : null,
         };
 
         setTicket(mapped);
@@ -117,6 +123,28 @@ export function TicketView({ token }: TicketViewProps) {
               alt="QR Code"
               style={{ width: '220px', height: '220px', border: '1px solid #cbd5e1', borderRadius: '8px' }}
             />
+          )}
+
+          {ticket?.seat && (
+            <div style={{ backgroundColor: '#eff6ff', border: '2px solid #3b82f6', borderRadius: '8px', padding: '16px', margin: '20px 0' }}>
+              <p style={{ color: '#3b82f6', fontSize: '11px', margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700 }}>
+                Toegewezen Plaats
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '24px' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <p style={{ color: '#64748b', fontSize: '10px', margin: '0 0 2px 0', textTransform: 'uppercase' }}>Sectie</p>
+                  <p style={{ color: '#0f172a', fontSize: '16px', fontWeight: 700, margin: 0 }}>{ticket.seat.section_name}</p>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <p style={{ color: '#64748b', fontSize: '10px', margin: '0 0 2px 0', textTransform: 'uppercase' }}>Rij</p>
+                  <p style={{ color: '#0f172a', fontSize: '16px', fontWeight: 700, margin: 0 }}>{ticket.seat.row_label}</p>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <p style={{ color: '#64748b', fontSize: '10px', margin: '0 0 2px 0', textTransform: 'uppercase' }}>Stoel</p>
+                  <p style={{ color: '#0f172a', fontSize: '16px', fontWeight: 700, margin: 0 }}>{ticket.seat.seat_number}</p>
+                </div>
+              </div>
+            </div>
           )}
 
           <div style={{ backgroundColor: '#f1f5f9', borderRadius: '8px', padding: '16px', margin: '20px 0' }}>
