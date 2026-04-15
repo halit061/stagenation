@@ -11,6 +11,7 @@ type SheetState = 'collapsed' | 'half' | 'full';
 interface Props {
   selectedSeats: PickerSeat[];
   sections: SeatSection[];
+  sectionTicketPrices?: Map<string, { ttName: string; price: number }>;
   totalPrice: number;
   serviceFee: number;
   feePerTicket: number;
@@ -33,6 +34,7 @@ const HALF_RATIO = 0.45;
 export const SeatPickerBottomSheet = memo(function SeatPickerBottomSheet({
   selectedSeats,
   sections,
+  sectionTicketPrices,
   totalPrice,
   serviceFee,
   feePerTicket,
@@ -146,6 +148,7 @@ export const SeatPickerBottomSheet = memo(function SeatPickerBottomSheet({
           <SeatPickerSummary
             selectedSeats={selectedSeats}
             sections={sections}
+            sectionTicketPrices={sectionTicketPrices}
             totalPrice={totalPrice}
             serviceFee={serviceFee}
             feePerTicket={feePerTicket}

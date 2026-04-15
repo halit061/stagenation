@@ -611,5 +611,6 @@ export function useSeatPickerState(eventId: string, ticketTypeId?: string) {
     dismissNotification,
     allowedSectionIds,
     ticketTypeColors,
+    sectionTicketPrices,
   };
 }

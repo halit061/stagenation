@@ -9,6 +9,7 @@ import { st } from '../lib/seatTranslations';
 interface Props {
   selectedSeats: PickerSeat[];
   sections: SeatSection[];
+  sectionTicketPrices?: Map<string, { ttName: string; price: number }>;
   totalPrice: number;
   serviceFee: number;
   feePerTicket: number;
@@ -28,6 +29,7 @@ interface Props {
 export const SeatPickerSummary = memo(function SeatPickerSummary({
   selectedSeats,
   sections,
+  sectionTicketPrices,
   totalPrice,
   serviceFee,
   feePerTicket,
@@ -48,7 +50,10 @@ export const SeatPickerSummary = memo(function SeatPickerSummary({
 
   function getSeatPrice(seat: PickerSeat) {
     const section = sections.find(s => s.id === seat.sectionId);
-    return seat.price_override ?? (section ? Number(section.price_amount) : 0);
+    const sectionPrice = section ? Number(section.price_amount) : 0;
+    const ttInfo = sectionTicketPrices?.get(seat.sectionId);
+    const resolvedPrice = sectionPrice > 0 ? sectionPrice : (ttInfo?.price ?? 0);
+    return seat.price_override ?? resolvedPrice;
   }
 
   function getSectionName(sectionId: string) {

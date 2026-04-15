@@ -37,6 +37,7 @@ interface Props {
   restrictedSectionIds?: Set<string>;
   floorplanObjects?: FloorplanObject[];
   ticketTypeColorMap?: Record<string, string>;
+  sectionTicketPrices?: Map<string, { ttName: string; price: number }>;
   onSeatClick: (seatId: string) => void;
   canvasWidth?: number;
   canvasHeight?: number;
@@ -52,6 +53,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
   restrictedSectionIds,
   floorplanObjects = [],
   ticketTypeColorMap = {},
+  sectionTicketPrices,
   onSeatClick,
   onViewportChange,
 }: Props) {
@@ -640,30 +642,36 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                   </text>
                 )}
 
-                {!isRestricted && (
-                  <g style={{ pointerEvents: 'none' }}>
-                    <rect
-                      x={section.position_x + section.width / 2 - 36}
-                      y={section.position_y + 22}
-                      width={72}
-                      height={18}
-                      rx={9}
-                      fill={color}
-                      fillOpacity={0.12}
-                    />
-                    <text
-                      x={section.position_x + section.width / 2}
-                      y={section.position_y + 33}
-                      textAnchor="middle"
-                      fill={color}
-                      fillOpacity={0.8}
-                      fontSize="10"
-                      fontWeight="700"
-                    >
-                      EUR {Number(section.price_amount).toFixed(2)}
-                    </text>
-                  </g>
-                )}
+                {!isRestricted && (() => {
+                  const secPrice = Number(section.price_amount) || 0;
+                  const ttPrice = sectionTicketPrices?.get(section.id)?.price ?? 0;
+                  const displayPrice = secPrice > 0 ? secPrice : ttPrice;
+                  if (displayPrice <= 0) return null;
+                  return (
+                    <g style={{ pointerEvents: 'none' }}>
+                      <rect
+                        x={section.position_x + section.width / 2 - 36}
+                        y={section.position_y + 22}
+                        width={72}
+                        height={18}
+                        rx={9}
+                        fill={color}
+                        fillOpacity={0.12}
+                      />
+                      <text
+                        x={section.position_x + section.width / 2}
+                        y={section.position_y + 33}
+                        textAnchor="middle"
+                        fill={color}
+                        fillOpacity={0.8}
+                        fontSize="10"
+                        fontWeight="700"
+                      >
+                        EUR {displayPrice.toFixed(2)}
+                      </text>
+                    </g>
+                  );
+                })()}
 
                 {!isRestricted && rowLabels.map(rl => (
                   <text
@@ -787,6 +795,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
           seat={hoveredSeat}
           pos={tooltipPos}
           section={sectionForSeat(hoveredSeat.id)}
+          sectionTicketPrices={sectionTicketPrices}
           isSelected={selectedIds.has(hoveredSeat.id)}
         />
       )}
@@ -851,15 +860,20 @@ function SeatTooltip({
   seat,
   pos,
   section,
+  sectionTicketPrices,
   isSelected,
 }: {
   seat: PickerSeat;
   pos: { x: number; y: number };
   section: { name: string; price_amount: number } | null;
+  sectionTicketPrices?: Map<string, { ttName: string; price: number }>;
   isSelected: boolean;
 }) {
   const { language } = useLanguage();
-  const price = seat.price_override ?? (section ? Number(section.price_amount) : 0);
+  const sectionPrice = section ? Number(section.price_amount) : 0;
+  const ttInfo = sectionTicketPrices?.get(seat.sectionId);
+  const resolvedPrice = sectionPrice > 0 ? sectionPrice : (ttInfo?.price ?? 0);
+  const price = seat.price_override ?? resolvedPrice;
 
   return (
     <div
