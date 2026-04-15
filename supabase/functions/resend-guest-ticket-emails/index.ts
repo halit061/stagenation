@@ -540,16 +540,17 @@ Deno.serve(async (req: Request) => {
 
     if (qrRecords && qrRecords.length > 0) {
       for (const qr of qrRecords) {
+        const qrTokenValue = qr.token || qr.qr_data || '';
         let qrDataUrl = '';
         try {
-          qrDataUrl = await generateQRCode(qr.qr_token);
+          qrDataUrl = await generateQRCode(qrTokenValue);
         } catch (_e) {
           // toDataURL may not work in Deno - not needed for PDF
         }
         const entry: QrEntry = {
           id: qr.id,
           person_index: qr.person_index,
-          qr_token: qr.qr_token,
+          qr_token: qrTokenValue,
           qr_data_url: qrDataUrl,
         };
         if (qr.seat_id) {
