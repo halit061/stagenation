@@ -80,6 +80,16 @@ export async function createSeatOrder(order: SeatOrderData): Promise<SeatOrderRe
     return { success: false, error: result.error };
   }
 
+  if (result.redirectUrl) {
+    clearHoldStorage();
+    return {
+      success: true,
+      order_id: result.order_id,
+      order_number: result.order_number,
+      checkoutUrl: result.redirectUrl,
+    };
+  }
+
   if (!result.checkoutUrl) {
     return {
       success: false,

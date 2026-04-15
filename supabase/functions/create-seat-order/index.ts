@@ -188,8 +188,51 @@ Deno.serve(async (req: Request) => {
       baseUrl = Deno.env.get("BASE_URL") || "https://stagenation.be";
     }
 
-    const redirectUrl =
+    const confirmationUrl =
       `${baseUrl}/seat-confirmation?event=${p_event_id}&order=${orderId}`;
+
+    if (totalAmountCents <= 0) {
+      await supabase
+        .from("orders")
+        .update({
+          status: "paid",
+          payment_provider: "free",
+          payment_id: `free_${orderId}`,
+          paid_at: new Date().toISOString(),
+        })
+        .eq("id", orderId);
+
+      const { data: seatRows } = await supabase
+        .from("ticket_seats")
+        .select("seat_id")
+        .eq("order_id", orderId);
+
+      if (seatRows && seatRows.length > 0) {
+        const seatIds = seatRows.map((r: any) => r.seat_id);
+        await supabase
+          .from("seats")
+          .update({ status: "sold" })
+          .in("id", seatIds);
+      }
+
+      await supabase
+        .from("seat_holds")
+        .update({ status: "converted" })
+        .eq("session_id", p_session_id)
+        .eq("event_id", p_event_id)
+        .eq("status", "held");
+
+      return jsonRes(
+        {
+          success: true,
+          order_id: orderId,
+          order_number: orderNumber,
+          redirectUrl: confirmationUrl,
+        },
+        200,
+      );
+    }
+
     const cancelUrl =
       `${baseUrl}/seat-picker?event=${p_event_id}&payment=canceled`;
     const webhookUrl = `${supabaseUrl}/functions/v1/mollie-webhook`;
@@ -208,7 +251,7 @@ Deno.serve(async (req: Request) => {
         body: JSON.stringify({
           amount: { currency: "EUR", value: amountInEuros },
           description: "StageNation Tickets",
-          redirectUrl,
+          redirectUrl: confirmationUrl,
           cancelUrl,
           webhookUrl,
           metadata: {
