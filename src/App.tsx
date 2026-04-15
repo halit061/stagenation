@@ -105,7 +105,7 @@ function App() {
 
   // Dynamic html lang attribute
   useEffect(() => {
-    const langMap: Record<string, string> = { nl: 'nl', tr: 'tr', fr: 'fr', de: 'de' };
+    const langMap: Record<string, string> = { nl: 'nl', tr: 'tr', fr: 'fr', de: 'de', en: 'en' };
     document.documentElement.lang = language ? langMap[language] || 'nl' : 'nl';
   }, [language]);
 

@@ -19,7 +19,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     // Check localStorage first, default to 'nl' (Dutch)
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem(LANGUAGE_STORAGE_KEY);
-      if (stored && (stored === 'nl' || stored === 'tr' || stored === 'fr' || stored === 'de')) {
+      if (stored && (stored === 'nl' || stored === 'tr' || stored === 'fr' || stored === 'de' || stored === 'en')) {
         return stored as Language;
       }
     }

@@ -715,9 +715,9 @@ export function Tickets({ onNavigate }: TicketsProps) {
               <p className={`font-semibold ${
                 paymentBanner.type === 'expired' ? 'text-amber-300' : 'text-red-300'
               }`}>
-                {paymentBanner.type === 'failed' && (language === 'nl' ? 'Betaling mislukt. Probeer opnieuw.' : language === 'tr' ? 'Payment failed. Please try again.' : language === 'fr' ? 'Paiement échoué. Veuillez réessayer.' : 'Zahlung fehlgeschlagen. Bitte versuchen Sie es erneut.')}
-                {paymentBanner.type === 'expired' && (language === 'nl' ? 'Betaling verlopen. Start opnieuw.' : language === 'tr' ? 'Payment expired. Please start again.' : language === 'fr' ? 'Paiement expiré. Veuillez recommencer.' : 'Zahlung abgelaufen. Bitte starten Sie erneut.')}
-                {paymentBanner.type === 'canceled' && (language === 'nl' ? 'Betaling geannuleerd.' : language === 'tr' ? 'Payment canceled.' : language === 'fr' ? 'Paiement annulé.' : 'Zahlung storniert.')}
+                {paymentBanner.type === 'failed' && (language === 'nl' ? 'Betaling mislukt. Probeer opnieuw.' : language === 'tr' ? 'Payment failed. Please try again.' : language === 'fr' ? 'Paiement échoué. Veuillez réessayer.' : language === 'en' ? 'Payment failed. Please try again.' : 'Zahlung fehlgeschlagen. Bitte versuchen Sie es erneut.')}
+                {paymentBanner.type === 'expired' && (language === 'nl' ? 'Betaling verlopen. Start opnieuw.' : language === 'tr' ? 'Payment expired. Please start again.' : language === 'fr' ? 'Paiement expiré. Veuillez recommencer.' : language === 'en' ? 'Payment expired. Please start again.' : 'Zahlung abgelaufen. Bitte starten Sie erneut.')}
+                {paymentBanner.type === 'canceled' && (language === 'nl' ? 'Betaling geannuleerd.' : language === 'tr' ? 'Payment canceled.' : language === 'fr' ? 'Paiement annulé.' : language === 'en' ? 'Payment cancelled.' : 'Zahlung storniert.')}
               </p>
             </div>
             <button

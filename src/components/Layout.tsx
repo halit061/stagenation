@@ -81,6 +81,7 @@ export function Layout({ children, currentPage = 'home', onNavigate }: LayoutPro
                   {([
                     { code: 'nl' as const, flag: '🇳🇱', label: 'Nederlands' },
                     { code: 'fr' as const, flag: '🇫🇷', label: 'Français' },
+                    { code: 'en' as const, flag: '🇬🇧', label: 'English' },
                     { code: 'de' as const, flag: '🇩🇪', label: 'Deutsch' },
                     { code: 'tr' as const, flag: '🇹🇷', label: 'Türkçe' },
                   ]).map((lang) => (
@@ -137,12 +138,13 @@ export function Layout({ children, currentPage = 'home', onNavigate }: LayoutPro
               <div className="mb-2 pb-2 border-b border-amber-900/20">
                 <div className="flex items-center space-x-2 mb-2 text-slate-400 text-sm">
                   <Languages className="w-4 h-4" />
-                  <span>Taal / Langue / Sprache / Dil</span>
+                  <span>Taal / Langue / Language / Sprache / Dil</span>
                 </div>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-5 gap-2">
                   {([
                     { code: 'nl' as const, label: '🇳🇱 NL' },
                     { code: 'fr' as const, label: '🇫🇷 FR' },
+                    { code: 'en' as const, label: '🇬🇧 EN' },
                     { code: 'de' as const, label: '🇩🇪 DE' },
                     { code: 'tr' as const, label: '🇹🇷 TR' },
                   ]).map((lang) => (

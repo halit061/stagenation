@@ -8,6 +8,7 @@ export function LanguageSelector({ onSelectLanguage }: LanguageSelectorProps) {
   const languages = [
     { code: 'nl' as Language, name: 'Nederlands', flag: '🇳🇱' },
     { code: 'fr' as Language, name: 'Français', flag: '🇫🇷' },
+    { code: 'en' as Language, name: 'English', flag: '🇬🇧' },
     { code: 'de' as Language, name: 'Deutsch', flag: '🇩🇪' },
     { code: 'tr' as Language, name: 'Türkçe', flag: '🇹🇷' },
   ];
