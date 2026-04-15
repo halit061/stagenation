@@ -129,6 +129,7 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
   const [ticketTypeId, setTicketTypeId] = useState<string | null>(null);
   const [summaryCollapsed, setSummaryCollapsed] = useState(true);
   const [sectionTicketPrices, setSectionTicketPrices] = useState<Map<string, number>>(new Map());
+  const [seatTicketTypePrices, setSeatTicketTypePrices] = useState<Map<string, number>>(new Map());
 
   const [formData, setFormData] = useState<CheckoutFormData>({
     firstName: '',
@@ -233,6 +234,22 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
 
         setHeldSeats(held);
 
+        const ttIds = [...new Set(held.map(s => s.ticket_type_id).filter(Boolean))] as string[];
+        if (ttIds.length > 0) {
+          const { data: ttData } = await supabase
+            .from('ticket_types')
+            .select('id, price')
+            .in('id', ttIds)
+            .limit(100);
+          if (ttData && !cancelled) {
+            const priceMap = new Map<string, number>();
+            ttData.forEach((tt: any) => {
+              priceMap.set(tt.id, (tt.price || 0) / 100);
+            });
+            setSeatTicketTypePrices(priceMap);
+          }
+        }
+
         const sectionIds = [...new Set(held.map(s => s.sectionId))];
         try {
           const feeInfo = await fetchServiceFeeForSections(sectionIds, eventId);
@@ -258,51 +275,75 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
   }, [eventId, onNavigate]);
 
   const priceCategories = useMemo<PriceCategory[]>(() => {
-    return sections.reduce<PriceCategory[]>((acc, sec) => {
-      const key = sec.price_category || sec.name;
-      const existing = acc.find(c => c.id === key);
-      const sectionPrice = Number(sec.price_amount) || 0;
-      const ttPrice = sectionTicketPrices.get(sec.id) ?? 0;
-      const resolvedPrice = sectionPrice > 0 ? sectionPrice : ttPrice;
-      if (existing) {
-        existing.sectionIds.push(sec.id);
-        if (resolvedPrice > 0 && existing.price === 0) existing.price = resolvedPrice;
-      } else {
-        acc.push({
-          id: key,
-          name: sec.price_category || sec.name,
-          color: sec.color,
-          price: resolvedPrice,
-          sectionIds: [sec.id],
-        });
-      }
-      return acc;
-    }, []);
-  }, [sections, sectionTicketPrices]);
+    const categories: PriceCategory[] = [];
+    const seen = new Set<string>();
+
+    for (const seat of heldSeats) {
+      const ttId = seat.ticket_type_id;
+      if (!ttId || seen.has(ttId)) continue;
+      seen.add(ttId);
+      const price = seatTicketTypePrices.get(ttId) ?? 0;
+      categories.push({
+        id: ttId,
+        name: ttId,
+        color: '#64748b',
+        price,
+        sectionIds: [seat.sectionId],
+      });
+    }
+
+    if (categories.length === 0) {
+      return sections.reduce<PriceCategory[]>((acc, sec) => {
+        const key = sec.price_category || sec.name;
+        const existing = acc.find(c => c.id === key);
+        const sectionPrice = Number(sec.price_amount) || 0;
+        const ttPrice = sectionTicketPrices.get(sec.id) ?? 0;
+        const resolvedPrice = sectionPrice > 0 ? sectionPrice : ttPrice;
+        if (existing) {
+          existing.sectionIds.push(sec.id);
+        } else {
+          acc.push({ id: key, name: sec.price_category || sec.name, color: sec.color, price: resolvedPrice, sectionIds: [sec.id] });
+        }
+        return acc;
+      }, []);
+    }
+
+    return categories;
+  }, [heldSeats, sections, sectionTicketPrices, seatTicketTypePrices]);
 
   const subtotal = useMemo(() => {
     return heldSeats.reduce((total, seat) => {
+      if (seat.price_override != null && seat.price_override > 0) {
+        return total + seat.price_override;
+      }
+      if (seat.ticket_type_id && seatTicketTypePrices.has(seat.ticket_type_id)) {
+        return total + seatTicketTypePrices.get(seat.ticket_type_id)!;
+      }
       const section = sections.find(s => s.id === seat.sectionId);
       const sectionPrice = section ? Number(section.price_amount) : 0;
+      if (sectionPrice > 0) return total + sectionPrice;
       const ttPrice = sectionTicketPrices.get(seat.sectionId) ?? 0;
-      const resolvedPrice = sectionPrice > 0 ? sectionPrice : ttPrice;
-      const price = seat.price_override ?? resolvedPrice;
-      return total + price;
+      return total + ttPrice;
     }, 0);
-  }, [heldSeats, sections, sectionTicketPrices]);
+  }, [heldSeats, sections, sectionTicketPrices, seatTicketTypePrices]);
 
   const serviceFee = feePerTicket * heldSeats.length;
   const totalPrice = subtotal + serviceFee;
 
   const seatPrices = useMemo(() => {
     return heldSeats.map(seat => {
+      if (seat.price_override != null && seat.price_override > 0) {
+        return seat.price_override;
+      }
+      if (seat.ticket_type_id && seatTicketTypePrices.has(seat.ticket_type_id)) {
+        return seatTicketTypePrices.get(seat.ticket_type_id)!;
+      }
       const section = sections.find(s => s.id === seat.sectionId);
       const sectionPrice = section ? Number(section.price_amount) : 0;
-      const ttPrice = sectionTicketPrices.get(seat.sectionId) ?? 0;
-      const resolvedPrice = sectionPrice > 0 ? sectionPrice : ttPrice;
-      return seat.price_override ?? resolvedPrice;
+      if (sectionPrice > 0) return sectionPrice;
+      return sectionTicketPrices.get(seat.sectionId) ?? 0;
     });
-  }, [heldSeats, sections, sectionTicketPrices]);
+  }, [heldSeats, sections, sectionTicketPrices, seatTicketTypePrices]);
 
   const handleFieldChange = useCallback((field: keyof CheckoutFormData, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
