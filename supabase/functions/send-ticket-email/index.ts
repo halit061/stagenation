@@ -130,7 +130,7 @@ function centerText(text: string, font: any, size: number, pageWidth: number): n
   return (pageWidth - w) / 2;
 }
 
-async function buildTicketPdf(order: any, event: any, tickets: any[]): Promise<string> {
+async function buildTicketPdf(order: any, event: any, tickets: any[], seatInfoMap?: Map<string, { section_name: string; row_label: string; seat_number: string }>): Promise<string> {
   console.log('[pdf] buildTicketPdf start, tickets:', tickets?.length);
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -181,6 +181,23 @@ async function buildTicketPdf(order: any, event: any, tickets: any[]): Promise<s
       page.drawText(d.label, { x: 50, y, size: 10, font: boldFont, color: rgb(0.2, 0.2, 0.2) });
       page.drawText(String(d.value), { x: 160, y, size: 10, font, color: rgb(0.2, 0.2, 0.2) });
       y -= 16;
+    }
+
+    const si = seatInfoMap?.get(ticket.id);
+    if (si && (si.section_name || si.row_label || si.seat_number)) {
+      y -= 6;
+      page.drawRectangle({
+        x: 40, y: y - 55, width: width - 80, height: 50,
+        color: rgb(0.95, 0.97, 1.0), borderColor: rgb(0.02, 0.59, 0.41), borderWidth: 1,
+      });
+      const seatLine = `Sectie: ${si.section_name}   |   Rij: ${si.row_label}   |   Stoel: ${si.seat_number}`;
+      page.drawText(seatLine, {
+        x: 55, y: y - 25, size: 14, font: boldFont, color: rgb(0.1, 0.2, 0.5),
+      });
+      page.drawText('Gereserveerde zitplaats', {
+        x: 55, y: y - 43, size: 9, font, color: rgb(0.4, 0.5, 0.7),
+      });
+      y -= 65;
     }
 
     y -= 10;
@@ -1140,7 +1157,40 @@ Deno.serve(async (req: Request) => {
     } else if (hasTickets && tickets.length > 0) {
       try {
         console.log('[pdf] Generating ticket PDF for', tickets.length, 'tickets, order:', order.order_number);
-        const pdfBase64 = await buildTicketPdf(order, event, tickets);
+
+        const seatInfoMap = new Map<string, { section_name: string; row_label: string; seat_number: string }>();
+        const ticketIds = tickets.map((t: any) => t.id);
+        const { data: tSeats } = await adminClient
+          .from('ticket_seats')
+          .select('ticket_id, seats(row_label, seat_number, seat_sections(name))')
+          .in('ticket_id', ticketIds);
+        if (tSeats) {
+          for (const ts of tSeats) {
+            if (ts.seats) {
+              seatInfoMap.set(ts.ticket_id, {
+                section_name: (ts.seats as any).seat_sections?.name || '',
+                row_label: (ts.seats as any).row_label || '',
+                seat_number: String((ts.seats as any).seat_number ?? ''),
+              });
+            }
+          }
+        }
+        if (seatInfoMap.size === 0) {
+          const { data: guestQrs } = await adminClient
+            .from('guest_ticket_qrs')
+            .select('seat_id, section_name, row_label, seat_number')
+            .eq('order_id', orderId)
+            .not('seat_id', 'is', null);
+          if (guestQrs && guestQrs.length > 0 && ticketIds.length > 0) {
+            seatInfoMap.set(ticketIds[0], {
+              section_name: guestQrs[0].section_name || '',
+              row_label: guestQrs[0].row_label || '',
+              seat_number: String(guestQrs[0].seat_number ?? ''),
+            });
+          }
+        }
+
+        const pdfBase64 = await buildTicketPdf(order, event, tickets, seatInfoMap);
         const pdfSizeBytes = Math.ceil(pdfBase64.length * 3 / 4);
         console.log('[pdf] Ticket PDF generated, base64 length:', pdfBase64.length, 'estimated bytes:', pdfSizeBytes);
         if (pdfSizeBytes < 1000) {

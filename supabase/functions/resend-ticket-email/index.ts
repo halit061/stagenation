@@ -60,7 +60,7 @@ function centerText(text: string, font: any, size: number, pageWidth: number): n
   return (pageWidth - font.widthOfTextAtSize(text, size)) / 2;
 }
 
-async function buildTicketPdf(order: any, event: any, tickets: any[]): Promise<string> {
+async function buildTicketPdf(order: any, event: any, tickets: any[], seatInfo?: { section_name: string; row_label: string; seat_number: string } | null): Promise<string> {
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
@@ -108,6 +108,22 @@ async function buildTicketPdf(order: any, event: any, tickets: any[]): Promise<s
       page.drawText(d.label, { x: 50, y, size: 10, font: boldFont, color: rgb(0.2, 0.2, 0.2) });
       page.drawText(String(d.value), { x: 160, y, size: 10, font, color: rgb(0.2, 0.2, 0.2) });
       y -= 16;
+    }
+
+    if (seatInfo && (seatInfo.section_name || seatInfo.row_label || seatInfo.seat_number)) {
+      y -= 6;
+      page.drawRectangle({
+        x: 40, y: y - 55, width: width - 80, height: 50,
+        color: rgb(0.95, 0.97, 1.0), borderColor: rgb(0.02, 0.59, 0.41), borderWidth: 1,
+      });
+      const seatLine = `Sectie: ${seatInfo.section_name}   |   Rij: ${seatInfo.row_label}   |   Stoel: ${seatInfo.seat_number}`;
+      page.drawText(seatLine, {
+        x: 55, y: y - 25, size: 14, font: boldFont, color: rgb(0.1, 0.2, 0.5),
+      });
+      page.drawText('Gereserveerde zitplaats', {
+        x: 55, y: y - 43, size: 9, font, color: rgb(0.4, 0.5, 0.7),
+      });
+      y -= 65;
     }
 
     y -= 10;
@@ -295,6 +311,39 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    let seatInfo: { section_name: string; row_label: string; seat_number: string } | null = null;
+    const { data: ticketSeat } = await adminClient
+      .from('ticket_seats')
+      .select('*, seats(id, row_label, seat_number, seat_type, section_id, seat_sections(id, name))')
+      .eq('ticket_id', ticket_id)
+      .maybeSingle();
+
+    if (ticketSeat?.seats) {
+      seatInfo = {
+        section_name: ticketSeat.seats.seat_sections?.name || '',
+        row_label: ticketSeat.seats.row_label || '',
+        seat_number: String(ticketSeat.seats.seat_number ?? ''),
+      };
+    }
+
+    if (!seatInfo) {
+      const { data: guestQr } = await adminClient
+        .from('guest_ticket_qrs')
+        .select('seat_id, section_name, row_label, seat_number')
+        .eq('order_id', order.id)
+        .not('seat_id', 'is', null)
+        .limit(1)
+        .maybeSingle();
+
+      if (guestQr?.seat_id) {
+        seatInfo = {
+          section_name: guestQr.section_name || '',
+          row_label: guestQr.row_label || '',
+          seat_number: String(guestQr.seat_number ?? ''),
+        };
+      }
+    }
+
     const recipientEmail = ticket.holder_email || order?.payer_email;
     if (!recipientEmail) {
       return new Response(
@@ -308,7 +357,7 @@ Deno.serve(async (req: Request) => {
 
     let pdfAttachment: { filename: string; content: string } | null = null;
     try {
-      const pdfBase64 = await buildTicketPdf(order, event, [ticket]);
+      const pdfBase64 = await buildTicketPdf(order, event, [ticket], seatInfo);
       pdfAttachment = {
         filename: `StageNation-Ticket-${ticket.ticket_number || 'ticket'}.pdf`,
         content: pdfBase64,
