@@ -458,6 +458,7 @@ Deno.serve(async (req: Request) => {
   }
 
   let orderId: string | null = null;
+  let assignedSeatIds: string[] = [];
 
   try {
     const authHeader = req.headers.get('Authorization') ?? req.headers.get('authorization');
@@ -648,40 +649,34 @@ Deno.serve(async (req: Request) => {
       }
 
       const seatIds = seat_assignments.map(s => s.seat_id);
-      const { data: seatRows } = await adminClient
-        .from('seats')
-        .select('id, status')
-        .in('id', seatIds);
+      const { data: lockResult, error: lockError } = await adminClient.rpc('assign_guest_seats_atomic', {
+        p_seat_ids: seatIds,
+        p_event_id: event_id,
+      });
 
-      const unavailable = seatRows?.filter(s => s.status !== 'available');
-      if (unavailable && unavailable.length > 0) {
+      if (lockError) {
+        console.error('Atomic seat assignment failed:', lockError);
         return new Response(
-          JSON.stringify({ success: false, error: `${unavailable.length} stoel(en) zijn niet meer beschikbaar. Vernieuw de pagina.` }),
+          JSON.stringify({ success: false, error: 'Stoelen konden niet worden toegewezen. Probeer opnieuw.' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (!lockResult?.success) {
+        const unavailableCount = lockResult?.unavailable_count || 0;
+        return new Response(
+          JSON.stringify({ success: false, error: `${unavailableCount} stoel(en) zijn niet meer beschikbaar. Vernieuw de pagina.` }),
           { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
     }
 
-    const assignedSeatIds: string[] = [];
+    assignedSeatIds = assign_seats ? seat_assignments.map(s => s.seat_id) : [];
     const qrEntries: QrEntry[] = [];
 
     for (let i = 1; i <= validatedPersonsCount; i++) {
       const qrToken = generateSecureToken();
       const seatInfo = assign_seats && seat_assignments[i - 1] ? seat_assignments[i - 1] : null;
-
-      if (seatInfo) {
-        const { error: seatUpdateError } = await adminClient
-          .from('seats')
-          .update({ status: 'sold' })
-          .eq('id', seatInfo.seat_id)
-          .eq('status', 'available');
-
-        if (seatUpdateError) {
-          console.error(`Failed to reserve seat ${seatInfo.seat_id}:`, seatUpdateError);
-        } else {
-          assignedSeatIds.push(seatInfo.seat_id);
-        }
-      }
 
       const insertPayload: Record<string, unknown> = {
         event_id,
@@ -711,9 +706,7 @@ Deno.serve(async (req: Request) => {
       let qrDataUrl = '';
       try {
         qrDataUrl = await generateQRCode(qrToken);
-      } catch (_e) {
-        // toDataURL may not work in Deno - not needed for PDF
-      }
+      } catch (_e) {}
 
       qrEntries.push({
         id: qrEntry.id,
@@ -870,20 +863,29 @@ Deno.serve(async (req: Request) => {
         const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
         const rollbackClient = createClient(supabaseUrl, supabaseServiceKey);
 
+        const seatIdsToRestore: string[] = [];
+
         const { data: qrsToRollback } = await rollbackClient
           .from('guest_ticket_qrs')
           .select('seat_id')
           .eq('order_id', orderId)
           .not('seat_id', 'is', null);
 
-        if (qrsToRollback && qrsToRollback.length > 0) {
-          const seatIdsToRestore = qrsToRollback.map(q => q.seat_id).filter(Boolean);
-          if (seatIdsToRestore.length > 0) {
-            await rollbackClient
-              .from('seats')
-              .update({ status: 'available' })
-              .in('id', seatIdsToRestore);
+        if (qrsToRollback) {
+          seatIdsToRestore.push(...qrsToRollback.map(q => q.seat_id).filter(Boolean));
+        }
+
+        if (assignedSeatIds && assignedSeatIds.length > 0) {
+          for (const sid of assignedSeatIds) {
+            if (!seatIdsToRestore.includes(sid)) seatIdsToRestore.push(sid);
           }
+        }
+
+        if (seatIdsToRestore.length > 0) {
+          await rollbackClient
+            .from('seats')
+            .update({ status: 'available' })
+            .in('id', seatIdsToRestore);
         }
 
         await rollbackClient.from('ticket_seats').delete().eq('order_id', orderId);
