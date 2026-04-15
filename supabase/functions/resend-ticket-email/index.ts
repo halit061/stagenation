@@ -274,7 +274,7 @@ Deno.serve(async (req: Request) => {
     const emailId = result?.data?.id || result?.id;
 
     await adminClient
-      .from('eskiler_email_logs')
+      .from('email_logs')
       .insert({
         ticket_id: ticket_id,
         email: recipientEmail,

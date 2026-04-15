@@ -95,24 +95,6 @@ Deno.serve(async (req: Request) => {
     const orderId = ticket.order_id;
     const isGuestTicket = ticket.orders?.status === 'comped';
 
-    await adminClient
-      .from('eskiler_ticket_actions')
-      .insert({
-        ticket_id: ticket_id,
-        ticket_number: ticket.ticket_number,
-        action: 'deleted',
-        admin_user_id: user.id,
-        event_id: ticket.orders?.event_id || ticket.event_id,
-        details: {
-          holder_name: ticket.holder_name,
-          holder_email: ticket.holder_email,
-          was_scanned: wasScanned,
-          original_status: ticket.status,
-          is_guest_ticket: isGuestTicket,
-          deleted_at: new Date().toISOString(),
-        },
-      });
-
     const { error: deleteTicketError } = await adminClient
       .from('tickets')
       .delete()
