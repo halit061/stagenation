@@ -10,6 +10,7 @@ interface Props {
   selectedSeats: PickerSeat[];
   sections: SeatSection[];
   sectionTicketPrices?: Map<string, { ttName: string; price: number }>;
+  ticketTypePriceMap?: Map<string, number>;
   totalPrice: number;
   serviceFee: number;
   feePerTicket: number;
@@ -30,6 +31,7 @@ export const SeatPickerSummary = memo(function SeatPickerSummary({
   selectedSeats,
   sections,
   sectionTicketPrices,
+  ticketTypePriceMap,
   totalPrice,
   serviceFee,
   feePerTicket,
@@ -49,11 +51,15 @@ export const SeatPickerSummary = memo(function SeatPickerSummary({
   const isHeld = holdIds.length > 0 && expiresAt;
 
   function getSeatPrice(seat: PickerSeat) {
+    if (seat.price_override != null) return seat.price_override;
+    if (seat.ticket_type_id && ticketTypePriceMap?.has(seat.ticket_type_id)) {
+      return ticketTypePriceMap.get(seat.ticket_type_id)!;
+    }
     const section = sections.find(s => s.id === seat.sectionId);
     const sectionPrice = section ? Number(section.price_amount) : 0;
+    if (sectionPrice > 0) return sectionPrice;
     const ttInfo = sectionTicketPrices?.get(seat.sectionId);
-    const resolvedPrice = sectionPrice > 0 ? sectionPrice : (ttInfo?.price ?? 0);
-    return seat.price_override ?? resolvedPrice;
+    return ttInfo?.price ?? 0;
   }
 
   function getSectionName(sectionId: string) {

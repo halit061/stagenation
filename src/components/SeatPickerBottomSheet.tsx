@@ -12,6 +12,7 @@ interface Props {
   selectedSeats: PickerSeat[];
   sections: SeatSection[];
   sectionTicketPrices?: Map<string, { ttName: string; price: number }>;
+  ticketTypePriceMap?: Map<string, number>;
   totalPrice: number;
   serviceFee: number;
   feePerTicket: number;
@@ -35,6 +36,7 @@ export const SeatPickerBottomSheet = memo(function SeatPickerBottomSheet({
   selectedSeats,
   sections,
   sectionTicketPrices,
+  ticketTypePriceMap,
   totalPrice,
   serviceFee,
   feePerTicket,
@@ -149,6 +151,7 @@ export const SeatPickerBottomSheet = memo(function SeatPickerBottomSheet({
             selectedSeats={selectedSeats}
             sections={sections}
             sectionTicketPrices={sectionTicketPrices}
+            ticketTypePriceMap={ticketTypePriceMap}
             totalPrice={totalPrice}
             serviceFee={serviceFee}
             feePerTicket={feePerTicket}

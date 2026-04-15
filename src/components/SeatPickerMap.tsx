@@ -38,6 +38,7 @@ interface Props {
   floorplanObjects?: FloorplanObject[];
   ticketTypeColorMap?: Record<string, string>;
   sectionTicketPrices?: Map<string, { ttName: string; price: number }>;
+  ticketTypePriceMap?: Map<string, number>;
   onSeatClick: (seatId: string) => void;
   canvasWidth?: number;
   canvasHeight?: number;
@@ -54,6 +55,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
   floorplanObjects = [],
   ticketTypeColorMap = {},
   sectionTicketPrices,
+  ticketTypePriceMap,
   onSeatClick,
   onViewportChange,
 }: Props) {
@@ -796,6 +798,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
           pos={tooltipPos}
           section={sectionForSeat(hoveredSeat.id)}
           sectionTicketPrices={sectionTicketPrices}
+          ticketTypePriceMap={ticketTypePriceMap}
           isSelected={selectedIds.has(hoveredSeat.id)}
         />
       )}
@@ -861,19 +864,30 @@ function SeatTooltip({
   pos,
   section,
   sectionTicketPrices,
+  ticketTypePriceMap,
   isSelected,
 }: {
   seat: PickerSeat;
   pos: { x: number; y: number };
   section: { name: string; price_amount: number } | null;
   sectionTicketPrices?: Map<string, { ttName: string; price: number }>;
+  ticketTypePriceMap?: Map<string, number>;
   isSelected: boolean;
 }) {
   const { language } = useLanguage();
-  const sectionPrice = section ? Number(section.price_amount) : 0;
-  const ttInfo = sectionTicketPrices?.get(seat.sectionId);
-  const resolvedPrice = sectionPrice > 0 ? sectionPrice : (ttInfo?.price ?? 0);
-  const price = seat.price_override ?? resolvedPrice;
+  let price = 0;
+  if (seat.price_override != null) {
+    price = seat.price_override;
+  } else if (seat.ticket_type_id && ticketTypePriceMap?.has(seat.ticket_type_id)) {
+    price = ticketTypePriceMap.get(seat.ticket_type_id)!;
+  } else {
+    const sectionPrice = section ? Number(section.price_amount) : 0;
+    if (sectionPrice > 0) {
+      price = sectionPrice;
+    } else {
+      price = sectionTicketPrices?.get(seat.sectionId)?.price ?? 0;
+    }
+  }
 
   return (
     <div

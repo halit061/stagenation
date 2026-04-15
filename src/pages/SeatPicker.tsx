@@ -252,6 +252,7 @@ export function SeatPicker({ eventId, ticketTypeId, onNavigate }: Props) {
             floorplanObjects={state.floorplanObjects}
             ticketTypeColorMap={ticketTypeColorMap}
             sectionTicketPrices={state.sectionTicketPrices}
+            ticketTypePriceMap={state.ticketTypePriceMap}
             onSeatClick={state.toggleSeat}
             canvasWidth={state.canvasWidth}
             canvasHeight={state.canvasHeight}
@@ -300,6 +301,7 @@ export function SeatPicker({ eventId, ticketTypeId, onNavigate }: Props) {
             selectedSeats={selectedSeats}
             sections={state.sections}
             sectionTicketPrices={state.sectionTicketPrices}
+            ticketTypePriceMap={state.ticketTypePriceMap}
             totalPrice={totalPrice}
             serviceFee={serviceFee}
             feePerTicket={feePerTicket}
@@ -322,6 +324,7 @@ export function SeatPicker({ eventId, ticketTypeId, onNavigate }: Props) {
         selectedSeats={selectedSeats}
         sections={state.sections}
         sectionTicketPrices={state.sectionTicketPrices}
+        ticketTypePriceMap={state.ticketTypePriceMap}
         totalPrice={totalPrice}
         serviceFee={serviceFee}
         feePerTicket={feePerTicket}

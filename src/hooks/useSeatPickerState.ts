@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { Seat, SeatSection, VenueLayout, BestAvailableStrategy } from '../types/seats';
 import { supabase } from '../lib/supabaseClient';
 import {
@@ -127,6 +127,14 @@ export function useSeatPickerState(eventId: string, ticketTypeId?: string) {
   const [allowedSectionIds, setAllowedSectionIds] = useState<string[] | null>(null);
   const [sectionTicketPrices, setSectionTicketPrices] = useState<Map<string, { ttName: string; price: number }>>(new Map());
   const [ticketTypeColors, setTicketTypeColors] = useState<TicketTypeColor[]>([]);
+
+  const ticketTypePriceMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const tt of ticketTypeColors) {
+      m.set(tt.id, tt.price);
+    }
+    return m;
+  }, [ticketTypeColors]);
 
   const lastBestAvailableOpts = useRef<{
     count: number;
@@ -492,14 +500,18 @@ export function useSeatPickerState(eventId: string, ticketTypeId?: string) {
   const getTotalPrice = useCallback(() => {
     const seats = getSelectedSeats();
     return seats.reduce((total, seat) => {
+      if (seat.price_override != null) return total + seat.price_override;
+      if (seat.ticket_type_id) {
+        const ttPrice = ticketTypePriceMap.get(seat.ticket_type_id);
+        if (ttPrice != null) return total + ttPrice;
+      }
       const section = sections.find(s => s.id === seat.sectionId);
       const sectionPrice = section ? Number(section.price_amount) : 0;
+      if (sectionPrice > 0) return total + sectionPrice;
       const ttInfo = sectionTicketPrices.get(seat.sectionId);
-      const resolvedPrice = sectionPrice > 0 ? sectionPrice : (ttInfo?.price ?? 0);
-      const price = seat.price_override ?? resolvedPrice;
-      return total + price;
+      return total + (ttInfo?.price ?? 0);
     }, 0);
-  }, [getSelectedSeats, sections, sectionTicketPrices]);
+  }, [getSelectedSeats, sections, sectionTicketPrices, ticketTypePriceMap]);
 
   const findBest = useCallback((opts: {
     count: number;
@@ -612,5 +624,6 @@ export function useSeatPickerState(eventId: string, ticketTypeId?: string) {
     allowedSectionIds,
     ticketTypeColors,
     sectionTicketPrices,
+    ticketTypePriceMap,
   };
 }
