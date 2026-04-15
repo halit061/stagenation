@@ -26,9 +26,9 @@ export const SeatPickerLegend = memo(function SeatPickerLegend({ compact, ticket
                 size={16}
                 borderColor={tt.color}
               />
-              <span className="text-xs text-slate-500 font-medium">
+              <span className="text-xs text-slate-400 font-medium">
                 {tt.name}
-                <span className="text-slate-600 ml-1">EUR {tt.price.toFixed(2)}</span>
+                <span className="text-slate-300 ml-1">EUR {tt.price.toFixed(2)}</span>
               </span>
             </div>
           ))}
@@ -36,7 +36,7 @@ export const SeatPickerLegend = memo(function SeatPickerLegend({ compact, ticket
       ) : (
         <div className="flex items-center gap-1.5" role="listitem">
           <SeatChair color="#4ade80" size={16} borderColor="#16a34a" />
-          <span className="text-xs text-slate-500 font-medium">{st(language, 'legend.available')}</span>
+          <span className="text-xs text-slate-400 font-medium">{st(language, 'legend.available')}</span>
         </div>
       )}
       <div className="flex items-center gap-1.5" role="listitem">
@@ -47,7 +47,7 @@ export const SeatPickerLegend = memo(function SeatPickerLegend({ compact, ticket
           borderColor="#1d4ed8"
           glowColor="#ffffff"
         />
-        <span className="text-xs text-slate-500 font-medium">{st(language, 'legend.yourSelection')}</span>
+        <span className="text-xs text-slate-400 font-medium">{st(language, 'legend.yourSelection')}</span>
       </div>
       <div className="flex items-center gap-1.5" role="listitem">
         <SeatChair
@@ -56,7 +56,7 @@ export const SeatPickerLegend = memo(function SeatPickerLegend({ compact, ticket
           opacity={0.85}
           borderColor="#dc2626"
         />
-        <span className="text-xs text-slate-500 font-medium">{st(language, 'legend.unavailable')}</span>
+        <span className="text-xs text-slate-400 font-medium">{st(language, 'legend.unavailable')}</span>
       </div>
     </div>
   );

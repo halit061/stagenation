@@ -315,6 +315,8 @@ export const VenueMap = memo(function VenueMap({
     return map;
   }, [seatsBySection]);
 
+  const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleSeatHover = useCallback((seat: PickerSeat, e: React.PointerEvent) => {
     if (e.pointerType === 'touch') return;
     const rect = containerRef.current?.getBoundingClientRect();
@@ -325,12 +327,13 @@ export const VenueMap = memo(function VenueMap({
     if (tt?.price) parts.push(`\u20AC${tt.price.toFixed(2)}`);
     if (seat.status === 'sold' || seat.status === 'reserved') parts.push('Verkocht');
     else if (seat.status === 'blocked') parts.push('Niet beschikbaar');
-    setTooltip({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top - 40,
-      text: parts.join(' \u2022 '),
-    });
+    if (hoverTimeout.current) clearTimeout(hoverTimeout.current);
+    setTooltip({ x: 0, y: 0, text: parts.join(' \u2022 ') });
   }, [ttInfoMap]);
+
+  const handleSeatLeave = useCallback(() => {
+    hoverTimeout.current = setTimeout(() => setTooltip(null), 150);
+  }, []);
 
   const legendItems = useMemo(() => {
     const items: { color: string; label: string; count: number }[] = [];
@@ -409,7 +412,7 @@ export const VenueMap = memo(function VenueMap({
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={() => { handleMouseUp(); setTooltip(null); }}
+        onMouseLeave={() => { handleMouseUp(); if (hoverTimeout.current) clearTimeout(hoverTimeout.current); setTooltip(null); }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -627,7 +630,7 @@ export const VenueMap = memo(function VenueMap({
                         strokeWidth={2}
                         style={{ cursor: 'default', pointerEvents: 'all' }}
                         onPointerEnter={(e) => handleSeatHover(seat, e)}
-                        onPointerLeave={() => setTooltip(null)}
+                        onPointerLeave={handleSeatLeave}
                       />
                     );
                   })}
@@ -639,8 +642,8 @@ export const VenueMap = memo(function VenueMap({
 
         {tooltip && (
           <div
-            className="absolute z-50 pointer-events-none px-2.5 py-1.5 bg-slate-800 border border-slate-600/50 rounded-lg shadow-xl"
-            style={{ left: tooltip.x, top: tooltip.y, transform: 'translateX(-50%)' }}
+            className="absolute z-50 pointer-events-none bottom-2 left-1/2 px-2.5 py-1.5 bg-slate-800 border border-slate-600/50 rounded-lg shadow-xl"
+            style={{ transform: 'translateX(-50%)' }}
           >
             <span className="text-[11px] text-white whitespace-nowrap">{tooltip.text}</span>
           </div>
