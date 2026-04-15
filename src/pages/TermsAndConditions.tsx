@@ -7,42 +7,40 @@ export function TermsAndConditions() {
   const content = {
     nl: {
       title: 'Algemene Voorwaarden',
-      lastUpdate: 'Laatste update: 1 maart 2026',
+      subtitle: 'StageNation \u2014 Evenementen & Ticketing',
+      lastUpdate: 'Laatst bijgewerkt: april 2026',
       sections: [
         {
           icon: Building2,
           title: 'Bedrijfsinformatie',
           content: [
-            'StageNation is een evenementorganisator en ticketverkoper uitgebaat door:',
+            'StageNation is een evenementorganisator en ticketverkoper, uitgebaat door:',
             '',
             'Lumetrix BV',
             'Exelgaarden 20',
-            '3550 Heusden-Zolder',
-            'België',
-            '',
-            'BTW-nummer: BE1029.601.154',
-            '',
-            'Contact:',
-            'Email: info@stagenation.be',
-            'Telefoon: +32 493 94 46 31',
+            '3550 Heusden-Zolder, Belgi\u00eb',
+            'Ondernemingsnummer: BE 1029.601.154',
+            'E-mail: info@stagenation.be',
           ],
         },
         {
           icon: FileText,
           title: '1. Toepassingsgebied',
           content: [
-            'Deze algemene voorwaarden zijn van toepassing op alle ticketverkopen, evenementen en diensten aangeboden via www.stagenation.be en bijhorende applicaties.',
-            'Door een ticket te kopen of een evenement te betreden verklaart de koper zich volledig akkoord met deze voorwaarden.',
-            'Kennelijke prijsfouten, technische fouten of publicatiefouten op de website of andere communicatiekanalen binden de organisator niet.',
-            'Indien voor een specifiek evenement aanvullende voorwaarden gelden, hebben deze voorrang.',
+            'Deze algemene voorwaarden (hierna \u201cVoorwaarden\u201d) zijn van toepassing op alle ticketverkopen, reserveringen, evenementen, diensten en digitale interacties aangeboden via www.stagenation.be, bijhorende mobiele applicaties, het betreden van een evenementlocatie of het op enige andere wijze gebruik maken van de diensten en communicatiekanalen van StageNation.',
+            'Door het bezoeken van de website, het aanmaken van een account, het kopen van een ticket, het gebruik van een promotiecode, het betreden van een evenementlocatie of het op enige andere wijze gebruik maken van de diensten van StageNation, verklaart de gebruiker zich uitdrukkelijk en onherroepelijk akkoord met deze Voorwaarden.',
+            'StageNation behoudt zich het recht voor deze Voorwaarden op elk moment te wijzigen. Wijzigingen treden in werking vanaf publicatie op de website. Het is de verantwoordelijkheid van de gebruiker om regelmatig kennis te nemen van de meest recente versie.',
+            'Kennelijke prijs-, druk-, technische of publicatiefouten op de website, in e-mails, op tickets, op sociale media of andere communicatiekanalen binden StageNation niet en kunnen geen grond vormen voor enige vordering.',
+            'Indien voor een specifiek evenement aanvullende of afwijkende voorwaarden gelden, hebben deze voorrang op de onderhavige Voorwaarden. In geval van tegenstrijdigheid prevaleren de evenement-specifieke voorwaarden.',
+            'De eventuele nietigheid of ongeldigheid van een bepaling uit deze Voorwaarden tast de geldigheid van de overige bepalingen niet aan. De ongeldige bepaling zal worden vervangen door een geldige bepaling die de oorspronkelijke intentie zo dicht mogelijk benadert.',
           ],
         },
         {
           icon: Scale,
           title: '2. Herroepingsrecht',
           content: [
-            'Volgens de Europese consumentenwetgeving geldt geen herroepingsrecht van 14 dagen voor de aankoop van tickets voor vrijetijdsbesteding met een specifieke datum.',
-            'Ticketaankopen via StageNation zijn daarom definitief na betaling.',
+            'Overeenkomstig artikel VI.53, 12\u00b0 van het Belgisch Wetboek van Economisch Recht en de Europese Richtlijn 2011/83/EU inzake consumentenrechten, is het herroepingsrecht van 14 dagen uitdrukkelijk uitgesloten voor overeenkomsten betreffende vrijetijdsbesteding wanneer in de overeenkomst een bepaalde datum of periode van uitvoering is voorzien.',
+            'Ticketaankopen via StageNation vallen onder deze uitzondering en zijn daarom onherroepelijk en definitief na voltooiing van de betaling. De koper erkent hiervan uitdrukkelijk op de hoogte te zijn v\u00f3\u00f3r het afronden van de aankoop.',
           ],
         },
         {
@@ -201,8 +199,9 @@ export function TermsAndConditions() {
       ],
     },
     tr: {
-      title: 'Genel Şartlar ve Koşullar',
-      lastUpdate: 'Son güncelleme: 1 Mart 2026',
+      title: 'Genel \u015Eartlar ve Ko\u015Fullar',
+      subtitle: 'StageNation \u2014 Etkinlikler & Biletleme',
+      lastUpdate: 'Son g\u00fcncelleme: Nisan 2026',
       sections: [
         {
           icon: Building2,
@@ -395,8 +394,9 @@ export function TermsAndConditions() {
       ],
     },
     fr: {
-      title: 'Conditions Générales',
-      lastUpdate: 'Dernière mise à jour : 1 mars 2026',
+      title: 'Conditions G\u00e9n\u00e9rales',
+      subtitle: 'StageNation \u2014 \u00c9v\u00e9nements & Billetterie',
+      lastUpdate: 'Derni\u00e8re mise \u00e0 jour : avril 2026',
       sections: [
         {
           icon: Building2,
@@ -590,8 +590,9 @@ export function TermsAndConditions() {
       ],
     },
     de: {
-      title: 'Allgemeine Geschäftsbedingungen',
-      lastUpdate: 'Letzte Aktualisierung: 1. März 2026',
+      title: 'Allgemeine Gesch\u00e4ftsbedingungen',
+      subtitle: 'StageNation \u2014 Veranstaltungen & Ticketing',
+      lastUpdate: 'Letzte Aktualisierung: April 2026',
       sections: [
         {
           icon: Building2,
@@ -795,10 +796,15 @@ export function TermsAndConditions() {
           <div className="flex items-center justify-center space-x-3 mb-4">
             <Scale className="w-12 h-12 text-cyan-400" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">
+          <h1 className="text-4xl md:text-5xl font-bold mb-3">
             {currentContent.title}
           </h1>
-          <p className="text-slate-400 text-sm">
+          {currentContent.subtitle && (
+            <p className="text-slate-300 text-base mb-1">
+              {currentContent.subtitle}
+            </p>
+          )}
+          <p className="text-slate-400 text-sm italic">
             {currentContent.lastUpdate}
           </p>
         </div>
@@ -843,30 +849,23 @@ export function TermsAndConditions() {
               <h3 className="text-xl font-bold mb-2 text-cyan-400">
                 {{
                   nl: 'Vragen over deze voorwaarden?',
-                  tr: 'Bu şartlar hakkında sorularınız mı var?',
+                  tr: 'Bu \u015Fartlar hakk\u0131nda sorular\u0131n\u0131z m\u0131 var?',
                   fr: 'Des questions sur ces conditions ?',
-                  de: 'Fragen zu diesen Bedingungen?'
+                  de: 'Fragen zu diesen Bedingungen?',
+                  en: 'Questions about these terms?'
                 }[language || 'nl']}
               </h3>
               <p className="text-slate-300 mb-4">
                 {{
-                  nl: 'Neem gerust contact met ons op via e-mail of telefoon.',
-                  tr: 'E-posta veya telefon ile bizimle iletişime geçmekten çekinmeyin.',
-                  fr: "N'hésitez pas à nous contacter par e-mail ou téléphone.",
-                  de: 'Kontaktieren Sie uns gerne per E-Mail oder Telefon.'
+                  nl: 'Neem gerust contact met ons op via e-mail.',
+                  tr: 'E-posta ile bizimle ileti\u015Fime ge\u00e7mekten \u00e7ekinmeyin.',
+                  fr: "N'h\u00e9sitez pas \u00e0 nous contacter par e-mail.",
+                  de: 'Kontaktieren Sie uns gerne per E-Mail.',
+                  en: 'Feel free to contact us via email.'
                 }[language || 'nl']}
               </p>
               <div className="space-y-2 text-sm text-slate-400">
-                <p>Email: info@stagenation.be</p>
-                <p>
-                  {{
-                    nl: 'Telefoon: ',
-                    tr: 'Telefon: ',
-                    fr: 'Téléphone : ',
-                    de: 'Telefon: '
-                  }[language || 'nl']}
-                  +32 493 94 46 31
-                </p>
+                <p>E-mail: info@stagenation.be</p>
               </div>
             </div>
           </div>
