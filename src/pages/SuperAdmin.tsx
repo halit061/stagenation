@@ -247,8 +247,14 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
     ticketId: string;
     ticketNumber: string;
     orderId: string;
+    eventName: string;
+    payerName: string;
+    payerEmail: string;
+    totalAmount: number;
   } | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteReason, setDeleteReason] = useState('');
+  const [deleteReasonDetail, setDeleteReasonDetail] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   const [eventForm, setEventForm] = useState({
@@ -700,29 +706,18 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
     }
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        showToast('Niet ingelogd. Log opnieuw in.', 'error');
-        return;
-      }
-
       const { data, error } = await supabase.functions.invoke('send-ticket-email', {
         body: { orderId, resend: true, source: 'superadmin' },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
       });
 
       if (error) {
         console.error('❌ Edge function error:', error);
-        const errorDetails = JSON.stringify(error, null, 2);
-        throw new Error(`Edge function error:\n${error.message || errorDetails}`);
+        throw new Error(error.message || 'Edge function error');
       }
 
       if (data && !data.ok) {
         console.error('❌ Email send failed:', data);
-        const errorMsg = data.message || data.code || 'Unknown error';
-        const detailedMsg = data.code ? `[${data.code}] ${data.message}` : errorMsg;
+        const detailedMsg = data.code ? `[${data.code}] ${data.message}` : (data.message || 'Onbekende fout');
         throw new Error(detailedMsg);
       }
 
@@ -2070,50 +2065,106 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
   };
 
   const handleDeleteIndividualTicket = async () => {
-    if (!deleteTicketModal || deleteTicketModal.step !== 3 || deleteConfirmText.trim() !== 'DELETE') return;
+    if (!deleteTicketModal || deleteTicketModal.step !== 3) return;
+    if (deleteConfirmText.trim().toLowerCase() !== deleteTicketModal.eventName.trim().toLowerCase()) return;
     setDeleteLoading(true);
     try {
-      const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
-      if (sessionErr || !session?.access_token) {
-        const { data: refreshData, error: refreshErr } = await supabase.auth.refreshSession();
-        if (refreshErr || !refreshData.session?.access_token) {
-          throw new Error('Sessie verlopen. Ververs de pagina en log opnieuw in.');
-        }
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const response = await fetch(`${supabaseUrl}/functions/v1/delete-ticket`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${refreshData.session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ ticket_id: deleteTicketModal.ticketId }),
-        });
-        const result = await response.json();
-        if (!response.ok || !result.success) {
-          throw new Error(result.error || `Verwijderen mislukt (status ${response.status})`);
-        }
-        showToast(`Ticket ${deleteTicketModal.ticketNumber} succesvol verwijderd`, 'success');
-        setDeleteTicketModal(null);
-        setDeleteConfirmText('');
-        loadData();
-        return;
+      const { data: { user } } = await supabase.auth.getUser();
+      const orderId = deleteTicketModal.orderId;
+      const ticketId = deleteTicketModal.ticketId;
+
+      const finalReason = deleteReason === 'other' ? deleteReasonDetail : deleteReason;
+
+      const { data: seatTicketRows } = await supabase
+        .from('ticket_seats')
+        .select('seat_id')
+        .eq('order_id', orderId);
+
+      const seatIds = (seatTicketRows || []).map((r: any) => r.seat_id).filter(Boolean);
+      if (seatIds.length > 0) {
+        await supabase
+          .from('seats')
+          .update({ status: 'available', held_by: null, held_until: null })
+          .in('id', seatIds);
+        await supabase
+          .from('ticket_seats')
+          .delete()
+          .eq('order_id', orderId);
       }
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const response = await fetch(`${supabaseUrl}/functions/v1/delete-ticket`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ ticket_id: deleteTicketModal.ticketId }),
-      });
-      const result = await response.json();
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || `Verwijderen mislukt (status ${response.status})`);
+
+      await supabase
+        .from('tickets')
+        .update({ status: 'revoked' })
+        .eq('id', ticketId);
+
+      const { data: orderTickets } = await supabase
+        .from('tickets')
+        .select('ticket_type_id')
+        .eq('order_id', orderId);
+
+      if (orderTickets && orderTickets.length > 0) {
+        const typeCountMap: Record<string, number> = {};
+        for (const t of orderTickets) {
+          if (t.ticket_type_id) {
+            typeCountMap[t.ticket_type_id] = (typeCountMap[t.ticket_type_id] || 0) + 1;
+          }
+        }
+        for (const [typeId, count] of Object.entries(typeCountMap)) {
+          const { data: ttData } = await supabase
+            .from('ticket_types')
+            .select('quantity_sold')
+            .eq('id', typeId)
+            .maybeSingle();
+          if (ttData) {
+            await supabase
+              .from('ticket_types')
+              .update({ quantity_sold: Math.max(0, (ttData.quantity_sold || 0) - count) })
+              .eq('id', typeId);
+          }
+        }
       }
-      showToast(`Ticket ${deleteTicketModal.ticketNumber} succesvol verwijderd`, 'success');
+
+      const { data: orderData } = await supabase
+        .from('orders')
+        .select('event_id, order_number, payer_name, payer_email, total_amount')
+        .eq('id', orderId)
+        .maybeSingle();
+
+      await supabase
+        .from('orders')
+        .update({
+          status: 'refunded',
+          refunded_at: new Date().toISOString(),
+          refund_reason: finalReason,
+          refund_notes: deleteReason === 'other' ? deleteReasonDetail : null,
+        })
+        .eq('id', orderId);
+
+      try {
+        await supabase
+          .from('ticket_deletions')
+          .insert({
+            order_id: orderId,
+            event_id: orderData?.event_id,
+            order_number: orderData?.order_number,
+            payer_name: orderData?.payer_name,
+            payer_email: orderData?.payer_email,
+            total_amount: orderData?.total_amount || 0,
+            ticket_count: 1,
+            seat_count: seatIds.length,
+            reason: finalReason,
+            notes: deleteReason === 'other' ? deleteReasonDetail : '',
+            deleted_by: user?.id || null,
+          });
+      } catch (logErr) {
+        console.error('Audit log error (non-critical):', logErr);
+      }
+
+      showToast(`Ticket ${deleteTicketModal.ticketNumber} verwijderd. ${seatIds.length} stoel(en) vrijgegeven.`, 'success');
       setDeleteTicketModal(null);
       setDeleteConfirmText('');
+      setDeleteReason('');
+      setDeleteReasonDetail('');
       loadData();
     } catch (error: any) {
       console.error('Error deleting ticket:', error);
@@ -4501,8 +4552,14 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
                                     ticketId: ticket.id,
                                     ticketNumber: ticket.ticket_number,
                                     orderId: order.id,
+                                    eventName: order.events?.name || '',
+                                    payerName: order.payer_name || '',
+                                    payerEmail: order.payer_email || '',
+                                    totalAmount: order.total_amount || 0,
                                   });
                                   setDeleteConfirmText('');
+                                  setDeleteReason('');
+                                  setDeleteReasonDetail('');
                                 }}
                                 className="p-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 transition-colors"
                                 title={`Verwijder ticket ${ticket.ticket_number}`}
@@ -4539,123 +4596,160 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
 
             {deleteTicketModal && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-                <div className="bg-slate-800 border-2 border-red-500/40 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
-                  {deleteTicketModal.step === 1 && (
-                    <>
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="bg-red-500/20 rounded-full p-3">
-                          <AlertCircle className="w-6 h-6 text-red-400" />
+                <div className="bg-slate-800 border-2 border-red-500/40 rounded-2xl overflow-hidden max-w-md w-full mx-4 shadow-2xl">
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700 bg-red-500/10">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center">
+                        <Trash2 className="w-4 h-4 text-red-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-white font-bold text-sm">Ticket Verwijderen</h3>
+                        <p className="text-red-400/70 text-xs">Stap {deleteTicketModal.step} van 3</p>
+                      </div>
+                    </div>
+                    <button onClick={() => setDeleteTicketModal(null)} className="p-1.5 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white transition-colors">
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <div className="w-full h-1 bg-slate-700">
+                    <div className="h-full bg-red-500 transition-all duration-300" style={{ width: `${(deleteTicketModal.step / 3) * 100}%` }} />
+                  </div>
+
+                  <div className="p-6">
+                    {deleteTicketModal.step === 1 && (
+                      <div className="space-y-4">
+                        <div className="flex items-start gap-3 p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
+                          <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-red-400 text-sm font-medium">Let op: deze actie is onomkeerbaar</p>
+                            <p className="text-red-400/70 text-xs mt-1">Stoelen worden vrijgegeven en analytics bijgewerkt.</p>
+                          </div>
                         </div>
-                        <h3 className="text-xl font-bold text-white">Ticket Verwijderen</h3>
-                      </div>
-                      <p className="text-slate-300 mb-2">
-                        Weet je zeker dat je dit ticket wil verwijderen?
-                      </p>
-                      <div className="bg-slate-700/50 rounded-lg p-3 mb-6">
-                        <div className="text-sm text-slate-400">Ticket nummer</div>
-                        <div className="text-white font-mono font-bold">{deleteTicketModal.ticketNumber}</div>
-                      </div>
-                      <div className="flex gap-3">
-                        <button
-                          onClick={() => setDeleteTicketModal(null)}
-                          className="flex-1 px-4 py-3 bg-slate-600 hover:bg-slate-500 rounded-xl font-semibold text-white transition-colors"
-                        >
-                          Annuleren
-                        </button>
+                        <div className="bg-slate-900/60 rounded-xl p-4 space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-slate-400">Ticket</span>
+                            <span className="font-mono text-cyan-400">{deleteTicketModal.ticketNumber}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-slate-400">Klant</span>
+                            <span className="text-white">{deleteTicketModal.payerName}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-slate-400">Email</span>
+                            <span className="text-slate-300 truncate ml-4">{deleteTicketModal.payerEmail}</span>
+                          </div>
+                          <div className="flex justify-between text-sm pt-2 border-t border-slate-700">
+                            <span className="text-slate-400">Event</span>
+                            <span className="text-white font-medium">{deleteTicketModal.eventName}</span>
+                          </div>
+                        </div>
                         <button
                           onClick={() => setDeleteTicketModal({ ...deleteTicketModal, step: 2 })}
-                          className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-400 rounded-xl font-semibold text-white transition-colors"
+                          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600 hover:bg-red-500 text-white font-medium rounded-xl transition-colors text-sm"
                         >
                           Doorgaan
+                          <ChevronRight className="w-4 h-4" />
                         </button>
                       </div>
-                    </>
-                  )}
+                    )}
 
-                  {deleteTicketModal.step === 2 && (
-                    <>
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="bg-red-500/20 rounded-full p-3">
-                          <AlertCircle className="w-6 h-6 text-red-400" />
+                    {deleteTicketModal.step === 2 && (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-slate-300 mb-2">Reden voor verwijdering</label>
+                          <select
+                            value={deleteReason}
+                            onChange={e => { setDeleteReason(e.target.value); setDeleteReasonDetail(''); }}
+                            className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:border-red-500 focus:outline-none appearance-none"
+                          >
+                            <option value="">Selecteer een reden...</option>
+                            <option value="Klant heeft per ongeluk dubbel gekocht">Klant heeft per ongeluk dubbel gekocht</option>
+                            <option value="Terugbetaling wegens geldige reden">Terugbetaling wegens geldige reden</option>
+                            <option value="Frauduleuze bestelling">Frauduleuze bestelling</option>
+                            <option value="Event geannuleerd">Event geannuleerd</option>
+                            <option value="other">Andere reden</option>
+                          </select>
                         </div>
-                        <h3 className="text-xl font-bold text-red-400">Laatste Waarschuwing</h3>
+                        {deleteReason === 'other' && (
+                          <div>
+                            <label className="block text-sm font-medium text-slate-300 mb-2">Toelichting</label>
+                            <textarea
+                              value={deleteReasonDetail}
+                              onChange={e => setDeleteReasonDetail(e.target.value)}
+                              placeholder="Beschrijf de reden..."
+                              rows={3}
+                              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:border-red-500 focus:outline-none resize-none"
+                            />
+                          </div>
+                        )}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setDeleteTicketModal({ ...deleteTicketModal, step: 1 })}
+                            className="flex-1 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded-xl transition-colors"
+                          >
+                            Terug
+                          </button>
+                          <button
+                            onClick={() => { setDeleteConfirmText(''); setDeleteTicketModal({ ...deleteTicketModal, step: 3 }); }}
+                            disabled={!deleteReason || (deleteReason === 'other' && !deleteReasonDetail.trim())}
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-colors text-sm"
+                          >
+                            Doorgaan
+                            <ChevronRight className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
-                      <p className="text-slate-300 mb-6">
-                        Deze actie kan niet ongedaan gemaakt worden. Het ticket wordt permanent verwijderd.
-                      </p>
-                      <div className="flex gap-3">
-                        <button
-                          onClick={() => setDeleteTicketModal(null)}
-                          className="flex-1 px-4 py-3 bg-slate-600 hover:bg-slate-500 rounded-xl font-semibold text-white transition-colors"
-                        >
-                          Annuleren
-                        </button>
-                        <button
-                          onClick={() => {
-                            setDeleteTicketModal({ ...deleteTicketModal, step: 3 });
-                            setDeleteConfirmText('');
-                          }}
-                          className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-500 rounded-xl font-semibold text-white transition-colors"
-                        >
-                          Ik begrijp het
-                        </button>
-                      </div>
-                    </>
-                  )}
+                    )}
 
-                  {deleteTicketModal.step === 3 && (
-                    <>
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="bg-red-500/20 rounded-full p-3">
-                          <Trash2 className="w-6 h-6 text-red-400" />
+                    {deleteTicketModal.step === 3 && (
+                      <div className="space-y-4">
+                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
+                          <p className="text-red-400 text-sm">Typ de naam van het event om te bevestigen:</p>
+                          <p className="text-white font-bold text-base mt-1">{deleteTicketModal.eventName}</p>
                         </div>
-                        <h3 className="text-xl font-bold text-red-400">Bevestig Verwijdering</h3>
-                      </div>
-                      <p className="text-slate-300 mb-4">
-                        Typ <span className="font-mono font-bold text-red-400 bg-red-500/10 px-2 py-0.5 rounded">DELETE</span> om te bevestigen:
-                      </p>
-                      <input
-                        type="text"
-                        value={deleteConfirmText}
-                        onChange={(e) => setDeleteConfirmText(e.target.value)}
-                        placeholder="Typ DELETE"
-                        className="w-full px-4 py-3 bg-slate-700 border-2 border-slate-600 rounded-xl text-white font-mono text-center text-lg focus:border-red-500 focus:outline-none mb-6"
-                        autoFocus
-                      />
-                      <div className="flex gap-3">
-                        <button
-                          onClick={() => {
-                            setDeleteTicketModal(null);
-                            setDeleteConfirmText('');
-                          }}
-                          className="flex-1 px-4 py-3 bg-slate-600 hover:bg-slate-500 rounded-xl font-semibold text-white transition-colors"
-                        >
-                          Annuleren
-                        </button>
-                        <button
-                          onClick={handleDeleteIndividualTicket}
-                          disabled={deleteConfirmText.trim() !== 'DELETE' || deleteLoading}
-                          className={`flex-1 px-4 py-3 rounded-xl font-semibold text-white transition-colors flex items-center justify-center gap-2 ${
-                            deleteConfirmText.trim() === 'DELETE' && !deleteLoading
-                              ? 'bg-red-600 hover:bg-red-500'
-                              : 'bg-slate-600 cursor-not-allowed opacity-50'
+                        <input
+                          type="text"
+                          value={deleteConfirmText}
+                          onChange={(e) => setDeleteConfirmText(e.target.value)}
+                          placeholder="Typ de eventnaam..."
+                          autoFocus
+                          className={`w-full px-3 py-2.5 bg-slate-700 border rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none ${
+                            deleteConfirmText.length > 0
+                              ? deleteConfirmText.trim().toLowerCase() === deleteTicketModal.eventName.trim().toLowerCase()
+                                ? 'border-green-500 focus:border-green-500'
+                                : 'border-red-500 focus:border-red-500'
+                              : 'border-slate-600 focus:border-red-500'
                           }`}
-                        >
-                          {deleteLoading ? (
-                            <>
-                              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                              Verwijderen...
-                            </>
-                          ) : (
-                            <>
-                              <Trash2 className="w-4 h-4" />
-                              Definitief Verwijderen
-                            </>
-                          )}
-                        </button>
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setDeleteTicketModal({ ...deleteTicketModal, step: 2 })}
+                            disabled={deleteLoading}
+                            className="flex-1 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
+                          >
+                            Terug
+                          </button>
+                          <button
+                            onClick={handleDeleteIndividualTicket}
+                            disabled={deleteLoading || deleteConfirmText.trim().toLowerCase() !== deleteTicketModal.eventName.trim().toLowerCase()}
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-colors text-sm"
+                          >
+                            {deleteLoading ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Verwijderen...
+                              </>
+                            ) : (
+                              <>
+                                <Trash2 className="w-4 h-4" />
+                                Definitief Verwijderen
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
-                    </>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
             )}
