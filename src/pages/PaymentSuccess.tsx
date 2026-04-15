@@ -491,6 +491,28 @@ export default function PaymentSuccess() {
                         {txt(language, { nl: '✓ Email opnieuw verstuurd!', tr: '✓ Email resent successfully!', fr: '✓ Email renvoyé avec succès !', de: '✓ E-Mail erneut gesendet!' })}
                       </p>
                     )}
+                    {resendError && (
+                      <div className="mt-2 p-2 bg-red-100 border border-red-300 rounded text-xs">
+                        <p className="text-red-700 font-mono break-all">{resendError}</p>
+                      </div>
+                    )}
+                    <button
+                      onClick={handleResendEmail}
+                      disabled={resendingEmail}
+                      className="mt-3 flex items-center gap-2 text-green-700 hover:text-green-900 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {resendingEmail ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          {txt(language, { nl: 'Versturen...', tr: 'Sending...', fr: 'Envoi...', de: 'Senden...' })}
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          {txt(language, { nl: 'Niet ontvangen? Opnieuw versturen', tr: 'Not received? Resend email', fr: 'Pas reçu ? Renvoyer', de: 'Nicht erhalten? Erneut senden' })}
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
               ) : order.email_error ? (
@@ -563,6 +585,33 @@ export default function PaymentSuccess() {
                         de: `Ihre Tickets werden an ${order.payer_email} gesendet. Bitte überprüfen Sie auch Ihren Spam-Ordner.`,
                       })}
                     </p>
+                    {resendSuccess && (
+                      <p className="text-xs text-green-700 font-semibold mt-2 bg-green-50 p-2 rounded">
+                        {txt(language, { nl: '✓ Email opnieuw verstuurd!', tr: '✓ Email resent successfully!', fr: '✓ Email renvoyé avec succès !', de: '✓ E-Mail erneut gesendet!' })}
+                      </p>
+                    )}
+                    {resendError && (
+                      <div className="mt-2 p-2 bg-red-100 border border-red-300 rounded text-xs">
+                        <p className="text-red-700 font-mono break-all">{resendError}</p>
+                      </div>
+                    )}
+                    <button
+                      onClick={handleResendEmail}
+                      disabled={resendingEmail}
+                      className="mt-3 flex items-center gap-2 text-blue-700 hover:text-blue-900 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {resendingEmail ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          {txt(language, { nl: 'Versturen...', tr: 'Sending...', fr: 'Envoi...', de: 'Senden...' })}
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          {txt(language, { nl: 'Niet ontvangen? Opnieuw versturen', tr: 'Not received? Resend email', fr: 'Pas reçu ? Renvoyer', de: 'Nicht erhalten? Erneut senden' })}
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
               )}

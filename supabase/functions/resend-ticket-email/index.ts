@@ -249,7 +249,8 @@ Deno.serve(async (req: Request) => {
     const { data: userRoles } = await adminClient
       .from('user_roles')
       .select('role')
-      .eq('user_id', user.id);
+      .eq('user_id', user.id)
+      .eq('is_active', true);
 
     const isAdmin = userRoles?.some(r =>
       ['admin', 'superadmin', 'super_admin', 'organizer'].includes(r.role)

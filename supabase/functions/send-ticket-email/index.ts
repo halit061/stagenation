@@ -1173,9 +1173,11 @@ Deno.serve(async (req: Request) => {
       .from('email_logs')
       .insert({
         order_id: orderId,
+        event_id: event.id,
         status: 'sent',
-        provider: 'resend',
+        template: 'send_ticket_email',
         recipient_email: recipientEmailResolved,
+        subject: emailSubject,
         provider_message_id: emailResult.id,
       });
 
@@ -1217,7 +1219,7 @@ Deno.serve(async (req: Request) => {
             .insert({
               order_id: orderId,
               status: 'failed',
-              provider: 'resend',
+              template: 'send_ticket_email',
               recipient_email: recipientEmail,
               error_message: error.message,
             });
