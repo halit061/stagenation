@@ -222,6 +222,25 @@ Deno.serve(async (req: Request) => {
         .eq("event_id", p_event_id)
         .eq("status", "held");
 
+      try {
+        const emailRes = await fetch(
+          `${supabaseUrl}/functions/v1/send-ticket-email`,
+          {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${serviceKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ orderId, resend: false }),
+          },
+        );
+        if (!emailRes.ok) {
+          console.error("[create-seat-order] Email send failed:", emailRes.status);
+        }
+      } catch (emailErr: any) {
+        console.error("[create-seat-order] Email exception:", emailErr.message);
+      }
+
       return jsonRes(
         {
           success: true,

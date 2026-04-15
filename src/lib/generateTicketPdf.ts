@@ -139,6 +139,13 @@ export async function generateTicketsPdf(
   seats: TicketPdfSeat[],
   venueSections?: TicketPdfSection[],
 ): Promise<void> {
+  const qrDataUrls = await Promise.all(
+    seats.map(seat => {
+      const qrValue = seat.qr_data || seat.ticket_code || order.order_number;
+      return generateQRDataUrl(qrValue);
+    })
+  );
+
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const pw = doc.internal.pageSize.getWidth();
   const ph = doc.internal.pageSize.getHeight();
@@ -269,8 +276,7 @@ export async function generateTicketsPdf(
     const rightMargin = splitX + 10;
     const rightW = pw - splitX - 20;
 
-    const qrValue = seat.qr_data || seat.ticket_code || order.order_number;
-    const qrDataUrl = await generateQRDataUrl(qrValue);
+    const qrDataUrl = qrDataUrls[i];
 
     let ry = 36;
     if (qrDataUrl) {
@@ -306,5 +312,21 @@ export async function generateTicketsPdf(
     doc.text('stagenation.be', rightMargin + rightW / 2, ph - 10, { align: 'center' });
   }
 
-  doc.save('StageNation-Tickets-' + order.order_number + '.pdf');
+  const filename = 'StageNation-Tickets-' + order.order_number + '.pdf';
+  try {
+    const blob = doc.output('blob');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 200);
+  } catch {
+    doc.save(filename);
+  }
 }

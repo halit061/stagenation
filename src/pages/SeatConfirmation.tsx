@@ -275,7 +275,7 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
     } finally {
       setPdfGenerating(false);
     }
-  }, [order, eventInfo, seats]);
+  }, [order, eventInfo, seats, venueSections]);
 
   const formattedDate = useMemo(() => {
     if (!eventInfo?.start_date) return '';
