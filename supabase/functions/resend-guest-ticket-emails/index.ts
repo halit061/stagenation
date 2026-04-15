@@ -658,6 +658,17 @@ Deno.serve(async (req: Request) => {
       })
       .eq('id', order_id);
 
+    await adminClient
+      .from('email_logs')
+      .insert({
+        order_id: order_id,
+        event_id: event.id,
+        recipient_email: recipientEmail,
+        status: 'sent',
+        subject: `Guest Tickets (${qrEntries.length}x): ${event.name}`,
+        template: 'resend_guest_tickets',
+      });
+
     return new Response(
       JSON.stringify({
         success: true,
