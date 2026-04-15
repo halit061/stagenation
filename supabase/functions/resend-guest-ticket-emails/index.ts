@@ -2,7 +2,12 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { Resend } from 'npm:resend@4.0.0';
 import { PDFDocument, rgb, StandardFonts } from 'npm:pdf-lib@1.17.1';
 import QRCode from 'npm:qrcode@1.5.4';
+import { randomBytes } from 'node:crypto';
 import { getCorsHeaders } from "../_shared/cors.ts";
+
+function generateSecureToken(): string {
+  return randomBytes(32).toString('hex');
+}
 
 interface SeatAssignment {
   seat_id: string;
@@ -598,10 +603,49 @@ Deno.serve(async (req: Request) => {
     const guestNotes = order.metadata?.notes || null;
 
     if (qrEntries.length === 0) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'No QR codes found for this guest ticket' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      const personsCount = order.persons_count || order.metadata?.persons_count || 1;
+      console.log(`[resend] No QR records found for order ${order_id}, regenerating ${personsCount} QR entries`);
+
+      for (let i = 1; i <= personsCount; i++) {
+        const qrToken = generateSecureToken();
+        const insertPayload: Record<string, unknown> = {
+          event_id: order.event_id,
+          order_id: order_id,
+          person_index: i,
+          name: null,
+          qr_token: qrToken,
+        };
+
+        const { data: newQr, error: insertError } = await adminClient
+          .from('guest_ticket_qrs')
+          .insert(insertPayload)
+          .select()
+          .single();
+
+        if (insertError || !newQr) {
+          console.error(`[resend] Failed to create QR entry ${i}:`, insertError);
+          continue;
+        }
+
+        let qrDataUrl = '';
+        try {
+          qrDataUrl = await generateQRCode(qrToken);
+        } catch (_e) {}
+
+        qrEntries.push({
+          id: newQr.id,
+          person_index: i,
+          qr_token: qrToken,
+          qr_data_url: qrDataUrl,
+        });
+      }
+
+      if (qrEntries.length === 0) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Failed to generate QR codes' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     let pdfAttachments: Array<{ filename: string; content: string }> = [];

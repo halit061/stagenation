@@ -688,7 +688,6 @@ Deno.serve(async (req: Request) => {
         order_id: order.id,
         person_index: i,
         name: null,
-        email: null,
         qr_token: qrToken,
       };
       if (seatInfo) {
