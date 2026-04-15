@@ -1340,10 +1340,12 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
     }
 
     try {
+      const hasSeatAssignments = guestSeatAssignments.length > 0;
       const { data, error } = await supabase.functions.invoke('send-guest-ticket', {
         body: {
           ...guestTicketForm,
-          seat_assignments: guestSeatAssignments.length > 0 ? guestSeatAssignments : undefined,
+          assign_seats: hasSeatAssignments,
+          seat_assignments: hasSeatAssignments ? guestSeatAssignments : [],
         },
       });
 
