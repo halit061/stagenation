@@ -6,7 +6,7 @@
       - Added `venue_name` (text, nullable) - The name of the venue where the event takes place
 
   2. Data Update
-    - Sets venue_name to 'The Max' for the existing Eskiler event
+    - Sets venue_name to 'The Max' for the existing StageNation event
 */
 
 DO $$

@@ -3,7 +3,7 @@
 
   ## Overview
   Restores the full brands system that was previously removed.
-  This allows multiple brands (Eskiler, etc.) to operate on the same platform.
+  This allows multiple brands (StageNation, etc.) to operate on the same platform.
 
   ## Changes Made
 
@@ -11,11 +11,11 @@
   - Create brands table with id, name, slug
   - Add indexes for performance
   - Enable RLS with proper policies
-  - Insert default Eskiler brand
+  - Insert default StageNation brand
 
   ### 2. Events Table Enhancement
   - Add brand column (text) to link events to brands
-  - Default to 'eskiler' for existing events
+  - Default to 'stagenation' for existing events
   - Create index for fast brand-based queries
 
   ### 3. Security (RLS)
@@ -105,11 +105,11 @@ CREATE POLICY "Super admins can delete brands"
   );
 
 -- ============================================================================
--- 2. INSERT DEFAULT ESKILER BRAND
+-- 2. INSERT DEFAULT STAGENATION BRAND
 -- ============================================================================
 
 INSERT INTO brands (name, slug) 
-VALUES ('Eskiler', 'eskiler')
+VALUES ('StageNation', 'stagenation')
 ON CONFLICT (slug) DO NOTHING;
 
 -- ============================================================================
@@ -123,19 +123,19 @@ BEGIN
     SELECT 1 FROM information_schema.columns 
     WHERE table_schema = 'public' AND table_name = 'events' AND column_name = 'brand'
   ) THEN
-    ALTER TABLE events ADD COLUMN brand text DEFAULT 'eskiler';
+    ALTER TABLE events ADD COLUMN brand text DEFAULT 'stagenation';
     CREATE INDEX idx_events_brand ON events(brand);
   END IF;
 END $$;
 
--- Update existing events to have 'eskiler' as brand if they don't have one
+-- Update existing events to have 'stagenation' as brand if they don't have one
 UPDATE events 
-SET brand = 'eskiler'
+SET brand = 'stagenation'
 WHERE brand IS NULL OR brand = '';
 
 -- Make brand column NOT NULL with default
 ALTER TABLE events 
-ALTER COLUMN brand SET DEFAULT 'eskiler';
+ALTER COLUMN brand SET DEFAULT 'stagenation';
 
 DO $$
 BEGIN
@@ -145,7 +145,7 @@ BEGIN
   EXCEPTION
     WHEN others THEN
       -- If this fails, update nulls first
-      UPDATE events SET brand = 'eskiler' WHERE brand IS NULL;
+      UPDATE events SET brand = 'stagenation' WHERE brand IS NULL;
       ALTER TABLE events ALTER COLUMN brand SET NOT NULL;
   END;
 END $$;

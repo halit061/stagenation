@@ -115,7 +115,7 @@ BEGIN
   END IF;
   
   -- Get brand from event
-  v_brand := COALESCE(v_event.brand, 'eskiler');
+  v_brand := COALESCE(v_event.brand, 'stagenation');
   
   -- Generate timestamp for ticket numbers
   v_timestamp := EXTRACT(EPOCH FROM NOW())::bigint;

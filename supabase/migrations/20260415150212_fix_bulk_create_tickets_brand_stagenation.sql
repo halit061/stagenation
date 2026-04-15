@@ -1,5 +1,5 @@
 /*
-  # Fix bulk_create_tickets function - replace eskiler fallback with stagenation
+  # Fix bulk_create_tickets function - set stagenation as default brand fallback
 
   1. Changes
     - Recreate bulk_create_tickets with 'stagenation' as the default brand fallback

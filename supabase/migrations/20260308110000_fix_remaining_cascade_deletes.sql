@@ -34,10 +34,10 @@ DO $$ BEGIN
 EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'Skipped table_guests.ticket_id: %', SQLERRM;
 END $$;
 
--- eskiler_email_logs.ticket_id → SET NULL (preserve email log when ticket deleted)
+-- stagenation_email_logs.ticket_id → SET NULL (preserve email log when ticket deleted)
 DO $$ BEGIN
-  ALTER TABLE public.eskiler_email_logs DROP CONSTRAINT IF EXISTS eskiler_email_logs_ticket_id_fkey;
-  ALTER TABLE public.eskiler_email_logs ADD CONSTRAINT eskiler_email_logs_ticket_id_fkey
+  ALTER TABLE public.stagenation_email_logs DROP CONSTRAINT IF EXISTS stagenation_email_logs_ticket_id_fkey;
+  ALTER TABLE public.stagenation_email_logs ADD CONSTRAINT stagenation_email_logs_ticket_id_fkey
     FOREIGN KEY (ticket_id) REFERENCES public.tickets(id) ON DELETE SET NULL;
-EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'Skipped eskiler_email_logs.ticket_id: %', SQLERRM;
+EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'Skipped stagenation_email_logs.ticket_id: %', SQLERRM;
 END $$;

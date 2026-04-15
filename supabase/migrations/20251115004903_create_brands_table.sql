@@ -18,8 +18,8 @@
     - Only super_admins can create/update/delete brands
 
   4. Changes
-    - Update `events` table to make `brand` NOT NULL with default 'eskiler'
-    - Existing events without brand get 'eskiler' as default
+    - Update `events` table to make `brand` NOT NULL with default 'stagenation'
+    - Existing events without brand get 'stagenation' as default
 */
 
 -- Create brands table
@@ -90,17 +90,17 @@ CREATE POLICY "Super admins can delete brands"
     )
   );
 
--- Insert default brand 'eskiler'
+-- Insert default brand 'stagenation'
 INSERT INTO brands (name, slug) 
-VALUES ('Eskiler', 'eskiler')
+VALUES ('StageNation', 'stagenation')
 ON CONFLICT (slug) DO NOTHING;
 
--- Update existing events to have 'eskiler' as brand if they don't have one
+-- Update existing events to have 'stagenation' as brand if they don't have one
 UPDATE events 
-SET brand = 'eskiler'
+SET brand = 'stagenation'
 WHERE brand IS NULL OR brand = '';
 
 -- Make brand column NOT NULL with default
 ALTER TABLE events 
-ALTER COLUMN brand SET DEFAULT 'eskiler',
+ALTER COLUMN brand SET DEFAULT 'stagenation',
 ALTER COLUMN brand SET NOT NULL;

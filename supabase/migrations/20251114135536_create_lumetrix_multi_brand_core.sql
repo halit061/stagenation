@@ -2,12 +2,12 @@
   # Lumetrix Events Ticket Core - Multi-Brand Platform
 
   ## Overview
-  Transform existing Eskiler backend into a reusable multi-brand ticket platform.
+  Transform existing StageNation backend into a reusable multi-brand ticket platform.
   
   ## Changes
   
   ### 1. Enhanced Events Table
-    - Add brand column (eskiler, ravemania, etc.)
+    - Add brand column (stagenation, ravemania, etc.)
     - Add scan time windows
     - Add venue fields
     
@@ -26,7 +26,7 @@
   ## Notes
     - All existing functionality preserved
     - Backward compatible with current flows
-    - Eskiler is the first brand on this platform
+    - StageNation is the first brand on this platform
 */
 
 -- ============================================================================
@@ -40,7 +40,7 @@ BEGIN
     SELECT 1 FROM information_schema.columns 
     WHERE table_schema = 'public' AND table_name = 'events' AND column_name = 'brand'
   ) THEN
-    ALTER TABLE events ADD COLUMN brand text DEFAULT 'eskiler';
+    ALTER TABLE events ADD COLUMN brand text DEFAULT 'stagenation';
     CREATE INDEX idx_events_brand ON events(brand);
   END IF;
 END $$;
@@ -128,7 +128,7 @@ BEGIN
     SELECT 1 FROM information_schema.columns 
     WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'brand'
   ) THEN
-    ALTER TABLE tickets ADD COLUMN brand text DEFAULT 'eskiler';
+    ALTER TABLE tickets ADD COLUMN brand text DEFAULT 'stagenation';
     CREATE INDEX idx_tickets_brand ON tickets(brand);
   END IF;
 END $$;

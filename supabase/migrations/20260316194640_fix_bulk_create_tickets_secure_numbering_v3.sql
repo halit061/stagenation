@@ -101,7 +101,7 @@ BEGIN
     );
   END IF;
   
-  v_brand := COALESCE(v_event.brand, 'eskiler');
+  v_brand := COALESCE(v_event.brand, 'stagenation');
   
   IF p_prefix IS NOT NULL AND length(p_prefix) > 0 THEN
     v_derived_prefix := upper(substring(regexp_replace(p_prefix, '[^A-Za-z]', '', 'g') from 1 for 3));
