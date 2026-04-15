@@ -187,7 +187,7 @@ async function buildTicketPdf(order: any, event: any, tickets: any[]): Promise<s
     page.drawLine({ start: { x: 50, y }, end: { x: width - 50, y }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8) });
     y -= 20;
 
-    const qrData = ticket.qr_data || ticket.token || ticket.id;
+    const qrData = ticket.qr_code || ticket.qr_data || ticket.public_token || ticket.id;
     if (qrData) {
       try {
         const qrSize = 160;
@@ -287,7 +287,7 @@ async function buildSeatTicketPdf(order: any, event: any, seatTickets: any[]): P
     page.drawLine({ start: { x: 50, y }, end: { x: width - 50, y }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8) });
     y -= 20;
 
-    const qrValue = ts.qr_data || ticketCode || ts.id;
+    const qrValue = ts.qr_data || ts.qr_code || ticketCode || ts.id;
     if (qrValue) {
       try {
         const qrSize = 160;
@@ -629,7 +629,7 @@ async function buildSeatOrderEmail(order: any, event: any, seatTickets: any[], b
 async function buildTicketEmail(order: any, event: any, tickets: any[], brand: any): Promise<string> {
   const qrCodes = await Promise.all(
     tickets.map(async (ticket) => {
-      const qrData = ticket.qr_data || ticket.token || ticket.id;
+      const qrData = ticket.qr_code || ticket.qr_data || ticket.public_token || ticket.id;
       return {
         ticket,
         qrDataUrl: await generateQRCode(qrData),

@@ -1,4 +1,4 @@
-import { Shield, ShieldCheck, Calendar, Grid2x2 as Grid, MapPin, Ticket, LogOut, ShoppingCart, Users, AlertCircle, RefreshCw, X, Mail, Plus, CheckCircle, Loader2, ChevronDown, DoorOpen, Euro, TrendingUp, BarChart3, Armchair, Bell, Volume2, VolumeX } from 'lucide-react';
+import { Shield, ShieldCheck, Calendar, Grid2x2 as Grid, MapPin, Ticket, LogOut, ShoppingCart, Users, AlertCircle, RefreshCw, X, Mail, Plus, CheckCircle, Loader2, ChevronDown, DoorOpen, Euro, TrendingUp, BarChart3, Armchair, Bell, Volume2, VolumeX, Trash2 } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import type { Database } from '../lib/supabaseClient';
@@ -15,6 +15,7 @@ import { callEdgeFunction } from '../lib/callEdge';
 import { adminFetch } from '../lib/adminApi';
 import { useToast } from '../components/Toast';
 import { AdminOrderSearch } from '../components/AdminOrderSearch';
+import { DeleteOrderModal } from '../components/DeleteOrderModal';
 import { GuestTicketSeatSelector } from '../components/GuestTicketSeatSelector';
 import type { SeatAssignment } from '../components/GuestTicketSeatSelector';
 import { getAllLayouts, saveLayout, getTemplates, copyTemplateForEvent } from '../services/seatService';
@@ -96,6 +97,8 @@ export function Admin({ onNavigate }: AdminProps = {}) {
   const [loadingGuestTicketTables, setLoadingGuestTicketTables] = useState(false);
   const [selectedGuestTicket, setSelectedGuestTicket] = useState<any>(null);
   const [resendingGuestTicket, setResendingGuestTicket] = useState(false);
+  const [showGuestDeleteModal, setShowGuestDeleteModal] = useState(false);
+  const [guestDeleteLoading, setGuestDeleteLoading] = useState(false);
   const [tableAssignmentCounts, setTableAssignmentCounts] = useState<Record<string, number>>({});
   const [guestSeatAssignments, setGuestSeatAssignments] = useState<SeatAssignment[]>([]);
 
@@ -360,26 +363,14 @@ export function Admin({ onNavigate }: AdminProps = {}) {
     if (!selectedTicket) return;
     setActionLoading(true);
     try {
-      const session = await supabase.auth.getSession();
-      const token = session.data.session?.access_token;
-      if (!token) throw new Error('Niet ingelogd');
+      const { data, error } = await supabase.functions.invoke('resend-ticket-email', {
+        body: { ticket_id: selectedTicket.id },
+      });
 
-      const response = await fetch(
-        `${EDGE_FUNCTION_BASE_URL}/resend-ticket-email`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ ticket_id: selectedTicket.id }),
-        }
-      );
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Onbekende fout');
 
-      const result = await response.json();
-      if (!result.success) throw new Error(result.error);
-
-      showToast(`Email verstuurd naar ${result.recipient}`, 'success');
+      showToast(`Email verstuurd naar ${data.recipient}`, 'success');
       setShowResendModal(false);
       setSelectedTicket(null);
     } catch (error: any) {
@@ -545,6 +536,97 @@ export function Admin({ onNavigate }: AdminProps = {}) {
     }
   }
 
+  async function handleDeleteGuestTicket(reason: string, notes: string) {
+    if (!selectedGuestTicket) return;
+    setGuestDeleteLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const { data: qrRecords } = await supabase
+        .from('guest_ticket_qrs')
+        .select('seat_id')
+        .eq('order_id', selectedGuestTicket.id);
+
+      const seatIds = (qrRecords || []).map((r: any) => r.seat_id).filter(Boolean);
+      if (seatIds.length > 0) {
+        await supabase
+          .from('seats')
+          .update({ status: 'available', held_by: null, held_until: null })
+          .in('id', seatIds);
+      }
+
+      const { data: orderTickets } = await supabase
+        .from('tickets')
+        .select('id, ticket_type_id')
+        .eq('order_id', selectedGuestTicket.id);
+
+      if (orderTickets && orderTickets.length > 0) {
+        const typeCountMap: Record<string, number> = {};
+        for (const t of orderTickets) {
+          if (t.ticket_type_id) {
+            typeCountMap[t.ticket_type_id] = (typeCountMap[t.ticket_type_id] || 0) + 1;
+          }
+        }
+        for (const [typeId, count] of Object.entries(typeCountMap)) {
+          const { data: ttData } = await supabase
+            .from('ticket_types')
+            .select('quantity_sold')
+            .eq('id', typeId)
+            .maybeSingle();
+          if (ttData) {
+            await supabase
+              .from('ticket_types')
+              .update({ quantity_sold: Math.max(0, (ttData.quantity_sold || 0) - count) })
+              .eq('id', typeId);
+          }
+        }
+        await supabase
+          .from('tickets')
+          .update({ status: 'revoked' })
+          .eq('order_id', selectedGuestTicket.id);
+      }
+
+      await supabase
+        .from('guest_ticket_qrs')
+        .delete()
+        .eq('order_id', selectedGuestTicket.id);
+
+      await supabase
+        .from('orders')
+        .update({
+          status: 'refunded',
+          refunded_at: new Date().toISOString(),
+          refund_reason: reason,
+          refund_notes: notes || null,
+        })
+        .eq('id', selectedGuestTicket.id);
+
+      await supabase
+        .from('ticket_deletions')
+        .insert({
+          order_id: selectedGuestTicket.id,
+          event_id: selectedGuestTicket.event_id,
+          order_number: selectedGuestTicket.order_number,
+          payer_name: selectedGuestTicket.payer_name,
+          payer_email: selectedGuestTicket.payer_email,
+          total_amount: 0,
+          ticket_count: orderTickets?.length || 0,
+          seat_count: seatIds.length,
+          reason,
+          notes: notes || '',
+          deleted_by: user?.id || null,
+        });
+
+      showToast('Guest ticket verwijderd', 'success');
+      setShowGuestDeleteModal(false);
+      setSelectedGuestTicket(null);
+      await loadGuestTickets();
+    } catch (err: any) {
+      showToast(err.message || 'Verwijderen mislukt', 'error');
+    } finally {
+      setGuestDeleteLoading(false);
+    }
+  }
 
   async function handleLogout() {
     await logout();
@@ -1663,6 +1745,13 @@ export function Admin({ onNavigate }: AdminProps = {}) {
                           )}
                         </button>
                         <button
+                          onClick={() => setShowGuestDeleteModal(true)}
+                          className="px-4 bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 text-red-400 hover:text-red-300 py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Verwijderen
+                        </button>
+                        <button
                           onClick={() => setSelectedGuestTicket(null)}
                           className="px-6 bg-slate-600 hover:bg-slate-500 text-white py-3 rounded-xl font-semibold transition-colors"
                         >
@@ -1672,6 +1761,21 @@ export function Admin({ onNavigate }: AdminProps = {}) {
                     </div>
                   </div>
                 </div>
+              )}
+
+              {showGuestDeleteModal && selectedGuestTicket && (
+                <DeleteOrderModal
+                  orderNumber={selectedGuestTicket.order_number || '-'}
+                  payerName={selectedGuestTicket.payer_name}
+                  payerEmail={selectedGuestTicket.payer_email}
+                  totalAmount={0}
+                  ticketCount={selectedGuestTicket.guest_ticket_qrs?.length || 0}
+                  seatCount={0}
+                  eventName={selectedGuestTicket.events?.name || 'Event'}
+                  loading={guestDeleteLoading}
+                  onConfirm={handleDeleteGuestTicket}
+                  onClose={() => setShowGuestDeleteModal(false)}
+                />
               )}
             </div>
           )}
