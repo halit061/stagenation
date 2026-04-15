@@ -69,7 +69,7 @@ async function generateTicketsPDF(
   tableInfo: TableInfo | null,
   tableNote: string | null,
   guestNotes: string | null
-): Promise<Uint8Array> {
+): Promise<string> {
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
@@ -222,18 +222,12 @@ async function generateTicketsPDF(
   }
 
   const pdfBytes = await pdfDoc.save();
-  return pdfBytes;
-}
-
-function uint8ArrayToBase64(bytes: Uint8Array): string {
   let binary = '';
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
+  for (let i = 0; i < pdfBytes.length; i++) binary += String.fromCharCode(pdfBytes[i]);
   return btoa(binary);
 }
 
-async function sendEmail({ to, subject, html, attachments }: { to: string; subject: string; html: string; attachments?: Array<{ filename: string; content: Uint8Array }> }): Promise<{ id: string }> {
+async function sendEmail({ to, subject, html, attachments }: { to: string; subject: string; html: string; attachments?: Array<{ filename: string; content: string }> }): Promise<{ id: string }> {
   const resendApiKey = Deno.env.get('RESEND_API_KEY');
   const emailFrom = Deno.env.get('EMAIL_FROM') || 'StageNation Tickets <tickets@lumetrix.be>';
 
@@ -254,7 +248,7 @@ async function sendEmail({ to, subject, html, attachments }: { to: string; subje
   if (attachments && attachments.length > 0) {
     emailPayload.attachments = attachments.map(att => ({
       filename: att.filename,
-      content: uint8ArrayToBase64(att.content),
+      content: att.content,
     }));
   }
 
@@ -609,9 +603,9 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    let pdfAttachments: Array<{ filename: string; content: Uint8Array }> = [];
+    let pdfAttachments: Array<{ filename: string; content: string }> = [];
     try {
-      const pdfBytes = await generateTicketsPDF(
+      const pdfBase64 = await generateTicketsPDF(
         event,
         recipientName,
         qrEntries,
@@ -622,7 +616,7 @@ Deno.serve(async (req: Request) => {
       );
       pdfAttachments = [{
         filename: `tickets-${order.order_number}.pdf`,
-        content: pdfBytes
+        content: pdfBase64
       }];
     } catch (pdfError) {
       console.error('[pdf] PDF generatie mislukt, mail wordt zonder PDF verstuurd:', pdfError.message);
