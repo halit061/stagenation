@@ -128,6 +128,7 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
   const [feePerTicket, setFeePerTicket] = useState(0);
   const [ticketTypeId, setTicketTypeId] = useState<string | null>(null);
   const [summaryCollapsed, setSummaryCollapsed] = useState(true);
+  const [sectionTicketPrices, setSectionTicketPrices] = useState<Map<string, number>>(new Map());
 
   const [formData, setFormData] = useState<CheckoutFormData>({
     firstName: '',
@@ -181,6 +182,18 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
         const secs = await fetchSections(layoutData.id);
         if (cancelled) return;
         setSections(secs);
+
+        try {
+          const { fetchTicketTypePricesForSections } = await import('../services/seatPickerService');
+          const ttPrices = await fetchTicketTypePricesForSections(secs.map(s => s.id));
+          if (!cancelled) {
+            const priceMap = new Map<string, number>();
+            ttPrices.forEach((val, key) => {
+              priceMap.set(key, val.price);
+            });
+            setSectionTicketPrices(priceMap);
+          }
+        } catch {}
 
         const seatData = await fetchSeats(secs.map(s => s.id));
         if (cancelled) return;
@@ -248,27 +261,35 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
     return sections.reduce<PriceCategory[]>((acc, sec) => {
       const key = sec.price_category || sec.name;
       const existing = acc.find(c => c.id === key);
+      const sectionPrice = Number(sec.price_amount) || 0;
+      const ttPrice = sectionTicketPrices.get(sec.id) ?? 0;
+      const resolvedPrice = sectionPrice > 0 ? sectionPrice : ttPrice;
       if (existing) {
         existing.sectionIds.push(sec.id);
+        if (resolvedPrice > 0 && existing.price === 0) existing.price = resolvedPrice;
       } else {
         acc.push({
           id: key,
           name: sec.price_category || sec.name,
           color: sec.color,
-          price: Number(sec.price_amount),
+          price: resolvedPrice,
           sectionIds: [sec.id],
         });
       }
       return acc;
     }, []);
-  }, [sections]);
+  }, [sections, sectionTicketPrices]);
 
   const subtotal = useMemo(() => {
     return heldSeats.reduce((total, seat) => {
       const section = sections.find(s => s.id === seat.sectionId);
-      return total + (seat.price_override ?? (section ? Number(section.price_amount) : 0));
+      const sectionPrice = section ? Number(section.price_amount) : 0;
+      const ttPrice = sectionTicketPrices.get(seat.sectionId) ?? 0;
+      const resolvedPrice = sectionPrice > 0 ? sectionPrice : ttPrice;
+      const price = seat.price_override ?? resolvedPrice;
+      return total + price;
     }, 0);
-  }, [heldSeats, sections]);
+  }, [heldSeats, sections, sectionTicketPrices]);
 
   const serviceFee = feePerTicket * heldSeats.length;
   const totalPrice = subtotal + serviceFee;
@@ -276,9 +297,12 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
   const seatPrices = useMemo(() => {
     return heldSeats.map(seat => {
       const section = sections.find(s => s.id === seat.sectionId);
-      return seat.price_override ?? (section ? Number(section.price_amount) : 0);
+      const sectionPrice = section ? Number(section.price_amount) : 0;
+      const ttPrice = sectionTicketPrices.get(seat.sectionId) ?? 0;
+      const resolvedPrice = sectionPrice > 0 ? sectionPrice : ttPrice;
+      return seat.price_override ?? resolvedPrice;
     });
-  }, [heldSeats, sections]);
+  }, [heldSeats, sections, sectionTicketPrices]);
 
   const handleFieldChange = useCallback((field: keyof CheckoutFormData, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
