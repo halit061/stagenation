@@ -689,7 +689,7 @@ export function Tickets({ onNavigate }: TicketsProps) {
           <h1 className="text-4xl md:text-5xl font-bold mb-4">
             {eventName ? (
               <>
-                <span className="text-cyan-400">{eventName}</span> {t('tickets.title')}
+                <span className="text-cyan-400">{eventName}</span>
               </>
             ) : (
               <>
