@@ -66,7 +66,7 @@ export const translations = {
       ticker: 'ONVERGETELIJKE ERVARINGEN CREËREN',
     },
     tickets: {
-      title: ,
+      title: 'koop je',
       titleHighlight: 'Tickets',
       subtitle: 'Kies je ticket type en maak je avond onvergetelijk',
       loading: 'Tickets laden...',
