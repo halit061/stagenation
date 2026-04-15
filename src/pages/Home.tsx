@@ -19,7 +19,7 @@ export function Home({ onNavigate }: HomeProps) {
   const { language, t } = useLanguage();
   useDocumentHead({
     title: 'StageNation',
-    description: 'Premium events en veilige ticketing. Koop je tickets online voor concerten, feesten en culturele evenementen.',
+    description: 'Premium events en ticketing. Koop je tickets online voor concerten, feesten en culturele evenementen.',
     path: '/',
   });
   const [events, setEvents] = useState<Event[]>([]);
