@@ -30,7 +30,7 @@ const faqData: Record<Language, FAQ[]> = {
     },
     {
       question: 'Ik heb geen bevestigingsmail ontvangen',
-      answer: 'Check eerst je spam/junk map. De mail komt van tickets@lumetrix.be of noreply@stagenation.be. Als je na 15 minuten nog niets hebt ontvangen, neem dan contact op via info@stagenation.be met je naam en het e-mailadres waarmee je besteld hebt. We sturen je tickets dan opnieuw.',
+      answer: 'Check eerst je spam/junk map. De mail komt van tickets@stagenation.be. Als je na 15 minuten nog niets hebt ontvangen, neem dan contact op via info@stagenation.be met je naam en het e-mailadres waarmee je besteld hebt. We sturen je tickets dan opnieuw.',
     },
     {
       question: 'Hoe werkt de QR-code?',
@@ -68,7 +68,7 @@ const faqData: Record<Language, FAQ[]> = {
     },
     {
       question: 'Onay e-postası almadım',
-      answer: 'Önce spam/istenmeyen posta klasörünüzü kontrol edin. E-posta tickets@lumetrix.be veya noreply@stagenation.be adresinden gelir. 15 dakika sonra hâlâ almadıysanız, adınız ve sipariş e-posta adresinizle info@stagenation.be adresine ulaşın. Biletlerinizi tekrar göndeririz.',
+      answer: 'Önce spam/istenmeyen posta klasörünüzü kontrol edin. E-posta tickets@stagenation.be adresinden gelir. 15 dakika sonra hâlâ almadıysanız, adınız ve sipariş e-posta adresinizle info@stagenation.be adresine ulaşın. Biletlerinizi tekrar göndeririz.',
     },
     {
       question: 'QR kodu nasıl çalışır?',
@@ -106,7 +106,7 @@ const faqData: Record<Language, FAQ[]> = {
     },
     {
       question: 'Je n\'ai pas reçu d\'e-mail de confirmation',
-      answer: 'Vérifiez d\'abord votre dossier spam/courrier indésirable. L\'e-mail provient de tickets@lumetrix.be ou noreply@stagenation.be. Si vous n\'avez rien reçu après 15 minutes, contactez-nous à info@stagenation.be avec votre nom et l\'adresse e-mail utilisée pour la commande. Nous vous renverrons vos tickets.',
+      answer: 'Vérifiez d\'abord votre dossier spam/courrier indésirable. L\'e-mail provient de tickets@stagenation.be. Si vous n\'avez rien reçu après 15 minutes, contactez-nous à info@stagenation.be avec votre nom et l\'adresse e-mail utilisée pour la commande. Nous vous renverrons vos tickets.',
     },
     {
       question: 'Comment fonctionne le code QR ?',
@@ -144,7 +144,7 @@ const faqData: Record<Language, FAQ[]> = {
     },
     {
       question: 'Ich habe keine Bestätigungs-E-Mail erhalten',
-      answer: 'Überprüfen Sie zuerst Ihren Spam-/Junk-Ordner. Die E-Mail kommt von tickets@lumetrix.be oder noreply@stagenation.be. Wenn Sie nach 15 Minuten nichts erhalten haben, kontaktieren Sie uns unter info@stagenation.be mit Ihrem Namen und der E-Mail-Adresse, mit der Sie bestellt haben. Wir senden Ihnen Ihre Tickets erneut zu.',
+      answer: 'Überprüfen Sie zuerst Ihren Spam-/Junk-Ordner. Die E-Mail kommt von tickets@stagenation.be. Wenn Sie nach 15 Minuten nichts erhalten haben, kontaktieren Sie uns unter info@stagenation.be mit Ihrem Namen und der E-Mail-Adresse, mit der Sie bestellt haben. Wir senden Ihnen Ihre Tickets erneut zu.',
     },
     {
       question: 'Wie funktioniert der QR-Code?',
@@ -182,7 +182,7 @@ const faqData: Record<Language, FAQ[]> = {
     },
     {
       question: 'I didn\'t receive a confirmation email',
-      answer: 'First check your spam/junk folder. The email comes from tickets@lumetrix.be or noreply@stagenation.be. If you haven\'t received anything after 15 minutes, contact us at info@stagenation.be with your name and the email address you used to order. We\'ll resend your tickets.',
+      answer: 'First check your spam/junk folder. The email comes from tickets@stagenation.be. If you haven\'t received anything after 15 minutes, contact us at info@stagenation.be with your name and the email address you used to order. We\'ll resend your tickets.',
     },
     {
       question: 'How does the QR code work?',
