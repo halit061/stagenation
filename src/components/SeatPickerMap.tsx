@@ -13,9 +13,9 @@ const SEAT_SIZE_PRESETS = [
   { size: 68, label: 'L' },
   { size: 80, label: 'XL' },
 ];
-const MIN_ZOOM = 0.15;
-const MAX_ZOOM = 5;
-const ZOOM_STEP_FACTOR = 1.4;
+const MIN_ZOOM = 0.05;
+const MAX_ZOOM = 8;
+const ZOOM_STEP_FACTOR = 2.0;
 const ZOOM_SECTION_FILL = 0.7;
 
 function getSectionTier(color: string): 'vip' | 'premium' | 'regular' {
