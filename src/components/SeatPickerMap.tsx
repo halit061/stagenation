@@ -37,6 +37,7 @@ interface Props {
   restrictedSectionIds?: Set<string>;
   floorplanObjects?: FloorplanObject[];
   ticketTypeColorMap?: Record<string, string>;
+  ticketTypeNameMap?: Map<string, string>;
   sectionTicketPrices?: Map<string, { ttName: string; price: number }>;
   ticketTypePriceMap?: Map<string, number>;
   onSeatClick: (seatId: string) => void;
@@ -54,6 +55,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
   restrictedSectionIds,
   floorplanObjects = [],
   ticketTypeColorMap = {},
+  ticketTypeNameMap,
   sectionTicketPrices,
   ticketTypePriceMap,
   onSeatClick,
@@ -820,6 +822,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
           section={sectionForSeat(hoveredSeat.id)}
           sectionTicketPrices={sectionTicketPrices}
           ticketTypePriceMap={ticketTypePriceMap}
+          ticketTypeNameMap={ticketTypeNameMap}
           isSelected={selectedIds.has(hoveredSeat.id)}
         />
       )}
@@ -886,6 +889,7 @@ function SeatTooltip({
   section,
   sectionTicketPrices,
   ticketTypePriceMap,
+  ticketTypeNameMap,
   isSelected,
 }: {
   seat: PickerSeat;
@@ -893,6 +897,7 @@ function SeatTooltip({
   section: { name: string; price_amount: number } | null;
   sectionTicketPrices?: Map<string, { ttName: string; price: number }>;
   ticketTypePriceMap?: Map<string, number>;
+  ticketTypeNameMap?: Map<string, string>;
   isSelected: boolean;
 }) {
   const { language } = useLanguage();
@@ -923,7 +928,7 @@ function SeatTooltip({
       <div className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 shadow-xl text-sm whitespace-nowrap">
         {section && (
           <div className="text-slate-400 text-xs font-semibold mb-0.5">
-            {sectionTicketPrices?.get(seat.sectionId)?.ttName || section.name}
+            {(seat.ticket_type_id && ticketTypeNameMap?.get(seat.ticket_type_id)) || sectionTicketPrices?.get(seat.sectionId)?.ttName || section.name}
           </div>
         )}
         <div className="font-semibold text-white">

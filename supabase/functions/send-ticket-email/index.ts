@@ -221,7 +221,8 @@ async function buildSeatTicketPdf(order: any, event: any, seatTickets: any[]): P
   const monoFont = await pdfDoc.embedFont(StandardFonts.CourierBold);
 
   for (const ts of seatTickets) {
-    const sectionName = ts.seats?.seat_sections?.name || '';
+    const ticketTypeName = ts.seats?.ticket_types?.name || '';
+    const sectionName = ticketTypeName || ts.seats?.seat_sections?.name || '';
     const rowLabel = ts.seats?.row_label || '-';
     const seatNumber = String(ts.seats?.seat_number ?? '-');
     const pricePaid = parseFloat(ts.price_paid || 0).toFixed(2);
@@ -497,7 +498,8 @@ async function buildSeatOrderEmail(order: any, event: any, seatTickets: any[], b
   const subtotalEuros = ((totalCents - serviceFeeCents) / 100).toFixed(2);
 
   const seatRows = seatQrCodes.map(({ ts, qrDataUrl }) => {
-    const sectionName = ts.seats?.seat_sections?.name || '';
+    const ticketTypeName = ts.seats?.ticket_types?.name || '';
+    const sectionName = ticketTypeName || ts.seats?.seat_sections?.name || '';
     const rowLabel = ts.seats?.row_label || '-';
     const seatNumber = ts.seats?.seat_number || '-';
     const pricePaid = parseFloat(ts.price_paid || 0).toFixed(2);
@@ -1064,7 +1066,7 @@ Deno.serve(async (req: Request) => {
     if (order.product_type === 'seat' || order.product_type === 'seats') {
       const { data: seatData, error: seatError } = await adminClient
         .from('ticket_seats')
-        .select('*, seats(id, row_label, seat_number, seat_type, section_id, seat_sections(id, name, color, price_category, price_amount))')
+        .select('*, seats(id, row_label, seat_number, seat_type, section_id, ticket_type_id, seat_sections(id, name, color, price_category, price_amount), ticket_types(id, name))')
         .eq('order_id', orderId);
 
       if (seatError) {

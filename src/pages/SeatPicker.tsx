@@ -88,6 +88,14 @@ export function SeatPicker({ eventId, ticketTypeId, onNavigate }: Props) {
     return map;
   }, [state.ticketTypeColors]);
 
+  const ticketTypeNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const tt of state.ticketTypeColors) {
+      if (tt.name) map.set(tt.id, tt.name);
+    }
+    return map;
+  }, [state.ticketTypeColors]);
+
   const restrictedSectionIds = useMemo(() => {
     if (!state.allowedSectionIds) return undefined;
     const allowed = new Set(state.allowedSectionIds);
@@ -251,6 +259,7 @@ export function SeatPicker({ eventId, ticketTypeId, onNavigate }: Props) {
             restrictedSectionIds={restrictedSectionIds}
             floorplanObjects={state.floorplanObjects}
             ticketTypeColorMap={ticketTypeColorMap}
+            ticketTypeNameMap={ticketTypeNameMap}
             sectionTicketPrices={state.sectionTicketPrices}
             ticketTypePriceMap={state.ticketTypePriceMap}
             onSeatClick={state.toggleSeat}
