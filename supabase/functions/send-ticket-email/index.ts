@@ -70,9 +70,11 @@ async function sendEmail({ to, subject, html, attachments }: { to: string; subje
 }
 
 // SECURITY: Escape HTML to prevent HTML injection in emails
-function escapeHtml(str: string): string {
-  if (!str) return '';
-  return str
+function escapeHtml(str: unknown): string {
+  if (str == null) return '';
+  const s = String(str);
+  if (!s) return '';
+  return s
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')

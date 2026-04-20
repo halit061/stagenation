@@ -734,9 +734,9 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                     fillColor = '#3b82f6';
                     borderColor = '#1d4ed8';
                   } else if (isSold) {
-                    fillColor = '#f87171';
-                    borderColor = '#dc2626';
-                    fillOpacity = 0.85;
+                    fillColor = '#991b1b';
+                    borderColor = '#7f1d1d';
+                    fillOpacity = 0.95;
                   } else if (isReservedSeat) {
                     fillColor = '#fb923c';
                     borderColor = '#ea580c';
@@ -923,7 +923,7 @@ function SeatTooltip({
       <div className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 shadow-xl text-sm whitespace-nowrap">
         {section && (
           <div className="text-slate-400 text-xs font-semibold mb-0.5">
-            {section.name}
+            {sectionTicketPrices?.get(seat.sectionId)?.ttName || section.name}
           </div>
         )}
         <div className="font-semibold text-white">
