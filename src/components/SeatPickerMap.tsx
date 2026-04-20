@@ -248,11 +248,13 @@ export const SeatPickerMap = memo(function SeatPickerMap({
     const rect = container.getBoundingClientRect();
     const cx = rect.width / 2;
     const cy = rect.height / 2;
-    const newZoom = Math.min(MAX_ZOOM, zoom * ZOOM_STEP_FACTOR);
-    const s = newZoom / zoom;
-    const newPan = { x: cx - s * (cx - pan.x), y: cy - s * (cy - pan.y) };
-    animateTo(newZoom, newPan.x, newPan.y);
-  }, [zoom, pan, animateTo]);
+    setZoom(prev => {
+      const newZoom = Math.min(MAX_ZOOM, prev * ZOOM_STEP_FACTOR);
+      const s = newZoom / prev;
+      setPan(p => ({ x: cx - s * (cx - p.x), y: cy - s * (cy - p.y) }));
+      return newZoom;
+    });
+  }, []);
 
   const handleZoomOut = useCallback(() => {
     const container = containerRef.current;
@@ -260,11 +262,13 @@ export const SeatPickerMap = memo(function SeatPickerMap({
     const rect = container.getBoundingClientRect();
     const cx = rect.width / 2;
     const cy = rect.height / 2;
-    const newZoom = Math.max(MIN_ZOOM, zoom / ZOOM_STEP_FACTOR);
-    const s = newZoom / zoom;
-    const newPan = { x: cx - s * (cx - pan.x), y: cy - s * (cy - pan.y) };
-    animateTo(newZoom, newPan.x, newPan.y);
-  }, [zoom, pan, animateTo]);
+    setZoom(prev => {
+      const newZoom = Math.max(MIN_ZOOM, prev / ZOOM_STEP_FACTOR);
+      const s = newZoom / prev;
+      setPan(p => ({ x: cx - s * (cx - p.x), y: cy - s * (cy - p.y) }));
+      return newZoom;
+    });
+  }, []);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (e.touches.length === 2) {
