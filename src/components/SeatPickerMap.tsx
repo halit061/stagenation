@@ -127,12 +127,21 @@ export const SeatPickerMap = memo(function SeatPickerMap({
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
+    let lastWidth = el.getBoundingClientRect().width;
+    let lastHeight = el.getBoundingClientRect().height;
     const observer = new ResizeObserver(() => {
       if (seats.length === 0 && floorplanObjects.length === 0) return;
-      const fit = fitToOverview();
-      if (fit) {
-        setZoom(fit.zoom);
-        setPan({ x: fit.panX, y: fit.panY });
+      const rect = el.getBoundingClientRect();
+      const widthChanged = Math.abs(rect.width - lastWidth) > 50;
+      const heightChanged = Math.abs(rect.height - lastHeight) > 50;
+      if (widthChanged || heightChanged) {
+        lastWidth = rect.width;
+        lastHeight = rect.height;
+        const fit = fitToOverview();
+        if (fit) {
+          setZoom(fit.zoom);
+          setPan({ x: fit.panX, y: fit.panY });
+        }
       }
     });
     observer.observe(el);
