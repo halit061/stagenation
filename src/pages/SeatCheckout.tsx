@@ -130,6 +130,8 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
   const [summaryCollapsed, setSummaryCollapsed] = useState(true);
   const [sectionTicketPrices, setSectionTicketPrices] = useState<Map<string, number>>(new Map());
   const [seatTicketTypePrices, setSeatTicketTypePrices] = useState<Map<string, number>>(new Map());
+  const [ticketTypeNames, setTicketTypeNames] = useState<Map<string, string>>(new Map());
+  const [ticketTypeColors, setTicketTypeColors] = useState<Map<string, string>>(new Map());
 
   const [formData, setFormData] = useState<CheckoutFormData>({
     firstName: '',
@@ -238,25 +240,45 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
         if (ttIds.length > 0) {
           const { data: ttData } = await supabase
             .from('ticket_types')
-            .select('id, price')
+            .select('id, name, price, color, service_fee_mode, service_fee_fixed, service_fee_percent')
             .in('id', ttIds)
             .limit(100);
           if (ttData && !cancelled) {
             const priceMap = new Map<string, number>();
+            const nameMap = new Map<string, string>();
+            const colorMap = new Map<string, string>();
             ttData.forEach((tt: any) => {
               priceMap.set(tt.id, (tt.price || 0) / 100);
+              if (tt.name) nameMap.set(tt.id, tt.name);
+              if (tt.color) colorMap.set(tt.id, tt.color);
             });
             setSeatTicketTypePrices(priceMap);
+            setTicketTypeNames(nameMap);
+            setTicketTypeColors(colorMap);
+
+            const firstTt = ttData[0] as any;
+            if (firstTt) {
+              const mode = firstTt.service_fee_mode || 'none';
+              if (mode === 'fixed') {
+                setFeePerTicket(Number(firstTt.service_fee_fixed) || 0);
+              } else if (mode === 'percent') {
+                const pct = Number(firstTt.service_fee_percent) || 0;
+                const price = (Number(firstTt.price) || 0) / 100;
+                setFeePerTicket(Math.round(price * pct / 100 * 100) / 100);
+              }
+            }
           }
         }
 
-        const sectionIds = [...new Set(held.map(s => s.sectionId))];
-        try {
-          const feeInfo = await fetchServiceFeeForSections(sectionIds, eventId);
-          if (!cancelled) {
-            setFeePerTicket(feeInfo.feePerTicket);
-          }
-        } catch {}
+        if (ttIds.length === 0) {
+          const sectionIds = [...new Set(held.map(s => s.sectionId))];
+          try {
+            const feeInfo = await fetchServiceFeeForSections(sectionIds, eventId);
+            if (!cancelled) {
+              setFeePerTicket(feeInfo.feePerTicket);
+            }
+          } catch {}
+        }
 
         const storedHold = loadHoldFromStorage();
         const ttId = storedHold?.ticket_type_id || null;
@@ -283,13 +305,13 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
       if (!ttId || seen.has(ttId)) continue;
       seen.add(ttId);
       const price = seatTicketTypePrices.get(ttId) ?? 0;
-      categories.push({
-        id: ttId,
-        name: ttId,
-        color: '#64748b',
-        price,
-        sectionIds: [seat.sectionId],
-      });
+      const name = ticketTypeNames.get(ttId) ?? ttId;
+      const color = ticketTypeColors.get(ttId) ?? '#64748b';
+      const sectionIds = heldSeats
+        .filter(s => s.ticket_type_id === ttId)
+        .map(s => s.sectionId)
+        .filter((v, i, a) => a.indexOf(v) === i);
+      categories.push({ id: ttId, name, color, price, sectionIds });
     }
 
     if (categories.length === 0) {
@@ -309,7 +331,7 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
     }
 
     return categories;
-  }, [heldSeats, sections, sectionTicketPrices, seatTicketTypePrices]);
+  }, [heldSeats, sections, sectionTicketPrices, seatTicketTypePrices, ticketTypeNames, ticketTypeColors]);
 
   const subtotal = useMemo(() => {
     return heldSeats.reduce((total, seat) => {
@@ -483,7 +505,7 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
 
     submittingRef.current = false;
     setSubmitting(false);
-  }, [formData, eventId, heldSeats, seatPrices, subtotal, totalPrice, ticketTypeId, onNavigate, language]);
+  }, [formData, eventId, heldSeats, seatPrices, subtotal, serviceFee, totalPrice, ticketTypeId, onNavigate, language]);
 
   const handleBack = useCallback(() => {
     setShowNavGuard(true);
@@ -595,6 +617,9 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
           onChangeSeats={handleBack}
           collapsed={summaryCollapsed}
           onToggleCollapse={() => setSummaryCollapsed(prev => !prev)}
+          ticketTypePriceMap={seatTicketTypePrices}
+          ticketTypeNameMap={ticketTypeNames}
+          ticketTypeColorMap={ticketTypeColors}
         />
       </div>
 
@@ -630,6 +655,9 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
               canSubmit={canSubmit}
               onSubmit={handleSubmit}
               onChangeSeats={handleBack}
+              ticketTypePriceMap={seatTicketTypePrices}
+              ticketTypeNameMap={ticketTypeNames}
+              ticketTypeColorMap={ticketTypeColors}
             />
           </div>
         </div>

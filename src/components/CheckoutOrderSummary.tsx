@@ -21,6 +21,9 @@ interface Props {
   onChangeSeats: () => void;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  ticketTypePriceMap?: Map<string, number>;
+  ticketTypeNameMap?: Map<string, string>;
+  ticketTypeColorMap?: Map<string, string>;
 }
 
 export function CheckoutOrderSummary({
@@ -39,39 +42,64 @@ export function CheckoutOrderSummary({
   onChangeSeats,
   collapsed,
   onToggleCollapse,
+  ticketTypePriceMap,
+  ticketTypeNameMap,
+  ticketTypeColorMap,
 }: Props) {
   const { language } = useLanguage();
 
-  const seatsBySection = useMemo(() => {
-    const grouped: Record<string, { section: SeatSection; seats: PickerSeat[] }> = {};
+  const resolveSeatPrice = (seat: PickerSeat): number => {
+    if (seat.price_override != null && seat.price_override > 0) return seat.price_override;
+    if (seat.ticket_type_id && ticketTypePriceMap?.has(seat.ticket_type_id)) {
+      return ticketTypePriceMap.get(seat.ticket_type_id)!;
+    }
+    const section = sections.find(s => s.id === seat.sectionId);
+    return section ? Number(section.price_amount) || 0 : 0;
+  };
+
+  const seatsByCategory = useMemo(() => {
+    const grouped: Record<string, { label: string; color: string; seats: PickerSeat[] }> = {};
     for (const seat of selectedSeats) {
-      const section = sections.find(s => s.id === seat.sectionId);
-      if (!section) continue;
-      if (!grouped[section.id]) {
-        grouped[section.id] = { section, seats: [] };
+      const ttId = seat.ticket_type_id;
+      if (ttId && ticketTypeNameMap?.has(ttId)) {
+        if (!grouped[ttId]) {
+          grouped[ttId] = {
+            label: ticketTypeNameMap.get(ttId)!,
+            color: ticketTypeColorMap?.get(ttId) || '#64748b',
+            seats: [],
+          };
+        }
+        grouped[ttId].seats.push(seat);
+      } else {
+        const section = sections.find(s => s.id === seat.sectionId);
+        if (!section) continue;
+        const key = `sec_${section.id}`;
+        if (!grouped[key]) {
+          grouped[key] = { label: section.name, color: section.color, seats: [] };
+        }
+        grouped[key].seats.push(seat);
       }
-      grouped[section.id].seats.push(seat);
     }
     return Object.values(grouped);
-  }, [selectedSeats, sections]);
+  }, [selectedSeats, sections, ticketTypeNameMap, ticketTypeColorMap]);
 
   const priceBreakdown = useMemo(() => {
     const breakdown: { name: string; count: number; unitPrice: number; subtotal: number }[] = [];
     for (const cat of priceCategories) {
-      const catSeats = selectedSeats.filter(s => cat.sectionIds.includes(s.sectionId));
+      const catSeats = selectedSeats.filter(s => {
+        if (s.ticket_type_id && cat.id === s.ticket_type_id) return true;
+        return cat.sectionIds.includes(s.sectionId) && !s.ticket_type_id;
+      });
       if (catSeats.length === 0) continue;
       breakdown.push({
         name: cat.name,
         count: catSeats.length,
         unitPrice: cat.price,
-        subtotal: catSeats.reduce((sum, seat) => {
-          const sec = sections.find(s => s.id === seat.sectionId);
-          return sum + (seat.price_override ?? (sec ? Number(sec.price_amount) : 0));
-        }, 0),
+        subtotal: catSeats.reduce((sum, seat) => sum + resolveSeatPrice(seat), 0),
       });
     }
     return breakdown;
-  }, [priceCategories, selectedSeats, sections]);
+  }, [priceCategories, selectedSeats, sections, ticketTypePriceMap]);
 
   const subtotal = priceBreakdown.reduce((s, b) => s + b.subtotal, 0);
 
@@ -139,23 +167,23 @@ export function CheckoutOrderSummary({
         </div>
 
         <div className="px-5 py-4 space-y-3">
-          {seatsBySection.map(({ section, seats }) => (
-            <div key={section.id}>
+          {seatsByCategory.map(({ label, color, seats }) => (
+            <div key={label}>
               <div className="flex items-center gap-2 mb-1.5">
                 <div
                   className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: section.color }}
+                  style={{ backgroundColor: color }}
                   aria-hidden="true"
                 />
                 <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                  {section.name}
+                  {label}
                 </span>
               </div>
               <div className="space-y-1 ml-4">
                 {seats
                   .sort((a, b) => a.row_label.localeCompare(b.row_label) || a.seat_number - b.seat_number)
                   .map(seat => {
-                    const price = seat.price_override ?? Number(section.price_amount);
+                    const price = resolveSeatPrice(seat);
                     return (
                       <div key={seat.id} className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-1.5">
