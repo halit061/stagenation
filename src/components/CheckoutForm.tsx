@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { CreditCard, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { st } from '../lib/seatTranslations';
 
@@ -32,10 +32,26 @@ interface Props {
 }
 
 const PAYMENT_METHODS = [
-  { id: 'bancontact', label: 'Bancontact', icon: '\u{1F3E6}' },
-  { id: 'ideal', label: 'iDEAL', icon: '\u{1F3E7}' },
-  { id: 'creditcard', label: 'Creditcard', icon: null },
-  { id: 'paypal', label: 'PayPal', icon: null },
+  {
+    id: 'bancontact',
+    label: 'Bancontact',
+    svg: '<svg viewBox="0 0 24 24" fill="none"><rect x="1" y="4" width="22" height="16" rx="3" fill="#005498"/><text x="12" y="14" text-anchor="middle" fill="white" font-size="6" font-weight="bold" font-family="Arial">BC</text></svg>',
+  },
+  {
+    id: 'creditcard',
+    label: 'Creditcard',
+    svg: '<svg viewBox="0 0 24 24" fill="none"><rect x="1" y="4" width="22" height="16" rx="3" fill="#1a1a2e"/><rect x="1" y="8" width="22" height="3" fill="#334155"/><rect x="4" y="14" width="6" height="2" rx="1" fill="#64748b"/><rect x="14" y="14" width="3" height="2" rx="1" fill="#64748b"/></svg>',
+  },
+  {
+    id: 'applepay',
+    label: 'Apple Pay',
+    svg: '<svg viewBox="0 0 24 24" fill="none"><rect x="1" y="4" width="22" height="16" rx="3" fill="#000000"/><text x="12" y="14.5" text-anchor="middle" fill="white" font-size="7" font-weight="600" font-family="Arial"> Pay</text></svg>',
+  },
+  {
+    id: 'googlepay',
+    label: 'Google Pay',
+    svg: '<svg viewBox="0 0 24 24" fill="none"><rect x="1" y="4" width="22" height="16" rx="3" fill="#ffffff" stroke="#e2e8f0"/><text x="12" y="14.5" text-anchor="middle" fill="#3c4043" font-size="6" font-weight="600" font-family="Arial">G Pay</text></svg>',
+  },
 ] as const;
 
 export function CheckoutForm({ formData, errors, onChange, onValidateField }: Props) {
@@ -207,12 +223,8 @@ export function CheckoutForm({ formData, errors, onChange, onValidateField }: Pr
                     : 'border-slate-700 bg-slate-800/50 hover:border-slate-600 hover:bg-slate-800'
                 } ${!selected && formData.paymentMethod ? 'opacity-60' : ''}`}
               >
-                <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-slate-700/60 flex items-center justify-center">
-                  {method.icon ? (
-                    <span className="text-lg" aria-hidden="true">{method.icon}</span>
-                  ) : (
-                    <CreditCard className="w-4 h-4 text-slate-400" aria-hidden="true" />
-                  )}
+                <div className="flex-shrink-0 w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center">
+                  <div dangerouslySetInnerHTML={{ __html: method.svg }} className="w-8 h-8" />
                 </div>
                 <span className={`text-sm font-medium ${selected ? 'text-white' : 'text-slate-300'}`}>
                   {method.label}
