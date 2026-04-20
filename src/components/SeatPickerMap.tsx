@@ -75,6 +75,8 @@ export const SeatPickerMap = memo(function SeatPickerMap({
   const didPan = useRef(false);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isDragging = useRef(false);
+  const didInitialFit = useRef(false);
+  const prevSeatCount = useRef(0);
   const dragStart = useRef({ x: 0, y: 0 });
   const panStart = useRef({ x: 0, y: 0 });
   const lastTouchPos = useRef<{ x: number; y: number } | null>(null);
@@ -116,7 +118,11 @@ export const SeatPickerMap = memo(function SeatPickerMap({
   }, [bounds]);
 
   useEffect(() => {
-    if (seats.length === 0 && floorplanObjects.length === 0) return;
+    const total = seats.length + floorplanObjects.length;
+    if (total === 0) return;
+    if (didInitialFit.current && prevSeatCount.current === seats.length) return;
+    prevSeatCount.current = seats.length;
+    didInitialFit.current = true;
     const fit = fitToOverview();
     if (fit) {
       setZoom(fit.zoom);
@@ -124,20 +130,22 @@ export const SeatPickerMap = memo(function SeatPickerMap({
     }
   }, [seats.length, floorplanObjects.length, fitToOverview]);
 
+  const fitToOverviewRef = useRef(fitToOverview);
+  fitToOverviewRef.current = fitToOverview;
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     let lastWidth = el.getBoundingClientRect().width;
     let lastHeight = el.getBoundingClientRect().height;
     const observer = new ResizeObserver(() => {
-      if (seats.length === 0 && floorplanObjects.length === 0) return;
       const rect = el.getBoundingClientRect();
       const widthChanged = Math.abs(rect.width - lastWidth) > 50;
       const heightChanged = Math.abs(rect.height - lastHeight) > 50;
       if (widthChanged || heightChanged) {
         lastWidth = rect.width;
         lastHeight = rect.height;
-        const fit = fitToOverview();
+        const fit = fitToOverviewRef.current();
         if (fit) {
           setZoom(fit.zoom);
           setPan({ x: fit.panX, y: fit.panY });
@@ -146,7 +154,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [seats.length, floorplanObjects.length, fitToOverview]);
+  }, []);
 
   useEffect(() => {
     if (!containerRef.current || !onViewportChange) return;
