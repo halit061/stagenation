@@ -144,33 +144,36 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
         if (cancelled) return;
 
         const ttIds = [...new Set(seatData.filter((s: any) => s.ticket_type_id).map((s: any) => s.ticket_type_id))];
-        let ttMap = new Map<string, string>();
+        let ttMap = new Map<string, { name: string; price: number; color: string }>();
         if (ttIds.length > 0) {
           const { supabase: sb } = await import('../lib/supabaseClient');
           const { data: ttData } = await sb
             .from('ticket_types')
-            .select('id, name')
+            .select('id, name, price, color')
             .in('id', ttIds)
             .limit(10000);
-          if (ttData) ttMap = new Map(ttData.map((t: any) => [t.id, t.name]));
+          if (ttData) ttMap = new Map(ttData.map((t: any) => [t.id, { name: t.name, price: (t.price || 0) / 100, color: t.color || '' }]));
         }
 
         const sectionMap = new Map(sectionData.map((s: any) => [s.id, s]));
         const seatInfos: SeatInfo[] = ticketSeats.map((ts: any) => {
           const seat = seatData.find((s: any) => s.id === ts.seat_id);
           const section = seat ? sectionMap.get(seat.section_id) : null;
+          const tt = seat?.ticket_type_id ? ttMap.get(seat.ticket_type_id) : null;
+          const pricePaid = Number(ts.price_paid) || 0;
+          const resolvedPrice = pricePaid > 0 ? pricePaid : (tt?.price ?? 0);
           return {
             id: ts.id,
             row_label: seat?.row_label || '?',
             seat_number: seat?.seat_number || 0,
             seat_type: seat?.seat_type || 'regular',
-            section_name: section?.name || st(language, 'confirm.unknown'),
-            section_color: section?.color || '#64748b',
-            price: Number(ts.price_paid),
+            section_name: tt?.name || section?.name || st(language, 'confirm.unknown'),
+            section_color: tt?.color || section?.color || '#64748b',
+            price: resolvedPrice,
             ticket_code: ts.ticket_code || null,
             ticket_number: ts.ticket_number || null,
             qr_data: ts.qr_data || null,
-            ticket_type_name: seat?.ticket_type_id ? ttMap.get(seat.ticket_type_id) || null : null,
+            ticket_type_name: tt?.name || null,
           };
         });
 
@@ -290,9 +293,10 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
   }, [eventInfo, dateLocale]);
 
   const firstName = order?.metadata?.customer_first_name || order?.payer_name?.split(' ')[0] || '';
-  const subtotal = order?.metadata?.subtotal ?? (order ? order.total_amount / 100 : 0);
-  const serviceFeeVal = Number(order?.service_fee_amount ?? order?.metadata?.service_fee ?? 0);
   const totalAmount = order ? order.total_amount / 100 : 0;
+  const serviceFeeVal = Number(order?.service_fee_amount ?? order?.metadata?.service_fee ?? 0);
+  const seatsSubtotal = seats.reduce((sum, s) => sum + s.price, 0);
+  const subtotal = seatsSubtotal > 0 ? seatsSubtotal : (order?.metadata?.subtotal ?? (totalAmount - serviceFeeVal));
 
   const seatsBySection = useMemo(() => {
     const grouped: Record<string, SeatInfo[]> = {};
