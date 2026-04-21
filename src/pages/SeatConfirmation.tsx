@@ -185,6 +185,16 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
 
         setSeats(seatInfos);
 
+        if (typeof window.fbq === 'function') {
+          window.fbq('track', 'Purchase', {
+            value: orderData.total_amount / 100,
+            currency: 'EUR',
+            content_name: ev?.name || 'Event',
+            content_type: 'product',
+            num_items: seatInfos.length,
+          });
+        }
+
         try {
           const layout = await fetchLayoutByEvent(eventId);
           if (layout && !cancelled) {

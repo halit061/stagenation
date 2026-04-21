@@ -285,6 +285,13 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
         if (ttId) setTicketTypeId(ttId);
 
         setLoading(false);
+
+        if (typeof window.fbq === 'function') {
+          window.fbq('track', 'InitiateCheckout', {
+            content_name: ev?.name || 'Event',
+            num_items: held.length,
+          });
+        }
       } catch {
         if (!cancelled) {
           onNavigate(`seat-picker?event=${eventId}`);
