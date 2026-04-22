@@ -33,6 +33,12 @@ const SeatCheckout = lazy(() => import('./pages/SeatCheckout').then(m => ({ defa
 const SeatConfirmation = lazy(() => import('./pages/SeatConfirmation').then(m => ({ default: m.SeatConfirmation })));
 const TicketVerify = lazy(() => import('./pages/TicketVerify').then(m => ({ default: m.TicketVerify })));
 
+declare global {
+  interface Window {
+    fbq: (...args: any[]) => void;
+  }
+}
+
 function getPageFromUrl(): string {
   const path = window.location.pathname.replace(/^\/+/, '') || 'home';
   return path;
@@ -73,6 +79,22 @@ function App() {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  useEffect(() => {
+    if (typeof window.fbq !== 'function') return;
+    const page = currentPage.split('?')[0].replace(/^\/+/, '');
+
+    if (page === 'tickets') {
+      window.fbq('track', 'ViewContent', {
+        content_name: 'Tickets Overview',
+        content_type: 'product_group',
+      });
+    }
+
+    if (page === 'seat-checkout') {
+      window.fbq('track', 'InitiateCheckout');
+    }
+  }, [currentPage]);
 
   useEffect(() => {
     if (loading) return;
