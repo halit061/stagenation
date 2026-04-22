@@ -75,6 +75,9 @@ function App() {
   useEffect(() => {
     const handlePopState = () => {
       setCurrentPage(getPageFromUrl());
+      if (typeof window.fbq === 'function') {
+        window.fbq('track', 'PageView');
+      }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -89,10 +92,6 @@ function App() {
         content_name: 'Tickets Overview',
         content_type: 'product_group',
       });
-    }
-
-    if (page === 'seat-checkout') {
-      window.fbq('track', 'InitiateCheckout');
     }
   }, [currentPage]);
 
