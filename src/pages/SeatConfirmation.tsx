@@ -189,6 +189,7 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
           window.fbq('track', 'Purchase', {
             value: orderData.total_amount / 100,
             currency: 'EUR',
+            content_ids: [eventId],
             content_name: ev?.name || 'Event',
             content_type: 'product',
             num_items: seatInfos.length,

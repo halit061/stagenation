@@ -42,8 +42,22 @@ export function SeatPicker({ eventId, ticketTypeId, onNavigate }: Props) {
   }, []);
 
   const handleNavigateCheckout = useCallback(() => {
+    try {
+      const fbq = (window as unknown as { fbq?: (...args: unknown[]) => void }).fbq;
+      if (typeof fbq === 'function') {
+        const seats = state.getSelectedSeats();
+        const value = state.getTotalPrice();
+        fbq('track', 'AddToCart', {
+          content_ids: [eventId],
+          content_type: 'product',
+          num_items: seats.length,
+          value: value / 100,
+          currency: 'EUR',
+        });
+      }
+    } catch {}
     onNavigate(`seat-checkout?event=${eventId}`);
-  }, [onNavigate, eventId]);
+  }, [onNavigate, eventId, state.getSelectedSeats, state.getTotalPrice]);
 
   const handleBack = useCallback(() => {
     if (state.holdActive) {

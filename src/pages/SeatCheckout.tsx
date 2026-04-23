@@ -288,6 +288,8 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
 
         if (typeof window.fbq === 'function') {
           window.fbq('track', 'InitiateCheckout', {
+            content_ids: [eventId],
+            content_type: 'product',
             content_name: ev?.name || 'Event',
             num_items: held.length,
           });
