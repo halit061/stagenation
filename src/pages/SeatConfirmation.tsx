@@ -343,11 +343,26 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-blue-500/15 mb-6">
             <Loader2 className="w-10 h-10 text-blue-400 animate-spin" />
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">{st(language, 'confirm.paymentPending') || 'Betaling wordt verwerkt...'}</h2>
-          <p className="text-slate-400 mb-6">{st(language, 'confirm.paymentPendingDesc') || 'Je betaling wordt verwerkt. Dit kan even duren. Sluit deze pagina niet.'}</p>
-          <div className="flex items-center justify-center gap-2 text-slate-500 text-sm">
+          <h2 className="text-2xl font-bold text-white mb-2">{st(language, 'confirm.paymentPending')}</h2>
+          <p className="text-slate-400 mb-6">{st(language, 'confirm.paymentPendingDesc')}</p>
+          <div className="flex items-center justify-center gap-2 text-slate-500 text-sm mb-8">
             <RefreshCw className="w-4 h-4 animate-spin" />
-            <span>{st(language, 'confirm.autoRefresh') || 'Automatisch vernieuwen...'}</span>
+            <span>{st(language, 'confirm.autoRefresh')}</span>
+          </div>
+          <p className="text-slate-500 text-xs mb-3">{st(language, 'confirm.stillProcessing')}</p>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button
+              onClick={() => onNavigate(`seat-picker?event=${eventId}`)}
+              className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl transition-colors text-sm"
+            >
+              {st(language, 'confirm.tryAgain')}
+            </button>
+            <button
+              onClick={() => onNavigate('home')}
+              className="flex-1 px-4 py-2.5 border border-slate-700 text-slate-300 hover:bg-slate-800 font-medium rounded-xl transition-colors text-sm"
+            >
+              {st(language, 'picker.backHome')}
+            </button>
           </div>
         </div>
       </div>
