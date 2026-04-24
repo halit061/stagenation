@@ -51,6 +51,19 @@ export function clearHoldStorage() {
   sessionStorage.removeItem(HOLD_KEY);
 }
 
+export async function fetchActiveHoldSeatIds(eventId: string): Promise<string[]> {
+  const sessionId = getSessionId();
+  const { data, error } = await supabase
+    .from('seat_holds')
+    .select('seat_id')
+    .eq('session_id', sessionId)
+    .eq('event_id', eventId)
+    .eq('status', 'held')
+    .limit(10000);
+  if (error || !data) return [];
+  return data.map(h => h.seat_id as string).filter(Boolean);
+}
+
 export function checkRateLimit(): { allowed: boolean; retryAfterMs: number } {
   const raw = sessionStorage.getItem(RATE_KEY);
   const now = Date.now();

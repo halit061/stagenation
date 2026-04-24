@@ -21,6 +21,7 @@ import {
   checkRateLimit,
   recordRateAttempt,
   getSessionId,
+  fetchActiveHoldSeatIds,
 } from '../services/seatPickerService';
 import type { FloorplanObject, TicketTypeColor } from '../services/seatPickerService';
 import { findBestAvailable } from '../lib/bestAvailable';
@@ -316,6 +317,12 @@ export function useSeatPickerState(eventId: string, ticketTypeId?: string) {
             setExpiresAt(storedHold.expires_at);
             setHoldActive(true);
             setHoldExtended(storedHold.extended);
+            try {
+              const heldSeatIds = await fetchActiveHoldSeatIds(eventId);
+              if (!cancelled && heldSeatIds.length > 0) {
+                setSelectedIds(new Set(heldSeatIds));
+              }
+            } catch {}
           } else {
             clearHoldStorage();
             setHoldExpired(true);
