@@ -707,7 +707,7 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
       )}
 
       <NavigationGuard
-        active={!holdExpired && !!expiresAt}
+        active={!holdExpired && !!expiresAt && !submitting}
         visible={showNavGuard}
         onKeepSeats={handleNavKeep}
         onCancel={handleNavCancel}
