@@ -10,6 +10,7 @@ import { Home } from './pages/Home';
 import { Login } from './pages/Login';
 import { useLanguage } from './contexts/LanguageContext';
 import { useAuth } from './contexts/AuthContext';
+import { track as fbTrack } from './lib/fbPixel';
 
 const Agenda = lazy(() => import('./pages/Agenda').then(m => ({ default: m.Agenda })));
 const Info = lazy(() => import('./pages/Info').then(m => ({ default: m.Info })));
@@ -67,28 +68,23 @@ function App() {
       window.history.pushState(null, '', newPath);
     }
     window.scrollTo(0, 0);
-    if (typeof window.fbq === 'function') {
-      window.fbq('track', 'PageView');
-    }
+    fbTrack('PageView');
   }, []);
 
   useEffect(() => {
     const handlePopState = () => {
       setCurrentPage(getPageFromUrl());
-      if (typeof window.fbq === 'function') {
-        window.fbq('track', 'PageView');
-      }
+      fbTrack('PageView');
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   useEffect(() => {
-    if (typeof window.fbq !== 'function') return;
     const page = currentPage.split('?')[0].replace(/^\/+/, '');
 
     if (page === 'tickets') {
-      window.fbq('track', 'ViewContent', {
+      fbTrack('ViewContent', {
         content_name: 'Tickets Overview',
         content_type: 'product_group',
       });

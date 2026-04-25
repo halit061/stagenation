@@ -1,6 +1,92 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { getCorsHeaders } from "../_shared/cors.ts";
 
+async function sha256Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function sendFbCapiPurchase(opts: {
+  order: any;
+  payment: any;
+  itemCount: number;
+  eventName?: string | null;
+}) {
+  try {
+    const pixelId = Deno.env.get('FB_PIXEL_ID') || '1457559385824293';
+    const accessToken = Deno.env.get('FB_ACCESS_TOKEN');
+    const testEventCode = Deno.env.get('FB_TEST_EVENT_CODE') || undefined;
+    if (!accessToken) {
+      console.log('[fb-capi] FB_ACCESS_TOKEN not set; skipping CAPI Purchase');
+      return;
+    }
+    const { order, payment, itemCount, eventName } = opts;
+    const meta = order.metadata || {};
+    const fbp = meta.fbp || meta._fbp || null;
+    const fbc = meta.fbc || meta._fbc || null;
+    const clientUa = meta.user_agent || meta.ua || null;
+    const clientIp = meta.client_ip || meta.ip || null;
+    const eventSourceUrl = meta.event_source_url || meta.return_url || null;
+
+    const userData: Record<string, unknown> = {};
+    if (order.payer_email) userData.em = [await sha256Hex(String(order.payer_email).trim().toLowerCase())];
+    if (order.payer_phone) userData.ph = [await sha256Hex(String(order.payer_phone).replace(/[^\d]/g, ''))];
+    if (order.payer_name) {
+      const parts = String(order.payer_name).trim().split(/\s+/);
+      if (parts[0]) userData.fn = [await sha256Hex(parts[0].toLowerCase())];
+      if (parts.length > 1) userData.ln = [await sha256Hex(parts.slice(1).join(' ').toLowerCase())];
+    }
+    userData.country = [await sha256Hex('be')];
+    if (fbp) userData.fbp = fbp;
+    if (fbc) userData.fbc = fbc;
+    if (clientUa) userData.client_user_agent = clientUa;
+    if (clientIp) userData.client_ip_address = clientIp;
+
+    const valueCents = order.total_amount || payment?.amount?.value
+      ? (order.total_amount ?? Math.round(parseFloat(payment.amount.value) * 100))
+      : 0;
+    const value = (valueCents || 0) / 100;
+    const currency = (payment?.amount?.currency) || 'EUR';
+
+    const eventTime = Math.floor(new Date(order.paid_at || Date.now()).getTime() / 1000);
+
+    const body: Record<string, unknown> = {
+      data: [{
+        event_name: 'Purchase',
+        event_time: eventTime,
+        event_id: order.id,
+        action_source: 'website',
+        event_source_url: eventSourceUrl,
+        user_data: userData,
+        custom_data: {
+          value,
+          currency,
+          content_type: 'product',
+          content_ids: [order.event_id],
+          content_name: eventName || undefined,
+          num_items: itemCount,
+          order_id: order.id,
+        },
+      }],
+    };
+    if (testEventCode) body.test_event_code = testEventCode;
+
+    const url = `https://graph.facebook.com/v19.0/${pixelId}/events?access_token=${encodeURIComponent(accessToken)}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      console.error('[fb-capi] Purchase failed:', res.status, text);
+    }
+  } catch (e) {
+    console.error('[fb-capi] exception:', e);
+  }
+}
+
 // SECURITY: Verify webhook came from Mollie by fetching payment from their API
 // Mollie webhooks only send a payment ID - we verify by fetching from Mollie's API
 // with our secret API key. If the payment exists, it's a valid webhook.
@@ -226,15 +312,39 @@ Deno.serve(async (req: Request) => {
     }
 
     if (payment.status === 'paid' && ['pending', 'reserved'].includes(order.status)) {
+      const paidAtIso = new Date().toISOString();
       await supabase.from('orders').update({
         status: 'paid',
-        paid_at: new Date().toISOString(),
+        paid_at: paidAtIso,
         payment_method: payment.method,
         payment_id: payment.id
       }).eq('id', order.id);
 
       await supabase.from('tickets').update({ status: 'valid' }).eq('order_id', order.id).eq('status', 'pending');
       await supabase.from('table_bookings').update({ status: 'PAID', paid_at: new Date().toISOString() }).eq('order_id', order.id);
+
+      try {
+        const { data: ticketCountRow } = await supabase
+          .from('tickets')
+          .select('id', { count: 'exact', head: true })
+          .eq('order_id', order.id);
+        const itemCount = (ticketCountRow as any)?.count
+          ?? (Array.isArray(ticketCountRow) ? ticketCountRow.length : 0)
+          ?? 1;
+        let eventName: string | null = null;
+        if (order.event_id) {
+          const { data: ev } = await supabase.from('events').select('name').eq('id', order.event_id).maybeSingle();
+          eventName = ev?.name || null;
+        }
+        await sendFbCapiPurchase({
+          order: { ...order, paid_at: paidAtIso },
+          payment,
+          itemCount: typeof itemCount === 'number' ? itemCount : 1,
+          eventName,
+        });
+      } catch (capiError) {
+        console.error('[fb-capi] purchase dispatch failed:', capiError);
+      }
 
       if (order.product_type === 'seat') {
         try {

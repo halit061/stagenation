@@ -15,6 +15,7 @@ import { NavigationGuard } from '../components/NavigationGuard';
 import { SeatNotificationBanner } from '../components/SeatNotificationBanner';
 import { useLanguage } from '../contexts/LanguageContext';
 import { st } from '../lib/seatTranslations';
+import { track as fbTrack } from '../lib/fbPixel';
 
 interface Props {
   eventId: string;
@@ -43,18 +44,15 @@ export function SeatPicker({ eventId, ticketTypeId, onNavigate }: Props) {
 
   const handleNavigateCheckout = useCallback(() => {
     try {
-      const fbq = (window as unknown as { fbq?: (...args: unknown[]) => void }).fbq;
-      if (typeof fbq === 'function') {
-        const seats = state.getSelectedSeats();
-        const value = state.getTotalPrice();
-        fbq('track', 'AddToCart', {
-          content_ids: [eventId],
-          content_type: 'product',
-          num_items: seats.length,
-          value: value / 100,
-          currency: 'EUR',
-        });
-      }
+      const seats = state.getSelectedSeats();
+      const value = state.getTotalPrice();
+      fbTrack('AddToCart', {
+        content_ids: [eventId],
+        content_type: 'product',
+        num_items: seats.length,
+        value: value / 100,
+        currency: 'EUR',
+      });
     } catch {}
     onNavigate(`seat-checkout?event=${eventId}`);
   }, [onNavigate, eventId, state.getSelectedSeats, state.getTotalPrice]);

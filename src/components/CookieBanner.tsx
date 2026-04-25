@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Cookie, X, Settings } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { txt } from '../lib/translations';
+import { grantConsent, revokeConsent, track } from '../lib/fbPixel';
 
 interface CookiePreferences {
   necessary: boolean;
@@ -36,6 +37,13 @@ export function CookieBanner() {
     localStorage.setItem('cookie_consent', JSON.stringify(consentData));
     setShowBanner(false);
     setShowSettings(false);
+
+    if (prefs.analytics) {
+      grantConsent();
+      track('PageView');
+    } else {
+      revokeConsent();
+    }
   };
 
   const acceptAll = () => {

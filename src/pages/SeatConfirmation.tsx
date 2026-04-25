@@ -12,6 +12,7 @@ import { generateTicketsPdf } from '../lib/generateTicketPdf';
 import type { TicketPdfSection } from '../lib/generateTicketPdf';
 import { useLanguage } from '../contexts/LanguageContext';
 import { st } from '../lib/seatTranslations';
+import { track as fbTrack, buildAdvancedMatch } from '../lib/fbPixel';
 
 interface Props {
   eventId: string;
@@ -185,16 +186,32 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
 
         setSeats(seatInfos);
 
-        if (typeof window.fbq === 'function') {
-          window.fbq('track', 'Purchase', {
-            value: orderData.total_amount / 100,
-            currency: 'EUR',
-            content_ids: [eventId],
-            content_name: ev?.name || 'Event',
-            content_type: 'product',
-            num_items: seatInfos.length,
-          });
-        }
+        try {
+          const purchaseKey = `fb_purchase_fired_${orderData.id}`;
+          if (!sessionStorage.getItem(purchaseKey)) {
+            const userData = await buildAdvancedMatch({
+              email: orderData.payer_email,
+              phone: orderData.payer_phone,
+              fullName: orderData.payer_name,
+              country: 'be',
+            });
+            fbTrack(
+              'Purchase',
+              {
+                value: orderData.total_amount / 100,
+                currency: 'EUR',
+                content_ids: [eventId],
+                content_name: ev?.name || 'Event',
+                content_type: 'product',
+                num_items: seatInfos.length,
+                order_id: orderData.id,
+                ...userData,
+              },
+              { eventID: orderData.id }
+            );
+            sessionStorage.setItem(purchaseKey, '1');
+          }
+        } catch {}
 
         try {
           const layout = await fetchLayoutByEvent(eventId);

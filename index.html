@@ -40,7 +40,7 @@
 
     <title>StageNation — Premium Events & Ticketing</title>
 
-    <!-- Meta Pixel Code -->
+    <!-- Meta Pixel Code (consent-gated) -->
     <script>
     !function(f,b,e,v,n,t,s)
     {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
@@ -50,8 +50,22 @@
     t.src=v;s=b.getElementsByTagName(e)[0];
     s.parentNode.insertBefore(t,s)}(window, document,'script',
     'https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', '1457559385824293');
-    fbq('track', 'PageView');
+    (function(){
+      try {
+        var raw = localStorage.getItem('cookie_consent');
+        var consent = raw ? JSON.parse(raw) : null;
+        var granted = !!(consent && consent.analytics);
+        if (!granted) { fbq('consent', 'revoke'); }
+        fbq('init', '1457559385824293');
+        if (granted) {
+          fbq('consent', 'grant');
+          fbq('track', 'PageView');
+        }
+      } catch (e) {
+        fbq('consent', 'revoke');
+        fbq('init', '1457559385824293');
+      }
+    })();
     </script>
     <!-- End Meta Pixel Code -->
   </head>

@@ -19,6 +19,7 @@ import { HoldExpiredModal } from '../components/HoldExpiredModal';
 import { NavigationGuard } from '../components/NavigationGuard';
 import { useLanguage } from '../contexts/LanguageContext';
 import { st } from '../lib/seatTranslations';
+import { track as fbTrack, buildAdvancedMatch } from '../lib/fbPixel';
 import type { CheckoutFormData, CheckoutFormErrors } from '../components/CheckoutForm';
 import type { PickerSeat, PriceCategory } from '../hooks/useSeatPickerState';
 import type { SeatSection, Seat } from '../types/seats';
@@ -286,14 +287,15 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
 
         setLoading(false);
 
-        if (typeof window.fbq === 'function') {
-          window.fbq('track', 'InitiateCheckout', {
-            content_ids: [eventId],
-            content_type: 'product',
-            content_name: ev?.name || 'Event',
-            num_items: held.length,
-          });
-        }
+        const subtotalCents = held.reduce((sum, s) => sum + (s.price || 0), 0);
+        fbTrack('InitiateCheckout', {
+          content_ids: [eventId],
+          content_type: 'product',
+          content_name: ev?.name || 'Event',
+          num_items: held.length,
+          value: subtotalCents / 100,
+          currency: 'EUR',
+        });
       } catch {
         if (!cancelled) {
           onNavigate(`seat-picker?event=${eventId}`);
@@ -501,6 +503,23 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
       });
 
       if (result.success && result.checkoutUrl) {
+        try {
+          const userData = await buildAdvancedMatch({
+            email: formData.email,
+            phone: formData.phone,
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            country: 'be',
+          });
+          fbTrack('AddPaymentInfo', {
+            content_ids: [eventId],
+            content_type: 'product',
+            num_items: heldSeats.length,
+            value: totalPrice / 100,
+            currency: 'EUR',
+            ...userData,
+          });
+        } catch {}
         window.location.href = result.checkoutUrl;
         return;
       } else if (result.error === 'holds_expired') {
