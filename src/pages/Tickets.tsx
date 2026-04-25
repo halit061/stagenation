@@ -72,6 +72,51 @@ export function Tickets({ onNavigate }: TicketsProps) {
       : 'Koop je tickets veilig online via StageNation. Evenementen in Genk, België.',
     path: '/tickets',
   });
+
+  useEffect(() => {
+    const SCRIPT_ID = 'stagenation-studio100-event-jsonld';
+    const data = {
+      '@context': 'https://schema.org',
+      '@type': 'MusicEvent',
+      name: 'Studio 100 Zingt in Genk',
+      startDate: '2026-06-21T14:00:00+02:00',
+      eventStatus: 'https://schema.org/EventScheduled',
+      eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+      location: {
+        '@type': 'Place',
+        name: 'Limburghal',
+        address: {
+          '@type': 'PostalAddress',
+          streetAddress: 'Jaarbeurslaan 6',
+          addressLocality: 'Genk',
+          postalCode: '3600',
+          addressCountry: 'BE',
+        },
+      },
+      image: ['https://stagenation.be/og-image.png'],
+      description: 'Studio 100 Zingt live in Genk at Limburghal. Official tickets available via StageNation.',
+      offers: {
+        '@type': 'Offer',
+        url: 'https://stagenation.be/tickets',
+        priceCurrency: 'EUR',
+        availability: 'https://schema.org/InStock',
+      },
+      performer: { '@type': 'Organization', name: 'Studio 100' },
+      organizer: { '@type': 'Organization', name: 'StageNation', url: 'https://stagenation.be' },
+    };
+    let script = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
+    if (!script) {
+      script = document.createElement('script');
+      script.id = SCRIPT_ID;
+      script.type = 'application/ld+json';
+      document.head.appendChild(script);
+    }
+    script.textContent = JSON.stringify(data);
+    return () => {
+      const el = document.getElementById(SCRIPT_ID);
+      if (el) el.remove();
+    };
+  }, []);
   const [ticketTypes, setTicketTypes] = useState<TicketType[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
