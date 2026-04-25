@@ -963,15 +963,25 @@ export function Tickets({ onNavigate }: TicketsProps) {
                           (() => {
                             const seatCount = seatAvailability[ticketType.id];
                             const noSeats = seatCount !== undefined && seatCount <= 0;
-                            return noSeats ? (
+                            const isUnavailable = noSeats || soldOut;
+                            return isUnavailable ? (
                               <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                                 {t('tickets.soldOut')}
                               </span>
                             ) : (
                               <div className="flex flex-col items-center gap-1.5">
                                 <button
-                                  onClick={() => onNavigate?.(`seat-picker?event=${eventId}&ticket_type=${ticketType.id}`)}
-                                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all hover:scale-105 active:scale-95"
+                                  onClick={(e) => {
+                                    if (isUnavailable) {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      return;
+                                    }
+                                    onNavigate?.(`seat-picker?event=${eventId}&ticket_type=${ticketType.id}`);
+                                  }}
+                                  disabled={isUnavailable}
+                                  aria-disabled={isUnavailable}
+                                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                                   style={{ backgroundColor: tc, color: luminance > 0.5 ? '#000' : '#fff' }}
                                 >
                                   <MapPin className="w-3.5 h-3.5" />
