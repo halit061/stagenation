@@ -80,6 +80,7 @@ export function Tickets({ onNavigate }: TicketsProps) {
       '@type': 'MusicEvent',
       name: 'Studio 100 Zingt in Genk',
       startDate: '2026-06-21T14:00:00+02:00',
+      endDate: '2026-06-21T17:00:00+02:00',
       eventStatus: 'https://schema.org/EventScheduled',
       eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
       location: {
@@ -98,8 +99,10 @@ export function Tickets({ onNavigate }: TicketsProps) {
       offers: {
         '@type': 'Offer',
         url: 'https://stagenation.be/tickets',
+        price: '25',
         priceCurrency: 'EUR',
         availability: 'https://schema.org/InStock',
+        validFrom: '2026-04-25T10:00:00+02:00',
       },
       performer: { '@type': 'Organization', name: 'Studio 100' },
       organizer: { '@type': 'Organization', name: 'StageNation', url: 'https://stagenation.be' },
