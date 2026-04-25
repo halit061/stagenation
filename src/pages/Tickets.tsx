@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabaseClient';
 import type { Database } from '../lib/supabaseClient';
 import { useLanguage } from '../contexts/LanguageContext';
 import { checkoutWithRetry, reserveTickets } from '../lib/checkoutClient';
-import { cachedQuery } from '../lib/queryCache';
+import { cachedQuery, invalidateCache } from '../lib/queryCache';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { VenueMap } from '../components/VenueMap';
 import {
@@ -188,6 +188,16 @@ export function Tickets({ onNavigate }: TicketsProps) {
     const params = new URLSearchParams(window.location.search);
     const eventSlug = params.get('event');
     loadTicketTypes(eventSlug);
+
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        const p = new URLSearchParams(window.location.search);
+        invalidateCache('ticket_types:');
+        loadTicketTypes(p.get('event'));
+      }
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
   }, []);
 
   async function loadTicketTypes(eventSlug: string | null) {

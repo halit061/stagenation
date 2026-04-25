@@ -7,12 +7,28 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
+const noStoreFetch: typeof fetch = (input, init) => {
+  const merged: RequestInit = { ...(init || {}), cache: 'no-store' };
+  const existingHeaders = new Headers(init?.headers || {});
+  if (!existingHeaders.has('Cache-Control')) {
+    existingHeaders.set('Cache-Control', 'no-cache');
+  }
+  if (!existingHeaders.has('Pragma')) {
+    existingHeaders.set('Pragma', 'no-cache');
+  }
+  merged.headers = existingHeaders;
+  return fetch(input, merged);
+};
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
     storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+  },
+  global: {
+    fetch: noStoreFetch,
   },
 });
 
