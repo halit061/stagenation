@@ -300,16 +300,29 @@ export function Tickets({ onNavigate }: TicketsProps) {
                 if (allSectionIds.length > 0) {
                   const { data: seats } = await supabase
                     .from('seats')
-                    .select('id, section_id, status')
+                    .select('id, section_id, status, ticket_type_id')
                     .in('section_id', allSectionIds)
                     .eq('is_active', true)
                     .eq('status', 'available')
                     .limit(10000);
                   if (seats) {
                     const avail: Record<string, number> = {};
+                    const directCount: Record<string, number> = {};
+                    const fallbackSeats: typeof seats = [];
+                    for (const s of seats as any[]) {
+                      if (s.ticket_type_id) {
+                        directCount[s.ticket_type_id] = (directCount[s.ticket_type_id] || 0) + 1;
+                      } else {
+                        fallbackSeats.push(s);
+                      }
+                    }
                     for (const ttId of Object.keys(sectionMap)) {
-                      const secIds = new Set(sectionMap[ttId]);
-                      avail[ttId] = seats.filter(s => secIds.has(s.section_id)).length;
+                      if (directCount[ttId] !== undefined) {
+                        avail[ttId] = directCount[ttId];
+                      } else {
+                        const secIds = new Set(sectionMap[ttId]);
+                        avail[ttId] = fallbackSeats.filter(s => secIds.has((s as any).section_id)).length;
+                      }
                     }
                     setSeatAvailability(avail);
                   }
