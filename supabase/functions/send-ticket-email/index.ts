@@ -53,7 +53,7 @@ function drawPdfFooterLinks(page: any, font: any, width: number, baseUrl: string
   page.drawText(sep, { x: startX + privacyW, y, size, font, color: rgb(0.5, 0.5, 0.5) });
   const termsX = startX + privacyW + sepW;
   page.drawText(termsText, { x: termsX, y, size, font, color: linkColor });
-  addPdfLink(page, termsX, y - 2, termsW, size + 4, `${baseUrl}/terms-and-conditions`);
+  addPdfLink(page, termsX, y - 2, termsW, size + 4, `${baseUrl}/terms`);
 }
 
 async function generateQRCode(data: string): Promise<string> {
@@ -79,7 +79,7 @@ async function sendEmail({ to, subject, html, attachments }: { to: string; subje
     const emailPayload: any = {
       from: emailFrom,
       to: [to],
-      reply_to: 'tickets@stagenation.be',
+      reply_to: 'info@stagenation.be',
       subject,
       html,
     };
@@ -386,7 +386,7 @@ async function buildTableReservationEmail(order: any, event: any, tableBookings:
   const brandLogoUrl = `${BASE_URL}/stagenation-logo.webp`;
 
   const footerName = brand?.display_name || brand?.name || 'StageNation';
-  const footerEmail = brand?.support_email || brand?.email || 'tickets@stagenation.be';
+  const footerEmail = brand?.support_email || brand?.email || 'info@stagenation.be';
 
   const tableQrCodes = await Promise.all(
     tableBookings.map(async (booking) => {
@@ -533,7 +533,7 @@ async function buildSeatOrderEmail(order: any, event: any, seatTickets: any[], b
 
   const BASE_URL = Deno.env.get('BASE_URL') || 'https://stagenation.be';
   const footerName = brand?.display_name || brand?.name || 'StageNation';
-  const footerEmail = brand?.support_email || brand?.email || 'tickets@stagenation.be';
+  const footerEmail = brand?.support_email || brand?.email || 'info@stagenation.be';
 
   const seatQrCodes = await Promise.all(
     seatTickets.map(async (ts: any) => {
@@ -701,7 +701,7 @@ async function buildTicketEmail(order: any, event: any, tickets: any[], brand: a
   const brandLogoUrl = `${BASE_URL}/stagenation-logo.webp`;
 
   const footerName = brand?.display_name || brand?.name || 'StageNation';
-  const footerEmail = brand?.support_email || brand?.email || 'tickets@stagenation.be';
+  const footerEmail = brand?.support_email || brand?.email || 'info@stagenation.be';
 
   const ticketRows = qrCodes
     .map(
