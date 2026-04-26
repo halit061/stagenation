@@ -548,7 +548,10 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
           for (const st of orderSeatTickets) {
             const typeId = (st as any).seats?.ticket_type_id || 'seat';
             const typeName = (st as any).seats?.ticket_types?.name || 'Zitplaats';
-            const typePrice = parseFloat((st as any).price_paid) || (st as any).seats?.ticket_types?.price || 0;
+            const pricePaidEuros = parseFloat((st as any).price_paid);
+            const typePrice = !isNaN(pricePaidEuros) && pricePaidEuros > 0
+              ? Math.round(pricePaidEuros * 100)
+              : ((st as any).seats?.ticket_types?.price || 0);
             if (!ticketsByType.has(typeId)) {
               ticketsByType.set(typeId, { typeId, typeName, typePrice, quantity: 0 });
             }
