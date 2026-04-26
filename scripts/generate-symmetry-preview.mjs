@@ -7,6 +7,11 @@ const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 const EVENT_ID = '1725edd5-4704-4633-a6f7-f21d91831147';
 const MIDLINE_X = 4440;
 
+const LEFT_OUTER = 3477.27;
+const LEFT_INNER = 4313.64;
+const RIGHT_INNER = 4564.54;
+const RIGHT_OUTER = 5399.09;
+
 const PLEIN_GROUPS = new Set([
   'Plein Achteraan',
   'Premium Seats Plein',
@@ -15,17 +20,10 @@ const PLEIN_GROUPS = new Set([
 ]);
 
 const TRIBUNE_OFFSETS = {
-  'Tribune Kabouter Plop': { dx: -13.5, dy: -7, color: '#ec4899' },
-  'Tribune Spotz-On': { dx: -13.5, dy: 7, color: '#ec4899' },
-  'Tribune Maya De Bij': { dx: -28, dy: -5.5, color: '#84cc16' },
-  'Tribune Samson & Marie': { dx: -28, dy: 5.5, color: '#84cc16' },
-};
-
-const PLEIN_COLORS = {
-  'Plein Achteraan': '#3b82f6',
-  'Premium Seats Plein': '#f59e0b',
-  'Zitplaatsen Plein': '#10b981',
-  'Rolstoel + Begeleider (1+1)': '#06b6d4',
+  'Tribune Kabouter Plop': { dx: -13.5, dy: -7 },
+  'Tribune Spotz-On': { dx: -13.5, dy: 7 },
+  'Tribune Maya De Bij': { dx: 172, dy: -5.5 },
+  'Tribune Samson & Marie': { dx: -228, dy: 5.5 },
 };
 
 const ROW_TOLERANCE = 8;
@@ -35,11 +33,12 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON);
 async function main() {
   const { data: ticketTypes, error: ttErr } = await supabase
     .from('ticket_types')
-    .select('id, name')
+    .select('id, name, color')
     .eq('event_id', EVENT_ID);
   if (ttErr) throw ttErr;
 
   const ttMap = new Map(ticketTypes.map((t) => [t.id, t.name]));
+  const colorMap = new Map(ticketTypes.map((t) => [t.name, t.color || '#666']));
   const ttIds = ticketTypes.map((t) => t.id);
 
   let allSeats = [];
@@ -59,6 +58,35 @@ async function main() {
 
   console.log(`Loaded ${allSeats.length} seats`);
 
+  // Group plein seats by Y bucket within each group, separated into L/R sides
+  const rowSideKey = (ttName, y, side) =>
+    `${ttName}|${Math.round(y / ROW_TOLERANCE)}|${side}`;
+
+  const sideBuckets = new Map();
+  for (const s of allSeats) {
+    const ttName = ttMap.get(s.ticket_type_id);
+    if (!ttName || !PLEIN_GROUPS.has(ttName)) continue;
+    const side = s.x_position < MIDLINE_X ? 'L' : 'R';
+    const key = rowSideKey(ttName, s.y_position, side);
+    if (!sideBuckets.has(key)) sideBuckets.set(key, []);
+    sideBuckets.get(key).push(s);
+  }
+
+  // For each (group, row, side) compute dx that snaps the OUTER seat to AA outer line
+  const seatDx = new Map();
+  for (const [key, seats] of sideBuckets) {
+    const side = key.endsWith('|L') ? 'L' : 'R';
+    if (side === 'L') {
+      const minX = Math.min(...seats.map((s) => s.x_position));
+      const dx = LEFT_OUTER - minX;
+      for (const s of seats) seatDx.set(s.id, dx);
+    } else {
+      const maxX = Math.max(...seats.map((s) => s.x_position));
+      const dx = RIGHT_OUTER - maxX;
+      for (const s of seats) seatDx.set(s.id, dx);
+    }
+  }
+
   const W = 9000;
   const H = 4500;
   const PAD = 200;
@@ -71,15 +99,13 @@ async function main() {
     const ttName = ttMap.get(s.ticket_type_id) || 'unknown';
     let dx = 0;
     let dy = 0;
-    let color = '#666';
+    let color = colorMap.get(ttName) || '#666';
 
     if (PLEIN_GROUPS.has(ttName)) {
-      dx = 0;
-      color = PLEIN_COLORS[ttName];
+      dx = seatDx.get(s.id) ?? 0;
     } else if (TRIBUNE_OFFSETS[ttName]) {
       dx = TRIBUNE_OFFSETS[ttName].dx;
       dy = TRIBUNE_OFFSETS[ttName].dy;
-      color = TRIBUNE_OFFSETS[ttName].color;
     } else {
       continue;
     }
@@ -91,20 +117,20 @@ async function main() {
     const nx = cx + dx;
     const ny = cy + dy;
 
-    beforeCircles.push(`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="14" fill="#9ca3af" fill-opacity="0.55"/>`);
-    afterCircles.push(`<circle cx="${nx.toFixed(1)}" cy="${ny.toFixed(1)}" r="11" fill="${color}" fill-opacity="0.85"/>`);
+    beforeCircles.push(`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="14" fill="#9ca3af" fill-opacity="0.45"/>`);
+    afterCircles.push(`<circle cx="${nx.toFixed(1)}" cy="${ny.toFixed(1)}" r="11" fill="${color}" fill-opacity="0.9"/>`);
   }
 
   const legendEntries = [
-    ...Object.entries(PLEIN_COLORS).map(([name, color]) => ({
+    ...[...PLEIN_GROUPS].map((name) => ({
       name,
-      color,
-      dxLabel: 'plein ongewijzigd',
+      color: colorMap.get(name) || '#666',
+      dxLabel: 'per rij naar AA1/AA36 lijn',
       dy: 0,
     })),
     ...Object.entries(TRIBUNE_OFFSETS).map(([name, o]) => ({
       name,
-      color: o.color,
+      color: colorMap.get(name) || '#666',
       dxLabel: `dx=${o.dx}`,
       dy: o.dy,
     })),
@@ -116,12 +142,23 @@ async function main() {
       const count = groupCounts.get(e.name) || 0;
       return `
         <g transform="translate(60,${y})">
-          <rect width="40" height="40" rx="6" fill="${e.color}" fill-opacity="0.85"/>
+          <rect width="40" height="40" rx="6" fill="${e.color}" fill-opacity="0.9"/>
           <text x="60" y="20" font-size="36" font-family="system-ui, sans-serif" fill="#111">${e.name}</text>
           <text x="60" y="60" font-size="26" font-family="system-ui, sans-serif" fill="#555">${count} stoelen   ${e.dxLabel}   dy=${e.dy}</text>
         </g>`;
     })
     .join('\n');
+
+  const refLines = `
+    <line x1="${LEFT_OUTER}" y1="0" x2="${LEFT_OUTER}" y2="${H}" stroke="#10b981" stroke-width="3" stroke-dasharray="20 15"/>
+    <line x1="${LEFT_INNER}" y1="0" x2="${LEFT_INNER}" y2="${H}" stroke="#10b981" stroke-width="2" stroke-dasharray="10 10" opacity="0.5"/>
+    <line x1="${RIGHT_INNER}" y1="0" x2="${RIGHT_INNER}" y2="${H}" stroke="#10b981" stroke-width="2" stroke-dasharray="10 10" opacity="0.5"/>
+    <line x1="${RIGHT_OUTER}" y1="0" x2="${RIGHT_OUTER}" y2="${H}" stroke="#10b981" stroke-width="3" stroke-dasharray="20 15"/>
+    <text x="${LEFT_OUTER}" y="${H - 40}" font-size="36" font-family="system-ui, sans-serif" fill="#10b981" text-anchor="middle">AA1</text>
+    <text x="${LEFT_INNER}" y="${H - 40}" font-size="32" font-family="system-ui, sans-serif" fill="#10b981" text-anchor="middle" opacity="0.7">AA18</text>
+    <text x="${RIGHT_INNER}" y="${H - 40}" font-size="32" font-family="system-ui, sans-serif" fill="#10b981" text-anchor="middle" opacity="0.7">AA19</text>
+    <text x="${RIGHT_OUTER}" y="${H - 40}" font-size="36" font-family="system-ui, sans-serif" fill="#10b981" text-anchor="middle">AA36</text>
+  `;
 
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="${-PAD} ${-PAD} ${W + PAD * 2} ${H + PAD * 2 + 1100}" style="background:#f9fafb">
@@ -134,10 +171,12 @@ async function main() {
   <rect x="0" y="0" width="${W}" height="${H}" fill="url(#grid)" stroke="#d1d5db" stroke-width="4"/>
 
   <text x="${W / 2}" y="-80" font-size="72" font-weight="700" font-family="system-ui, sans-serif" fill="#111" text-anchor="middle">Symmetry Preview - Stagenation Floorplan</text>
-  <text x="${W / 2}" y="-20" font-size="42" font-family="system-ui, sans-serif" fill="#6b7280" text-anchor="middle">Grijs = huidige positie, kleur = voorgestelde positie. Rode lijn = middenas X=${MIDLINE_X}</text>
+  <text x="${W / 2}" y="-20" font-size="40" font-family="system-ui, sans-serif" fill="#6b7280" text-anchor="middle">Grijs = huidig, kleur = voorgesteld. Groene lijnen = AA1/AA18/AA19/AA36 referentie.</text>
 
   <line x1="${MIDLINE_X}" y1="0" x2="${MIDLINE_X}" y2="${H}" stroke="#ef4444" stroke-width="6" stroke-dasharray="30 20"/>
   <text x="${MIDLINE_X + 30}" y="120" font-size="48" font-family="system-ui, sans-serif" fill="#ef4444" font-weight="700">Middenas X=${MIDLINE_X}</text>
+
+  ${refLines}
 
   <g id="before">
     ${beforeCircles.join('\n    ')}
