@@ -182,7 +182,45 @@ export function Tickets({ onNavigate }: TicketsProps) {
       setPaymentBanner({ type: paymentStatus, visible: true });
       window.history.replaceState(null, '', window.location.pathname);
     }
+
+    try {
+      const restoredCustomer = sessionStorage.getItem('restored_customer');
+      if (restoredCustomer) {
+        const c = JSON.parse(restoredCustomer);
+        setCustomerInfo((prev) => ({
+          ...prev,
+          name: c.name || prev.name,
+          email: c.email || prev.email,
+          phone: c.phone || prev.phone,
+          street: c.street || prev.street,
+          number: c.number || prev.number,
+          postalCode: c.postalCode || prev.postalCode,
+          city: c.city || prev.city,
+          country: c.country || prev.country,
+        }));
+        sessionStorage.removeItem('restored_customer');
+      }
+    } catch (_) { /* ignore */ }
   }, []);
+
+  useEffect(() => {
+    if (!ticketTypes.length) return;
+    try {
+      const restored = sessionStorage.getItem('restored_cart');
+      if (!restored) return;
+      const items = JSON.parse(restored) as Array<{ ticket_type_id: string; quantity: number }>;
+      const newCart: CartItem[] = [];
+      for (const item of items) {
+        const tt = ticketTypes.find((t) => t.id === item.ticket_type_id);
+        if (!tt) continue;
+        const maxQty = tt.quantity_total - tt.quantity_sold - ((tt as any).quantity_reserved || 0);
+        const qty = Math.max(0, Math.min(item.quantity || 0, maxQty));
+        if (qty > 0) newCart.push({ ticketType: tt, quantity: qty });
+      }
+      if (newCart.length > 0) setCart(newCart);
+      sessionStorage.removeItem('restored_cart');
+    } catch (_) { /* ignore */ }
+  }, [ticketTypes]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
