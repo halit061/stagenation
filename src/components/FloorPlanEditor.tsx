@@ -1031,6 +1031,30 @@ export function FloorPlanEditor() {
     if (ids.size > 0) setSelectedItem(null);
   }, []);
 
+  const handleDeleteSeats = useCallback(async (seatIds: string[]) => {
+    if (seatIds.length === 0) return;
+    const confirmed = window.confirm(
+      seatIds.length === 1
+        ? 'Deze stoel definitief verwijderen?'
+        : `${seatIds.length} stoelen definitief verwijderen?`
+    );
+    if (!confirmed) return;
+    try {
+      await deleteSeatsById(seatIds);
+      setSectionSeats(prev => {
+        const next = { ...prev };
+        for (const [secId, seats] of Object.entries(next)) {
+          next[secId] = seats.filter(s => !seatIds.includes(s.id));
+        }
+        return next;
+      });
+      setSelectedSeatIds(new Set());
+      showToast(seatIds.length === 1 ? 'Stoel verwijderd' : `${seatIds.length} stoelen verwijderd`, 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Fout bij verwijderen stoel', 'error');
+    }
+  }, [showToast]);
+
   const handleUpdateSeats = useCallback(async (
     seatIds: string[],
     updates: Partial<Pick<Seat, 'status' | 'seat_type' | 'price_override' | 'row_label' | 'seat_number'>>
@@ -2265,6 +2289,7 @@ export function FloorPlanEditor() {
                 sections={seatSections}
                 onDeselectAll={() => setSelectedSeatIds(new Set())}
                 onUpdateSeats={handleUpdateSeats}
+                onDeleteSeats={handleDeleteSeats}
               />
             ) : selectedItem ? (
               selectedItem.type === 'section' ? (

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { X, Check } from 'lucide-react';
+import { X, Check, Trash2 } from 'lucide-react';
 import type { Seat, SeatSection, SeatStatus, SeatType } from '../types/seats';
 
 const inputCls = "w-full px-2.5 py-1.5 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500/20";
@@ -25,9 +25,10 @@ interface Props {
   sections: SeatSection[];
   onDeselectAll: () => void;
   onUpdateSeats: (seatIds: string[], updates: Partial<Pick<Seat, 'status' | 'seat_type' | 'price_override' | 'row_label' | 'seat_number'>>) => void;
+  onDeleteSeats?: (seatIds: string[]) => void;
 }
 
-export function SeatPropertiesPanel({ selectedSeats, sections, onDeselectAll, onUpdateSeats }: Props) {
+export function SeatPropertiesPanel({ selectedSeats, sections, onDeselectAll, onUpdateSeats, onDeleteSeats }: Props) {
   const sectionMap = useMemo(() => {
     const map = new Map<string, SeatSection>();
     for (const s of sections) map.set(s.id, s);
@@ -197,6 +198,18 @@ export function SeatPropertiesPanel({ selectedSeats, sections, onDeselectAll, on
               }}
               className={inputCls}
             />
+          </div>
+        )}
+
+        {onDeleteSeats && selectedSeats.length > 0 && (
+          <div className="border-t border-slate-700 pt-3">
+            <button
+              onClick={() => onDeleteSeats(ids)}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-red-600/90 hover:bg-red-500 text-white rounded text-sm font-medium transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              {isSingle ? 'Stoel verwijderen' : `${selectedSeats.length} stoelen verwijderen`}
+            </button>
           </div>
         )}
 
