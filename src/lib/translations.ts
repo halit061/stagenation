@@ -37,7 +37,7 @@ export const translations = {
       secureDesc: 'Beveiligde tickets met QR-code voor zorgeloze toegang',
       readyTitle: 'Klaar voor een',
       readyHighlight: 'onvergetelijke',
-      readyTitle2: 'avond?',
+      readyTitle2: 'dag?',
       readyDesc: 'Tickets zijn beperkt beschikbaar. Zorg dat je erbij bent!',
       days: 'Dagen',
       hours: 'Uren',
