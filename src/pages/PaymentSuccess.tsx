@@ -25,7 +25,6 @@ interface Event {
   start_date: string;
   location: string;
   location_address: string;
-  slug?: string;
 }
 
 interface Ticket {
@@ -50,8 +49,6 @@ export default function PaymentSuccess() {
   const [resendingEmail, setResendingEmail] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
   const [resendError, setResendError] = useState<string | null>(null);
-  const [pendingAttempts, setPendingAttempts] = useState(0);
-  const [orderMetadata, setOrderMetadata] = useState<any>(null);
 
   // SECURITY: Validate order_id format to prevent injection
   const isValidUUID = (id: string): boolean => {
@@ -123,7 +120,7 @@ export default function PaymentSuccess() {
     try {
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
-        .select('id, order_number, status, total_amount, payer_email, payer_name, payer_phone, paid_at, email_sent, email_sent_at, email_error, event_id, created_at, product_type, metadata, billing_street, billing_number, billing_postal_code, billing_city, billing_country')
+        .select('id, order_number, status, total_amount, payer_email, payer_name, paid_at, email_sent, email_sent_at, email_error, event_id, created_at, product_type')
         .eq('id', orderId)
         .maybeSingle();
 
@@ -140,12 +137,6 @@ export default function PaymentSuccess() {
       }
 
       setOrder(orderData);
-      setOrderMetadata(orderData);
-      setLoading(false);
-
-      if (orderData.status === 'pending') {
-        setPendingAttempts((n) => n + 1);
-      }
 
       const { data: eventData } = await supabase
         .from('events')
@@ -183,36 +174,6 @@ export default function PaymentSuccess() {
       setLoading(false);
       return true;
     }
-  };
-
-  const handleBackToCheckout = () => {
-    try {
-      const cart = orderMetadata?.metadata?.cart;
-      const eventId = orderMetadata?.event_id;
-      if (Array.isArray(cart) && cart.length > 0) {
-        sessionStorage.setItem('restored_cart', JSON.stringify(
-          cart.map((item: any) => ({
-            ticket_type_id: item.ticket_type_id,
-            quantity: item.quantity,
-          }))
-        ));
-      }
-      if (orderMetadata) {
-        sessionStorage.setItem('restored_customer', JSON.stringify({
-          name: orderMetadata.payer_name || '',
-          email: orderMetadata.payer_email || '',
-          phone: orderMetadata.payer_phone || '',
-          street: orderMetadata.billing_street || '',
-          number: orderMetadata.billing_number || '',
-          postalCode: orderMetadata.billing_postal_code || '',
-          city: orderMetadata.billing_city || '',
-          country: orderMetadata.billing_country || 'Belgium',
-        }));
-      }
-    } catch (_) { /* ignore */ }
-    sessionStorage.removeItem('payment_order_id');
-    const slug = (event && event.slug) ? `&event=${event.slug}` : '';
-    window.location.replace(`/#/tickets?payment=canceled${slug}`);
   };
 
   const formatDate = (dateString: string) => {
@@ -402,7 +363,6 @@ export default function PaymentSuccess() {
   }
 
   if (order.status === 'pending') {
-    const showBackOption = pendingAttempts >= 3;
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 flex items-center justify-center px-4">
         <div className="max-w-md w-full bg-white rounded-xl shadow-2xl p-8 text-center">
@@ -428,47 +388,14 @@ export default function PaymentSuccess() {
             </p>
             <p className="font-mono text-lg text-cyan-600">{order.order_number}</p>
           </div>
-
-          {showBackOption ? (
-            <div className="border-t border-slate-200 pt-6 mt-2">
-              <p className="text-sm text-slate-700 mb-4">
-                {txt(language, {
-                  nl: 'Heb je de betaling niet voltooid? Ga terug naar de checkout, je geselecteerde tickets blijven bewaard.',
-                  tr: 'Did you not complete the payment? Go back to checkout, your selected tickets will be kept.',
-                  fr: 'Vous n\'avez pas finalisé le paiement ? Retournez à la caisse, vos billets sélectionnés sont conservés.',
-                  de: 'Haben Sie die Zahlung nicht abgeschlossen? Zurück zur Kasse, Ihre ausgewählten Tickets bleiben erhalten.',
-                })}
-              </p>
-              <button
-                onClick={handleBackToCheckout}
-                className="w-full bg-cyan-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-cyan-700 transition-colors mb-3"
-              >
-                {txt(language, {
-                  nl: 'Terug naar checkout',
-                  tr: 'Back to checkout',
-                  fr: 'Retour au paiement',
-                  de: 'Zurück zur Kasse',
-                })}
-              </button>
-              <p className="text-xs text-slate-500">
-                {txt(language, {
-                  nl: 'Als je net hebt betaald, blijf op deze pagina; we wachten op de bevestiging.',
-                  tr: 'If you just paid, stay on this page; we are waiting for confirmation.',
-                  fr: 'Si vous venez de payer, restez sur cette page ; nous attendons la confirmation.',
-                  de: 'Wenn Sie gerade bezahlt haben, bleiben Sie auf dieser Seite; wir warten auf die Bestätigung.',
-                })}
-              </p>
-            </div>
-          ) : (
-            <p className="text-sm text-slate-500">
-              {txt(language, {
-                nl: 'Je ontvangt een bevestigingsmail zodra de betaling is voltooid.',
-                tr: 'You will receive a confirmation email once the payment is complete.',
-                fr: 'Vous recevrez un email de confirmation une fois le paiement effectué.',
-                de: 'Sie erhalten eine Bestätigungs-E-Mail, sobald die Zahlung abgeschlossen ist.',
-              })}
-            </p>
-          )}
+          <p className="text-sm text-slate-500">
+            {txt(language, {
+              nl: 'Je ontvangt een bevestigingsmail zodra de betaling is voltooid.',
+              tr: 'You will receive a confirmation email once the payment is complete.',
+              fr: 'Vous recevrez un email de confirmation une fois le paiement effectué.',
+              de: 'Sie erhalten eine Bestätigungs-E-Mail, sobald die Zahlung abgeschlossen ist.',
+            })}
+          </p>
         </div>
       </div>
     );
