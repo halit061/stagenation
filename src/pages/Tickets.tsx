@@ -296,37 +296,68 @@ export function Tickets({ onNavigate }: TicketsProps) {
               setSectionNamesPerTicketType(nameMap);
 
               if (eventData?.floorplan_enabled) {
+                const allTicketTypeIds = data.map((t: any) => t.id);
                 const allSectionIds = [...new Set(Object.values(sectionMap).flat())];
-                if (allSectionIds.length > 0) {
-                  const { data: seats } = await supabase
-                    .from('seats')
-                    .select('id, section_id, status, ticket_type_id')
-                    .in('section_id', allSectionIds)
-                    .eq('is_active', true)
-                    .eq('status', 'available')
-                    .limit(10000);
-                  if (seats) {
-                    const avail: Record<string, number> = {};
-                    const directCount: Record<string, number> = {};
-                    const fallbackSeats: typeof seats = [];
-                    for (const s of seats as any[]) {
-                      if (s.ticket_type_id) {
-                        directCount[s.ticket_type_id] = (directCount[s.ticket_type_id] || 0) + 1;
-                      } else {
-                        fallbackSeats.push(s);
-                      }
-                    }
-                    for (const ttId of Object.keys(sectionMap)) {
-                      if (directCount[ttId] !== undefined) {
-                        avail[ttId] = directCount[ttId];
-                      } else {
-                        const secIds = new Set(sectionMap[ttId]);
-                        avail[ttId] = fallbackSeats.filter(s => secIds.has((s as any).section_id)).length;
-                      }
-                    }
-                    setSeatAvailability(avail);
+
+                const seatsBySectionPromise = allSectionIds.length > 0
+                  ? supabase
+                      .from('seats')
+                      .select('id, section_id, status, ticket_type_id')
+                      .in('section_id', allSectionIds)
+                      .eq('is_active', true)
+                      .eq('status', 'available')
+                      .limit(10000)
+                  : Promise.resolve({ data: [] as any[] });
+
+                const seatsByTypePromise = allTicketTypeIds.length > 0
+                  ? supabase
+                      .from('seats')
+                      .select('id, ticket_type_id')
+                      .in('ticket_type_id', allTicketTypeIds)
+                      .eq('is_active', true)
+                      .eq('status', 'available')
+                      .limit(10000)
+                  : Promise.resolve({ data: [] as any[] });
+
+                const [{ data: sectionSeats }, { data: typeSeats }] = await Promise.all([
+                  seatsBySectionPromise,
+                  seatsByTypePromise,
+                ]);
+
+                const avail: Record<string, number> = {};
+                const directCount: Record<string, number> = {};
+                const fallbackSeats: any[] = [];
+
+                for (const s of (sectionSeats || []) as any[]) {
+                  if (s.ticket_type_id) {
+                    directCount[s.ticket_type_id] = (directCount[s.ticket_type_id] || 0) + 1;
+                  } else {
+                    fallbackSeats.push(s);
                   }
                 }
+
+                for (const s of (typeSeats || []) as any[]) {
+                  if (s.ticket_type_id && directCount[s.ticket_type_id] === undefined) {
+                    avail[s.ticket_type_id] = (avail[s.ticket_type_id] || 0) + 1;
+                  }
+                }
+
+                for (const ttId of Object.keys(sectionMap)) {
+                  if (directCount[ttId] !== undefined) {
+                    avail[ttId] = directCount[ttId];
+                  } else {
+                    const secIds = new Set(sectionMap[ttId]);
+                    avail[ttId] = fallbackSeats.filter(s => secIds.has(s.section_id)).length;
+                  }
+                }
+
+                for (const ttId of Object.keys(directCount)) {
+                  if (avail[ttId] === undefined) {
+                    avail[ttId] = directCount[ttId];
+                  }
+                }
+
+                setSeatAvailability(avail);
               }
             }
           } catch {

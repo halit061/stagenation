@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { Resend } from 'npm:resend@4.0.0';
 import QRCode from 'npm:qrcode@1.5.4';
-import { PDFDocument, rgb, StandardFonts } from 'npm:pdf-lib@1.17.1';
+import { PDFDocument, PDFName, PDFString, rgb, StandardFonts } from 'npm:pdf-lib@1.17.1';
 import { getCorsHeaders } from "../_shared/cors.ts";
 
 interface SendTicketEmailRequest {
@@ -14,6 +14,46 @@ interface SendTicketEmailRequest {
 function isValidUUID(str: string): boolean {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   return uuidRegex.test(str);
+}
+
+function addPdfLink(page: any, x: number, y: number, w: number, h: number, url: string) {
+  const ctx = page.doc.context;
+  const linkAnnot = ctx.register(
+    ctx.obj({
+      Type: 'Annot',
+      Subtype: 'Link',
+      Rect: [x, y, x + w, y + h],
+      Border: [0, 0, 0],
+      A: { Type: 'Action', S: 'URI', URI: PDFString.of(url) },
+    })
+  );
+  const annotsKey = PDFName.of('Annots');
+  let annots = page.node.lookup(annotsKey);
+  if (!annots) {
+    annots = ctx.obj([]);
+    page.node.set(annotsKey, annots);
+  }
+  annots.push(linkAnnot);
+}
+
+function drawPdfFooterLinks(page: any, font: any, width: number, baseUrl: string) {
+  const linkColor = rgb(0.02, 0.59, 0.41);
+  const size = 8;
+  const privacyText = 'Privacybeleid';
+  const termsText = 'Algemene Voorwaarden';
+  const sep = '  |  ';
+  const privacyW = font.widthOfTextAtSize(privacyText, size);
+  const termsW = font.widthOfTextAtSize(termsText, size);
+  const sepW = font.widthOfTextAtSize(sep, size);
+  const totalW = privacyW + sepW + termsW;
+  const startX = (width - totalW) / 2;
+  const y = 48;
+  page.drawText(privacyText, { x: startX, y, size, font, color: linkColor });
+  addPdfLink(page, startX, y - 2, privacyW, size + 4, `${baseUrl}/privacy-policy`);
+  page.drawText(sep, { x: startX + privacyW, y, size, font, color: rgb(0.5, 0.5, 0.5) });
+  const termsX = startX + privacyW + sepW;
+  page.drawText(termsText, { x: termsX, y, size, font, color: linkColor });
+  addPdfLink(page, termsX, y - 2, termsW, size + 4, `${baseUrl}/terms-and-conditions`);
 }
 
 async function generateQRCode(data: string): Promise<string> {
@@ -137,6 +177,7 @@ async function buildTicketPdf(order: any, event: any, tickets: any[]): Promise<s
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const baseUrl = Deno.env.get('BASE_URL') || 'https://stagenation.be';
 
   for (const ticket of tickets) {
     const page = pdfDoc.addPage([595, 842]);
@@ -203,6 +244,7 @@ async function buildTicketPdf(order: any, event: any, tickets: any[]): Promise<s
     const footerText = 'Toon deze QR-code bij de ingang. Elk ticket kan slechts 1x gescand worden.';
     page.drawText(footerText, { x: centerText(footerText, font, 8, width), y, size: 8, font, color: rgb(0.47, 0.47, 0.47) });
 
+    drawPdfFooterLinks(page, font, width, baseUrl);
     page.drawText('StageNation | Powered by Lumetrix', { x: centerText('StageNation | Powered by Lumetrix', font, 8, width), y: 30, size: 8, font, color: rgb(0.6, 0.6, 0.6) });
   }
 
@@ -219,6 +261,7 @@ async function buildSeatTicketPdf(order: any, event: any, seatTickets: any[]): P
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const monoFont = await pdfDoc.embedFont(StandardFonts.CourierBold);
+  const baseUrl = Deno.env.get('BASE_URL') || 'https://stagenation.be';
 
   for (const ts of seatTickets) {
     const ticketTypeName = ts.seats?.ticket_types?.name || '';
@@ -322,6 +365,7 @@ async function buildSeatTicketPdf(order: any, event: any, seatTickets: any[]): P
     y -= 12;
     page.drawText('Toon dit ticket bij de ingang op je telefoon of geprint.', { x: 50, y, size: 8, font, color: rgb(0.5, 0.5, 0.5) });
 
+    drawPdfFooterLinks(page, font, width, baseUrl);
     page.drawText('StageNation | Powered by Lumetrix', { x: centerText('StageNation | Powered by Lumetrix', font, 8, width), y: 30, size: 8, font, color: rgb(0.6, 0.6, 0.6) });
   }
 
