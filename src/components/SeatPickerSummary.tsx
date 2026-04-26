@@ -144,15 +144,13 @@ export const SeatPickerSummary = memo(function SeatPickerSummary({
                       <span className="text-emerald-400 text-sm font-medium tabular-nums">
                         EUR {getSeatPrice(seat).toFixed(2)}
                       </span>
-                      {!isHeld && (
-                        <button
-                          onClick={() => onRemoveSeat(seat.id)}
-                          className="p-0.5 text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
-                          aria-label={`Remove ${st(language, 'picker.row')} ${seat.row_label} ${st(language, 'picker.seatLabel')} ${seat.seat_number}`}
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                      <button
+                        onClick={() => onRemoveSeat(seat.id)}
+                        className="p-1 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-all"
+                        aria-label={`Remove ${st(language, 'picker.row')} ${seat.row_label} ${st(language, 'picker.seatLabel')} ${seat.seat_number}`}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
                 ))}

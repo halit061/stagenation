@@ -13,6 +13,7 @@ import {
   holdSeatsAtomic,
   extendHolds,
   releaseSessionHolds,
+  releaseSingleSeatHold,
   refreshAllSeats,
   subscribeToSeatUpdates,
   saveHoldToStorage,
@@ -363,10 +364,39 @@ export function useSeatPickerState(eventId: string, ticketTypeId?: string) {
   }, [layout?.id, eventId]);
 
   const toggleSeat = useCallback((seatId: string) => {
-    if (holdActive) return;
     setHoldError(null);
     const seat = seatMap.get(seatId);
     if (!seat) return;
+
+    if (holdActive) {
+      if (!selectedIds.has(seatId)) return;
+      const remainingCount = selectedIds.size - 1;
+
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        next.delete(seatId);
+        return next;
+      });
+      setHoldIds(prev => prev.filter(() => true));
+      setAllSeats(prev =>
+        prev.map(s => s.id === seatId ? { ...s, status: 'available' as Seat['status'] } : s)
+      );
+
+      releaseSingleSeatHold(seatId, eventId).catch((err) => {
+        console.error('[SeatPicker] release single seat error:', err?.message);
+      });
+
+      if (remainingCount === 0) {
+        releaseSessionHolds(eventId).catch(() => {});
+        setHoldIds([]);
+        setExpiresAt(null);
+        setHoldActive(false);
+        setHoldExtended(false);
+        clearHoldStorage();
+      }
+      return;
+    }
+
     if (seat.status === 'blocked' || seat.status === 'sold') return;
     if (seat.status === 'reserved' && !selectedIds.has(seatId)) return;
     if (allowedSectionIds && !allowedSectionIds.includes(seat.sectionId) && !selectedIds.has(seatId)) return;
@@ -381,7 +411,7 @@ export function useSeatPickerState(eventId: string, ticketTypeId?: string) {
       }
       return next;
     });
-  }, [seatMap, selectedIds, holdActive, allowedSectionIds]);
+  }, [seatMap, selectedIds, holdActive, allowedSectionIds, eventId]);
 
   const clearSelection = useCallback(() => {
     if (holdActive) return;

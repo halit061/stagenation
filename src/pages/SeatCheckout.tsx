@@ -462,6 +462,7 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
     const stored = loadHoldFromStorage();
     if (!stored || new Date(stored.expires_at).getTime() <= Date.now()) {
       setHoldExpired(true);
+      setSubmitError(st(language, 'expired.message'));
       return;
     }
 
@@ -481,6 +482,7 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
 
       if (!activeHolds || activeHolds.length === 0) {
         setHoldExpired(true);
+        setSubmitError(st(language, 'expired.message'));
         submittingRef.current = false;
         setSubmitting(false);
         return;

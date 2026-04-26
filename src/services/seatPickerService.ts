@@ -230,6 +230,17 @@ export async function releaseSessionHolds(eventId: string): Promise<void> {
   clearHoldStorage();
 }
 
+export async function releaseSingleSeatHold(seatId: string, eventId: string): Promise<{ success: boolean; released: number }> {
+  const sessionId = getSessionId();
+  const { data, error } = await supabase.rpc('release_single_seat_hold', {
+    p_session_id: sessionId,
+    p_event_id: eventId,
+    p_seat_id: seatId,
+  });
+  if (error) throw error;
+  return (data as { success: boolean; released: number }) ?? { success: false, released: 0 };
+}
+
 export function subscribeToSeatUpdates(
   layoutId: string,
   sectionIds: string[],
