@@ -521,30 +521,45 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      try {
-        const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-ticket-email`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${supabaseServiceKey}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orderId: order.id, resend: false }),
-        });
-
-        if (!emailResponse.ok) {
-          console.error('[webhook] Email function failed:', emailResponse.status);
-
-          await supabase.from('orders').update({
-            email_error: `Email function failed: status ${emailResponse.status}`
-          }).eq('id', order.id);
+      let emailLastStatus: number | null = null;
+      let emailLastError: string | null = null;
+      let emailSent = false;
+      for (let attempt = 1; attempt <= 4; attempt++) {
+        try {
+          const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-ticket-email`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${supabaseServiceKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId: order.id, resend: false }),
+          });
+          emailLastStatus = emailResponse.status;
+          if (emailResponse.ok) {
+            emailSent = true;
+            break;
+          }
+          console.error(`[webhook] Email function attempt ${attempt} failed:`, emailResponse.status);
+          if (![502, 503, 504, 408, 500, 524, 429].includes(emailResponse.status)) break;
+        } catch (emailError: any) {
+          emailLastError = emailError?.message || String(emailError);
+          console.error(`[webhook] Email send attempt ${attempt} exception:`, emailLastError);
         }
-      } catch (emailError) {
-        console.error('[webhook] Email send exception:', emailError.message);
-
+        if (attempt < 4) {
+          await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt - 1)));
+        }
+      }
+      if (!emailSent) {
         try {
           await supabase.from('orders').update({
-            email_error: `Email exception: ${emailError.message}`
+            email_error: emailLastError
+              ? `Email exception after retries: ${emailLastError}`
+              : `Email function failed after retries: status ${emailLastStatus}`,
           }).eq('id', order.id);
         } catch (updateError) {
           console.error('[webhook] Failed to update order with email error');
         }
+      } else {
+        try {
+          await supabase.from('orders').update({ email_error: null }).eq('id', order.id);
+        } catch {}
       }
 
       if (order.product_type !== 'TABLE') {

@@ -168,14 +168,18 @@ export async function fetchOrderById(orderId: string) {
 }
 
 export async function fetchOrderSeats(orderId: string) {
-  const { data, error } = await supabase
-    .from('ticket_seats')
-    .select('id, seat_id, event_id, price_paid, assigned_at, ticket_code, ticket_number, qr_data, qr_token')
-    .eq('order_id', orderId)
-    .limit(10000);
-
-  if (error) throw error;
-  return data ?? [];
+  const sessionId = getSessionId();
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/ticket_seats?order_id=eq.${encodeURIComponent(orderId)}&select=id,seat_id,event_id,price_paid,assigned_at,ticket_code,ticket_number,qr_data,qr_token&limit=10000`;
+  const res = await fetch(url, {
+    headers: {
+      'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      'x-session-id': sessionId,
+      'Accept': 'application/json',
+    },
+  });
+  if (!res.ok) return [];
+  return await res.json();
 }
 
 export async function fetchSeatsForOrder(seatIds: string[]) {

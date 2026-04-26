@@ -76,6 +76,7 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
   const [paymentStatus, setPaymentStatus] = useState<string>('loading');
   const [pdfGenerating, setPdfGenerating] = useState(false);
   const [venueSections, setVenueSections] = useState<TicketPdfSection[]>([]);
+  const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const pollRef = useRef(0);
 
   const dateLocale = language === 'de' ? 'de-DE' : language === 'fr' ? 'fr-FR' : language === 'tr' ? 'tr-TR' : 'nl-NL';
@@ -270,6 +271,28 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
   const handlePrint = useCallback(() => {
     window.print();
   }, []);
+
+  const handleResendEmail = useCallback(async () => {
+    if (!order || resendStatus === 'sending') return;
+    setResendStatus('sending');
+    try {
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-ticket-email`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ orderId: order.id, resend: true, source: 'confirmation_page' }),
+      });
+      if (res.ok) {
+        setResendStatus('sent');
+      } else {
+        setResendStatus('error');
+      }
+    } catch {
+      setResendStatus('error');
+    }
+  }, [order, resendStatus]);
 
   const handleDownloadPdf = useCallback(async () => {
     if (!order || !eventInfo || seats.length === 0) return;
@@ -603,6 +626,26 @@ export function SeatConfirmation({ eventId, orderId, onNavigate }: Props) {
           <p className="text-slate-500 text-xs leading-relaxed">
             {st(language, 'confirm.keepOrderNumber')}
           </p>
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={handleResendEmail}
+              disabled={resendStatus === 'sending' || resendStatus === 'sent'}
+              className="text-xs text-blue-400 hover:text-blue-300 disabled:opacity-60 transition-colors inline-flex items-center gap-1.5"
+            >
+              {resendStatus === 'sending' && <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />}
+              {resendStatus === 'sent'
+                ? 'E-mail opnieuw verstuurd'
+                : resendStatus === 'error'
+                  ? 'Opnieuw proberen'
+                  : 'E-mail niet ontvangen? Verstuur opnieuw'}
+            </button>
+            {resendStatus === 'error' && (
+              <p className="text-red-400 text-xs mt-1" role="alert">
+                Versturen mislukt. Probeer het later opnieuw of neem contact op.
+              </p>
+            )}
+          </div>
         </div>
 
         {seats.some(s => s.qr_data) && (
