@@ -29,7 +29,7 @@ Deno.serve(async (req: Request) => {
     console.log('✅ Auth passed');
 
     // Check WhatsApp config - supports multiple recipients
-    // Format: "phone1:apikey1,phone2:apikey2" e.g. "+905386613174:2793590,+32484100858:1234567"
+    // Format: "phone1:apikey1,phone2:apikey2"
     const whatsappRecipients = Deno.env.get('WHATSAPP_RECIPIENTS');
 
     // Fallback: legacy single-number config
