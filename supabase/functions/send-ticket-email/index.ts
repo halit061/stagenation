@@ -259,25 +259,32 @@ async function buildSeatTicketPdf(order: any, event: any, seatTickets: any[]): P
     page.drawLine({ start: { x: 50, y }, end: { x: width - 50, y }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8) });
     y -= 24;
 
-    const col1 = 50;
-    const col2 = 180;
-    const col3 = 280;
-    const col4 = 400;
+    const colA = 50;
+    const colB = 220;
+    const colC = 360;
 
-    page.drawText('SECTIE', { x: col1, y, size: 9, font, color: rgb(0.5, 0.5, 0.5) });
-    page.drawText('RIJ', { x: col2, y, size: 9, font, color: rgb(0.5, 0.5, 0.5) });
-    page.drawText('STOEL', { x: col3, y, size: 9, font, color: rgb(0.5, 0.5, 0.5) });
-    page.drawText('PRIJS', { x: col4, y, size: 9, font, color: rgb(0.5, 0.5, 0.5) });
+    page.drawText('SECTIE', { x: colA, y, size: 9, font, color: rgb(0.5, 0.5, 0.5) });
+    y -= 16;
+
+    let sectionFontSize = 16;
+    const maxSectionWidth = width - 100;
+    while (sectionFontSize > 9 && boldFont.widthOfTextAtSize(sectionName, sectionFontSize) > maxSectionWidth) {
+      sectionFontSize -= 1;
+    }
+    page.drawText(sectionName, { x: colA, y, size: sectionFontSize, font: boldFont, color: rgb(0.1, 0.1, 0.1) });
+    if (seatType === 'vip') {
+      page.drawText('VIP', { x: width - 80, y, size: 10, font: boldFont, color: rgb(0.7, 0.47, 0) });
+    }
+    y -= 26;
+
+    page.drawText('RIJ', { x: colA, y, size: 9, font, color: rgb(0.5, 0.5, 0.5) });
+    page.drawText('STOEL', { x: colB, y, size: 9, font, color: rgb(0.5, 0.5, 0.5) });
+    page.drawText('PRIJS', { x: colC, y, size: 9, font, color: rgb(0.5, 0.5, 0.5) });
     y -= 18;
 
-    page.drawText(sectionName, { x: col1, y, size: 16, font: boldFont, color: rgb(0.1, 0.1, 0.1) });
-    page.drawText(rowLabel, { x: col2, y, size: 16, font: boldFont, color: rgb(0.1, 0.1, 0.1) });
-    page.drawText(seatNumber, { x: col3, y, size: 16, font: boldFont, color: rgb(0.1, 0.1, 0.1) });
-    page.drawText('EUR ' + pricePaid, { x: col4, y, size: 16, font: boldFont, color: rgb(0.1, 0.1, 0.1) });
-
-    if (seatType === 'vip') {
-      page.drawText('VIP', { x: width - 80, y: y + 18, size: 10, font: boldFont, color: rgb(0.7, 0.47, 0) });
-    }
+    page.drawText(rowLabel, { x: colA, y, size: 16, font: boldFont, color: rgb(0.1, 0.1, 0.1) });
+    page.drawText(seatNumber, { x: colB, y, size: 16, font: boldFont, color: rgb(0.1, 0.1, 0.1) });
+    page.drawText('EUR ' + pricePaid, { x: colC, y, size: 16, font: boldFont, color: rgb(0.1, 0.1, 0.1) });
     y -= 30;
 
     if (ticketCode) {

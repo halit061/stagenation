@@ -803,7 +803,10 @@ export function Tickets({ onNavigate }: TicketsProps) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
             {ticketTypes.map((ticketType) => {
-              const available = ticketType.quantity_total - ticketType.quantity_sold;
+              const seatBased = seatAvailability[ticketType.id] !== undefined;
+              const available = seatBased
+                ? seatAvailability[ticketType.id]
+                : ticketType.quantity_total - ticketType.quantity_sold;
               const soldOut = available <= 0;
               const phaseInfo = lockedStatus.get(ticketType.id);
               const isLocked = phaseInfo?.locked || false;
@@ -813,7 +816,7 @@ export function Tickets({ onNavigate }: TicketsProps) {
               const remaining = Math.max(0, available);
               const shouldShowRemaining =
                 ticketType.show_remaining_tickets &&
-                ticketType.quantity_total != null &&
+                (seatBased || ticketType.quantity_total != null) &&
                 (ticketType.remaining_display_threshold == null || remaining <= ticketType.remaining_display_threshold);
 
               // Color always from admin theme — no hardcoded overrides
