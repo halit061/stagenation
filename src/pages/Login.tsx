@@ -1,7 +1,6 @@
 import { Shield, LogIn, AlertCircle, Loader2, ArrowLeft, Mail, CheckCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabaseClient';
 
 interface LoginProps {
   onNavigate?: (page: string) => void;
@@ -80,20 +79,20 @@ export function Login({ onNavigate }: LoginProps) {
     setResetSending(true);
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
-        redirectTo: `${window.location.origin}/superadmin-reset`,
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/request-password-reset`;
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: resetEmail.trim() }),
       });
 
-      if (error && error.status !== 429) {
-        const isRealError = error.message &&
-          !error.message.toLowerCase().includes('rate') &&
-          !error.message.toLowerCase().includes('too many');
-
-        if (isRealError) {
-          console.error('[Login] Reset error:', error.message);
-          setResetError('Er is een fout opgetreden. Probeer het later opnieuw.');
-          return;
-        }
+      if (!response.ok) {
+        console.error('[Login] Reset error: HTTP', response.status);
+        setResetError('Er is een fout opgetreden. Probeer het later opnieuw.');
+        return;
       }
       setResetSent(true);
     } catch (err: any) {
