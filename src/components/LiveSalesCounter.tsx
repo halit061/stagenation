@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Ticket, DollarSign, TrendingUp, RefreshCw, Receipt, Percent, Wallet } from 'lucide-react';
+import { Ticket, DollarSign, TrendingUp, RefreshCw, Receipt, Percent, Euro } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
 interface LiveSalesCounterProps {
@@ -14,9 +14,9 @@ interface SalesData {
 }
 
 interface FinancialBreakdown {
-  ticketIncomeCents: number;
+  ticketPriceCents: number;
   serviceFeeCents: number;
-  netRevenueCents: number;
+  omzetCents: number;
 }
 
 export function LiveSalesCounter({ eventId, eventName }: LiveSalesCounterProps) {
@@ -26,9 +26,9 @@ export function LiveSalesCounter({ eventId, eventName }: LiveSalesCounterProps) 
     totalTicketsRemaining: 0,
   });
   const [breakdown, setBreakdown] = useState<FinancialBreakdown>({
-    ticketIncomeCents: 0,
+    ticketPriceCents: 0,
     serviceFeeCents: 0,
-    netRevenueCents: 0,
+    omzetCents: 0,
   });
   const [loading, setLoading] = useState(true);
   const [pulse, setPulse] = useState(false);
@@ -81,7 +81,7 @@ export function LiveSalesCounter({ eventId, eventName }: LiveSalesCounterProps) 
 
       const { data: breakdownOrders } = await supabase
         .from('orders')
-        .select('total_amount, service_fee_total_cents, net_revenue_cents')
+        .select('total_amount, service_fee_total_cents')
         .eq('event_id', eventId)
         .in('status', ['paid', 'comped'])
         .limit(10000);
@@ -89,11 +89,10 @@ export function LiveSalesCounter({ eventId, eventName }: LiveSalesCounterProps) 
       if (breakdownOrders) {
         const totalAmount = breakdownOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
         const serviceFee = breakdownOrders.reduce((sum, o) => sum + (o.service_fee_total_cents || 0), 0);
-        const netRevenue = breakdownOrders.reduce((sum, o) => sum + (o.net_revenue_cents || 0), 0);
         setBreakdown({
-          ticketIncomeCents: totalAmount - serviceFee,
+          ticketPriceCents: totalAmount - serviceFee,
           serviceFeeCents: serviceFee,
-          netRevenueCents: netRevenue,
+          omzetCents: totalAmount,
         });
       }
     } catch (error) {
@@ -206,10 +205,10 @@ export function LiveSalesCounter({ eventId, eventName }: LiveSalesCounterProps) 
         <div className="bg-slate-700/40 border border-slate-600/40 rounded-xl p-4">
           <div className="flex items-center justify-between mb-2">
             <Receipt className="w-5 h-5 text-blue-400" />
-            <span className="text-[10px] text-slate-500 uppercase tracking-wider">Ticket inkomsten</span>
+            <span className="text-[10px] text-slate-500 uppercase tracking-wider">Ticket prijs</span>
           </div>
           <div className="text-xl font-bold text-white">
-            {'\u20AC'}{(breakdown.ticketIncomeCents / 100).toFixed(2)}
+            {'\u20AC'}{(breakdown.ticketPriceCents / 100).toFixed(2)}
           </div>
         </div>
 
@@ -225,11 +224,11 @@ export function LiveSalesCounter({ eventId, eventName }: LiveSalesCounterProps) 
 
         <div className="bg-slate-700/40 border border-slate-600/40 rounded-xl p-4">
           <div className="flex items-center justify-between mb-2">
-            <Wallet className="w-5 h-5 text-emerald-400" />
-            <span className="text-[10px] text-slate-500 uppercase tracking-wider">Netto inkomsten</span>
+            <Euro className="w-5 h-5 text-emerald-400" />
+            <span className="text-[10px] text-slate-500 uppercase tracking-wider">Omzet</span>
           </div>
           <div className="text-xl font-bold text-white">
-            {'\u20AC'}{(breakdown.netRevenueCents / 100).toFixed(2)}
+            {'\u20AC'}{(breakdown.omzetCents / 100).toFixed(2)}
           </div>
         </div>
       </div>
