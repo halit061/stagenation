@@ -255,8 +255,86 @@ async function buildTicketPdf(order: any, event: any, tickets: any[]): Promise<s
   return btoa(binary);
 }
 
-async function buildSeatTicketPdf(order: any, event: any, seatTickets: any[]): Promise<string> {
-  console.log('[pdf] buildSeatTicketPdf start, tickets:', seatTickets?.length);
+type MiniFloorplanSeat = { id: string; x: number; y: number; ttId: string };
+
+function hexToRgbTuple(hex: string): [number, number, number] {
+  const h = (hex || '').replace('#', '');
+  if (h.length !== 6) return [0.6, 0.6, 0.6];
+  return [
+    parseInt(h.substring(0, 2), 16) / 255,
+    parseInt(h.substring(2, 4), 16) / 255,
+    parseInt(h.substring(4, 6), 16) / 255,
+  ];
+}
+
+function drawMiniFloorplanOnPage(
+  page: any,
+  bx: number, by: number, bw: number, bh: number,
+  allSeats: MiniFloorplanSeat[],
+  ttColors: Map<string, string>,
+  highlightedSeatIds: Set<string>,
+  font: any,
+  boldFont: any,
+) {
+  if (!allSeats || allSeats.length === 0) return;
+
+  page.drawRectangle({
+    x: bx, y: by, width: bw, height: bh,
+    color: rgb(0.985, 0.99, 0.995),
+    borderColor: rgb(0.8, 0.82, 0.85),
+    borderWidth: 0.6,
+  });
+
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const s of allSeats) {
+    if (s.x < minX) minX = s.x;
+    if (s.x > maxX) maxX = s.x;
+    if (s.y < minY) minY = s.y;
+    if (s.y > maxY) maxY = s.y;
+  }
+  if (!isFinite(minX)) return;
+
+  const titleH = 14;
+  const innerPad = 6;
+  const drawW = bw - innerPad * 2;
+  const drawH = bh - innerPad * 2 - titleH;
+  const spanX = Math.max(1, maxX - minX);
+  const spanY = Math.max(1, maxY - minY);
+  const scale = Math.min(drawW / spanX, drawH / spanY);
+  const offX = bx + innerPad + (drawW - spanX * scale) / 2;
+  const offY = by + innerPad + (drawH - spanY * scale) / 2;
+
+  page.drawText('Plattegrond - jouw zitplaats', {
+    x: bx + innerPad, y: by + bh - 11, size: 8, font: boldFont, color: rgb(0.2, 0.2, 0.25),
+  });
+
+  const highlights: { x: number; y: number }[] = [];
+  for (const s of allSeats) {
+    const px = offX + (s.x - minX) * scale;
+    const py = offY + (maxY - s.y) * scale;
+    if (highlightedSeatIds.has(s.id)) {
+      highlights.push({ x: px, y: py });
+      continue;
+    }
+    const [r, g, b] = hexToRgbTuple(ttColors.get(s.ttId) || '#9ca3af');
+    page.drawCircle({ x: px, y: py, size: 0.85, color: rgb(r, g, b), opacity: 0.55 });
+  }
+
+  for (const h of highlights) {
+    page.drawCircle({ x: h.x, y: h.y, size: 7, color: rgb(0.92, 0.18, 0.18), opacity: 0.22 });
+    page.drawCircle({ x: h.x, y: h.y, size: 3.4, color: rgb(0.92, 0.18, 0.18) });
+    page.drawCircle({ x: h.x, y: h.y, size: 1.3, color: rgb(1, 1, 1) });
+  }
+}
+
+async function buildSeatTicketPdf(
+  order: any,
+  event: any,
+  seatTickets: any[],
+  allEventSeats: MiniFloorplanSeat[] = [],
+  ttColors: Map<string, string> = new Map(),
+): Promise<string> {
+  console.log('[pdf] buildSeatTicketPdf start, tickets:', seatTickets?.length, 'mapSeats:', allEventSeats.length);
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
@@ -343,9 +421,23 @@ async function buildSeatTicketPdf(order: any, event: any, seatTickets: any[]): P
     const qrValue = ts.qr_data || ts.qr_code || ticketCode || ts.id;
     if (qrValue) {
       try {
-        const qrSize = 160;
-        drawQROnPage(page, qrValue, (width - qrSize) / 2, y - qrSize, qrSize);
-        y -= qrSize + 14;
+        const qrSize = 130;
+        const qrX = 50;
+        const qrY = y - qrSize;
+        drawQROnPage(page, qrValue, qrX, qrY, qrSize);
+
+        if (allEventSeats.length > 0 && ts.seats?.id) {
+          const fpX = qrX + qrSize + 20;
+          const fpW = width - 50 - fpX;
+          drawMiniFloorplanOnPage(
+            page,
+            fpX, qrY, fpW, qrSize,
+            allEventSeats, ttColors, new Set([ts.seats.id]),
+            font, boldFont,
+          );
+        }
+
+        y = qrY - 14;
       } catch (e: any) {
         console.error('[pdf] QR draw failed:', e.message);
       }
@@ -1181,7 +1273,43 @@ Deno.serve(async (req: Request) => {
     if (hasSeatTickets && seatTickets.length > 0) {
       try {
         console.log('[pdf] Generating seat ticket PDF for', seatTickets.length, 'seats, order:', order.order_number);
-        const pdfBase64 = await buildSeatTicketPdf(order, event, seatTickets);
+
+        let mapSeats: MiniFloorplanSeat[] = [];
+        const ttColors = new Map<string, string>();
+        try {
+          const { data: ttRows } = await adminClient
+            .from('ticket_types')
+            .select('id, color')
+            .eq('event_id', order.event_id);
+          if (ttRows) {
+            for (const t of ttRows) ttColors.set(t.id, t.color || '#9ca3af');
+          }
+          const eventTtIds = ttRows ? ttRows.map((t: any) => t.id) : [];
+          if (eventTtIds.length > 0) {
+            let from = 0;
+            const PAGE = 1000;
+            while (true) {
+              const { data: chunk } = await adminClient
+                .from('seats')
+                .select('id, x_position, y_position, ticket_type_id')
+                .in('ticket_type_id', eventTtIds)
+                .eq('is_active', true)
+                .range(from, from + PAGE - 1);
+              if (!chunk || chunk.length === 0) break;
+              for (const s of chunk) {
+                mapSeats.push({ id: s.id, x: Number(s.x_position), y: Number(s.y_position), ttId: s.ticket_type_id });
+              }
+              if (chunk.length < PAGE) break;
+              from += PAGE;
+            }
+          }
+          console.log('[pdf] mini floorplan: loaded', mapSeats.length, 'seats,', ttColors.size, 'ticket types');
+        } catch (mapErr: any) {
+          console.error('[pdf] mini floorplan load failed:', mapErr?.message);
+          mapSeats = [];
+        }
+
+        const pdfBase64 = await buildSeatTicketPdf(order, event, seatTickets, mapSeats, ttColors);
         const pdfSizeBytes = Math.ceil(pdfBase64.length * 3 / 4);
         console.log('[pdf] Seat ticket PDF generated, base64 length:', pdfBase64.length, 'estimated bytes:', pdfSizeBytes);
         if (pdfSizeBytes < 1000) {
