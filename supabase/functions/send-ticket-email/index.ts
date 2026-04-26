@@ -1274,40 +1274,8 @@ Deno.serve(async (req: Request) => {
       try {
         console.log('[pdf] Generating seat ticket PDF for', seatTickets.length, 'seats, order:', order.order_number);
 
-        let mapSeats: MiniFloorplanSeat[] = [];
+        const mapSeats: MiniFloorplanSeat[] = [];
         const ttColors = new Map<string, string>();
-        try {
-          const { data: ttRows } = await adminClient
-            .from('ticket_types')
-            .select('id, color')
-            .eq('event_id', order.event_id);
-          if (ttRows) {
-            for (const t of ttRows) ttColors.set(t.id, t.color || '#9ca3af');
-          }
-          const eventTtIds = ttRows ? ttRows.map((t: any) => t.id) : [];
-          if (eventTtIds.length > 0) {
-            let from = 0;
-            const PAGE = 1000;
-            while (true) {
-              const { data: chunk } = await adminClient
-                .from('seats')
-                .select('id, x_position, y_position, ticket_type_id')
-                .in('ticket_type_id', eventTtIds)
-                .eq('is_active', true)
-                .range(from, from + PAGE - 1);
-              if (!chunk || chunk.length === 0) break;
-              for (const s of chunk) {
-                mapSeats.push({ id: s.id, x: Number(s.x_position), y: Number(s.y_position), ttId: s.ticket_type_id });
-              }
-              if (chunk.length < PAGE) break;
-              from += PAGE;
-            }
-          }
-          console.log('[pdf] mini floorplan: loaded', mapSeats.length, 'seats,', ttColors.size, 'ticket types');
-        } catch (mapErr: any) {
-          console.error('[pdf] mini floorplan load failed:', mapErr?.message);
-          mapSeats = [];
-        }
 
         const pdfBase64 = await buildSeatTicketPdf(order, event, seatTickets, mapSeats, ttColors);
         const pdfSizeBytes = Math.ceil(pdfBase64.length * 3 / 4);
