@@ -320,7 +320,7 @@ Deno.serve(async (req: Request) => {
         console.error(
           `SECURITY: payment amount mismatch order_id=${order.id} payment_id=${payment.id} paid=${paidEuros} expected=${expectedEuros}`,
         );
-        await supabase.from('webhook_logs').upsert({
+        await supabase.from('webhook_logs').insert({
           provider: 'mollie',
           event_type: 'amount_mismatch',
           payload: {
@@ -333,7 +333,7 @@ Deno.serve(async (req: Request) => {
           signature_valid: true,
           processed: false,
           order_id: order.id,
-        }, { onConflict: 'provider,event_type' });
+        });
         return new Response(
           JSON.stringify({ ok: false, reason: 'amount_mismatch' }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
