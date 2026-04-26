@@ -67,33 +67,6 @@ async function main() {
   const beforeCircles = [];
   const afterCircles = [];
 
-  const pleinSeats = allSeats.filter((s) => {
-    const n = ttMap.get(s.ticket_type_id);
-    return n && PLEIN_GROUPS.has(n);
-  });
-
-  const rowBuckets = new Map();
-  for (const s of pleinSeats) {
-    const ttName = ttMap.get(s.ticket_type_id);
-    const rowKey = `${ttName}|${Math.round(s.y_position / ROW_TOLERANCE)}`;
-    if (!rowBuckets.has(rowKey)) rowBuckets.set(rowKey, []);
-    rowBuckets.get(rowKey).push(s);
-  }
-
-  const seatDx = new Map();
-  const rowSummary = new Map();
-  for (const [rowKey, rowSeats] of rowBuckets) {
-    const xs = rowSeats.map((s) => s.x_position);
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const rowCenter = (minX + maxX) / 2;
-    const dx = MIDLINE_X - rowCenter;
-    for (const s of rowSeats) seatDx.set(s.id, dx);
-    const ttName = rowKey.split('|')[0];
-    if (!rowSummary.has(ttName)) rowSummary.set(ttName, []);
-    rowSummary.get(ttName).push(dx);
-  }
-
   for (const s of allSeats) {
     const ttName = ttMap.get(s.ticket_type_id) || 'unknown';
     let dx = 0;
@@ -101,7 +74,7 @@ async function main() {
     let color = '#666';
 
     if (PLEIN_GROUPS.has(ttName)) {
-      dx = seatDx.get(s.id) ?? 0;
+      dx = 0;
       color = PLEIN_COLORS[ttName];
     } else if (TRIBUNE_OFFSETS[ttName]) {
       dx = TRIBUNE_OFFSETS[ttName].dx;
@@ -123,12 +96,12 @@ async function main() {
   }
 
   const legendEntries = [
-    ...Object.entries(PLEIN_COLORS).map(([name, color]) => {
-      const dxs = rowSummary.get(name) || [];
-      const minDx = dxs.length ? Math.min(...dxs).toFixed(1) : '0';
-      const maxDx = dxs.length ? Math.max(...dxs).toFixed(1) : '0';
-      return { name, color, dxLabel: `per rij dx ${minDx} tot ${maxDx}`, dy: 0 };
-    }),
+    ...Object.entries(PLEIN_COLORS).map(([name, color]) => ({
+      name,
+      color,
+      dxLabel: 'plein ongewijzigd',
+      dy: 0,
+    })),
     ...Object.entries(TRIBUNE_OFFSETS).map(([name, o]) => ({
       name,
       color: o.color,
