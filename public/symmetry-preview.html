@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Symmetry Preview - Stagenation</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; background: #0f172a; color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; }
+    .wrap { display: flex; flex-direction: column; height: 100vh; }
+    header { background: #1e293b; padding: 12px 20px; border-bottom: 1px solid #334155; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    header h1 { font-size: 16px; margin: 0 16px 0 0; font-weight: 700; }
+    .btn { background: #334155; color: #e2e8f0; border: 1px solid #475569; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    .btn:hover { background: #475569; }
+    .btn.active { background: #f59e0b; color: #0f172a; border-color: #f59e0b; font-weight: 600; }
+    .stage { flex: 1; overflow: auto; background: #0f172a; padding: 20px; }
+    .frame { background: #f9fafb; border-radius: 8px; min-width: max-content; }
+    svg { display: block; }
+    .info { color: #94a3b8; font-size: 12px; margin-left: auto; }
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; padding: 8px 20px; background: #1e293b; border-bottom: 1px solid #334155; font-size: 12px; }
+    .swatch { display: inline-flex; align-items: center; gap: 6px; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+    .loading { padding: 40px; text-align: center; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Symmetry Preview</h1>
+      <button class="btn active" data-mode="both">Voor + Na</button>
+      <button class="btn" data-mode="before">Alleen huidig</button>
+      <button class="btn" data-mode="after">Alleen voorstel</button>
+      <button class="btn" id="zoomIn">Zoom +</button>
+      <button class="btn" id="zoomOut">Zoom -</button>
+      <button class="btn" id="zoomReset">100%</button>
+      <span class="info">Middenas X = 4440</span>
+    </header>
+    <div class="legend">
+      <span class="swatch"><span class="dot" style="background:#9ca3af"></span> Huidige positie</span>
+      <span class="swatch"><span class="dot" style="background:#3b82f6"></span> Plein Achteraan</span>
+      <span class="swatch"><span class="dot" style="background:#f59e0b"></span> Premium</span>
+      <span class="swatch"><span class="dot" style="background:#10b981"></span> Zitplaatsen Plein</span>
+      <span class="swatch"><span class="dot" style="background:#06b6d4"></span> Rolstoel</span>
+      <span class="swatch"><span class="dot" style="background:#ec4899"></span> Tribune zijkant</span>
+      <span class="swatch"><span class="dot" style="background:#84cc16"></span> Tribune achter</span>
+    </div>
+    <div class="stage" id="stage">
+      <div class="loading" id="loading">SVG laden...</div>
+      <div class="frame" id="frame" style="display:none"></div>
+    </div>
+  </div>
+  <script>
+    let zoom = 0.4;
+    const frame = document.getElementById('frame');
+    const loading = document.getElementById('loading');
+
+    function applyZoom() {
+      const svg = frame.querySelector('svg');
+      if (!svg) return;
+      const vbParts = svg.getAttribute('viewBox').split(/\s+/).map(Number);
+      const w = vbParts[2] * zoom;
+      const h = vbParts[3] * zoom;
+      svg.setAttribute('width', w);
+      svg.setAttribute('height', h);
+    }
+
+    fetch('/symmetry-preview.svg')
+      .then(r => r.text())
+      .then(text => {
+        frame.innerHTML = text;
+        loading.style.display = 'none';
+        frame.style.display = 'inline-block';
+        applyZoom();
+      })
+      .catch(err => {
+        loading.textContent = 'Kan preview niet laden: ' + err.message;
+      });
+
+    document.querySelectorAll('[data-mode]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const mode = btn.dataset.mode;
+        const before = frame.querySelector('#before');
+        const after = frame.querySelector('#after');
+        if (before) before.style.display = (mode === 'after') ? 'none' : '';
+        if (after) after.style.display = (mode === 'before') ? 'none' : '';
+      });
+    });
+
+    document.getElementById('zoomIn').addEventListener('click', () => { zoom = Math.min(2, zoom * 1.25); applyZoom(); });
+    document.getElementById('zoomOut').addEventListener('click', () => { zoom = Math.max(0.1, zoom / 1.25); applyZoom(); });
+    document.getElementById('zoomReset').addEventListener('click', () => { zoom = 0.4; applyZoom(); });
+  </script>
+</body>
+</html>

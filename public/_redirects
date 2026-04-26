@@ -20,8 +20,10 @@
 /.claude/*         /404.html   404
 
 # Serve dedicated HTML entry points for multi-page routes
-/superadmin        /superadmin.html   200
-/superadmin-reset  /superadmin-reset.html  200
+/superadmin          /superadmin.html         200
+/superadmin-reset    /superadmin-reset.html   200
+/symmetry-preview    /symmetry-preview.html   200
+/symmetry-preview.svg /symmetry-preview.svg   200
 
 # SPA fallback for all other client-side routing
 /*    /index.html   200
