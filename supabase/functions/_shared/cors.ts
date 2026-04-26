@@ -15,7 +15,7 @@ export function getCorsHeaders(req?: Request): Record<string, string> {
   const headers: Record<string, string> = {
     "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
     "Access-Control-Allow-Headers":
-      "Content-Type, Authorization, X-Client-Info, Apikey",
+      "Content-Type, Authorization, X-Client-Info, Apikey, Cache-Control",
   };
   if (isAllowed) {
     headers["Access-Control-Allow-Origin"] = origin;

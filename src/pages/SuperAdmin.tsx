@@ -517,11 +517,20 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
       if (ticketTypesRes.data) setTicketTypes(ticketTypesRes.data);
       if (ordersRes.data) {
         const orderIds = ordersRes.data.map(o => o.id);
-        const { data: ticketsData } = await supabase
-          .from('tickets')
-          .select('id, order_id, ticket_type_id, ticket_number, status, qr_data, holder_name, event_id, ticket_types(id, name, price)')
-          .in('order_id', orderIds)
-          .limit(10000);
+        const [ticketsRes, seatTicketsRes] = await Promise.all([
+          supabase
+            .from('tickets')
+            .select('id, order_id, ticket_type_id, ticket_number, status, qr_data, holder_name, event_id, ticket_types(id, name, price)')
+            .in('order_id', orderIds)
+            .limit(10000),
+          supabase
+            .from('ticket_seats')
+            .select('id, order_id, price_paid, seats(id, ticket_type_id, row_label, seat_number, ticket_types(id, name, price))')
+            .in('order_id', orderIds)
+            .limit(10000),
+        ]);
+        const ticketsData = ticketsRes.data;
+        const seatTicketsData = seatTicketsRes.data;
 
         const enrichedOrders = ordersRes.data.map(order => {
           const orderTickets = (ticketsData || []).filter(t => t.order_id === order.id);
@@ -530,6 +539,16 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
             const typeId = ticket.ticket_type_id;
             const typeName = (ticket as any).ticket_types?.name || 'Ticket';
             const typePrice = (ticket as any).ticket_types?.price || 0;
+            if (!ticketsByType.has(typeId)) {
+              ticketsByType.set(typeId, { typeId, typeName, typePrice, quantity: 0 });
+            }
+            ticketsByType.get(typeId).quantity++;
+          }
+          const orderSeatTickets = (seatTicketsData || []).filter((s: any) => s.order_id === order.id);
+          for (const st of orderSeatTickets) {
+            const typeId = (st as any).seats?.ticket_type_id || 'seat';
+            const typeName = (st as any).seats?.ticket_types?.name || 'Zitplaats';
+            const typePrice = parseFloat((st as any).price_paid) || (st as any).seats?.ticket_types?.price || 0;
             if (!ticketsByType.has(typeId)) {
               ticketsByType.set(typeId, { typeId, typeName, typePrice, quantity: 0 });
             }
