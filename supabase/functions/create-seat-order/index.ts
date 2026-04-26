@@ -143,7 +143,7 @@ Deno.serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    const { data, error } = await supabase.rpc("create_seat_order_pending", {
+    const { data, error } = await supabase.rpc("create_seat_order_pending_v2", {
       p_event_id,
       p_customer_first_name,
       p_customer_last_name,
@@ -163,6 +163,20 @@ Deno.serve(async (req: Request) => {
     if (error) {
       console.error("[create-seat-order] RPC error:", error.message);
       return jsonRes({ error: error.message }, 500);
+    }
+
+    if (data && data.success === false && data.error === "amount_mismatch") {
+      console.error(
+        `SECURITY: Amount mismatch for event ${p_event_id} — expected=${data.expected} received=${data.received} email=${p_customer_email}`,
+      );
+      return jsonRes(
+        {
+          error: "price_changed",
+          message:
+            "De prijzen zijn gewijzigd. Vernieuw de pagina en probeer opnieuw.",
+        },
+        400,
+      );
     }
 
     if (!data || !data.success) {

@@ -312,6 +312,34 @@ Deno.serve(async (req: Request) => {
     }
 
     if (payment.status === 'paid' && ['pending', 'reserved'].includes(order.status)) {
+      // SECURITY: validate Mollie-paid amount matches the order amount stored in DB.
+      // Tolerance: 0.01 EUR for floating-point rounding.
+      const paidEuros = parseFloat(payment?.amount?.value ?? '0');
+      const expectedEuros = (order.total_amount ?? 0) / 100;
+      if (!Number.isFinite(paidEuros) || Math.abs(paidEuros - expectedEuros) > 0.01) {
+        console.error(
+          `SECURITY: payment amount mismatch order_id=${order.id} payment_id=${payment.id} paid=${paidEuros} expected=${expectedEuros}`,
+        );
+        await supabase.from('webhook_logs').upsert({
+          provider: 'mollie',
+          event_type: 'amount_mismatch',
+          payload: {
+            order_id: order.id,
+            payment_id: payment.id,
+            paid: paidEuros,
+            expected: expectedEuros,
+            mollie_payment: payment,
+          },
+          signature_valid: true,
+          processed: false,
+          order_id: order.id,
+        }, { onConflict: 'provider,event_type' });
+        return new Response(
+          JSON.stringify({ ok: false, reason: 'amount_mismatch' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
       const paidAtIso = new Date().toISOString();
       await supabase.from('orders').update({
         status: 'paid',
