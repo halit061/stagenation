@@ -58,35 +58,6 @@ async function main() {
 
   console.log(`Loaded ${allSeats.length} seats`);
 
-  // Group plein seats by Y bucket within each group, separated into L/R sides
-  const rowSideKey = (ttName, y, side) =>
-    `${ttName}|${Math.round(y / ROW_TOLERANCE)}|${side}`;
-
-  const sideBuckets = new Map();
-  for (const s of allSeats) {
-    const ttName = ttMap.get(s.ticket_type_id);
-    if (!ttName || !PLEIN_GROUPS.has(ttName)) continue;
-    const side = s.x_position < MIDLINE_X ? 'L' : 'R';
-    const key = rowSideKey(ttName, s.y_position, side);
-    if (!sideBuckets.has(key)) sideBuckets.set(key, []);
-    sideBuckets.get(key).push(s);
-  }
-
-  // For each (group, row, side) compute dx that snaps the OUTER seat to AA outer line
-  const seatDx = new Map();
-  for (const [key, seats] of sideBuckets) {
-    const side = key.endsWith('|L') ? 'L' : 'R';
-    if (side === 'L') {
-      const minX = Math.min(...seats.map((s) => s.x_position));
-      const dx = LEFT_OUTER - minX;
-      for (const s of seats) seatDx.set(s.id, dx);
-    } else {
-      const maxX = Math.max(...seats.map((s) => s.x_position));
-      const dx = RIGHT_OUTER - maxX;
-      for (const s of seats) seatDx.set(s.id, dx);
-    }
-  }
-
   const W = 9000;
   const H = 4500;
   const PAD = 200;
@@ -102,7 +73,7 @@ async function main() {
     let color = colorMap.get(ttName) || '#666';
 
     if (PLEIN_GROUPS.has(ttName)) {
-      dx = seatDx.get(s.id) ?? 0;
+      dx = 0;
     } else if (TRIBUNE_OFFSETS[ttName]) {
       dx = TRIBUNE_OFFSETS[ttName].dx;
       dy = TRIBUNE_OFFSETS[ttName].dy;
@@ -125,7 +96,7 @@ async function main() {
     ...[...PLEIN_GROUPS].map((name) => ({
       name,
       color: colorMap.get(name) || '#666',
-      dxLabel: 'per rij naar AA1/AA36 lijn',
+      dxLabel: 'plein ongewijzigd',
       dy: 0,
     })),
     ...Object.entries(TRIBUNE_OFFSETS).map(([name, o]) => ({
