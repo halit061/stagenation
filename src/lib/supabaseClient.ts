@@ -8,16 +8,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 const noStoreFetch: typeof fetch = (input, init) => {
-  const merged: RequestInit = { ...(init || {}), cache: 'no-store' };
-  const existingHeaders = new Headers(init?.headers || {});
-  if (!existingHeaders.has('Cache-Control')) {
-    existingHeaders.set('Cache-Control', 'no-cache');
-  }
-  if (!existingHeaders.has('Pragma')) {
-    existingHeaders.set('Pragma', 'no-cache');
-  }
-  merged.headers = existingHeaders;
-  return fetch(input, merged);
+  return fetch(input, { ...(init || {}), cache: 'no-store' });
 };
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
