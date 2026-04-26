@@ -1035,7 +1035,7 @@ export function Tickets({ onNavigate }: TicketsProps) {
                                   <span>{t('tickets.chooseSeats') || 'Kies stoelen'}</span>
                                   <ArrowRight className="w-3.5 h-3.5" />
                                 </button>
-                                {seatCount !== undefined && seatCount > 0 && (
+                                {seatCount !== undefined && seatCount > 0 && (ticketType.remaining_display_threshold == null || seatCount <= ticketType.remaining_display_threshold) && (
                                   <span className="text-[10px] text-slate-500">
                                     {seatCount} {t('tickets.seatsAvailable') || 'beschikbaar'}
                                   </span>
