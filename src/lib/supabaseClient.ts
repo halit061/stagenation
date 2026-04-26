@@ -7,8 +7,29 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
+const SEAT_PICKER_SESSION_KEY = 'seat_picker_session_id';
+
+function getSeatPickerSessionId(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    let id = window.sessionStorage.getItem(SEAT_PICKER_SESSION_KEY);
+    if (!id) {
+      id = crypto.randomUUID();
+      window.sessionStorage.setItem(SEAT_PICKER_SESSION_KEY, id);
+    }
+    return id;
+  } catch {
+    return null;
+  }
+}
+
 const noStoreFetch: typeof fetch = (input, init) => {
-  return fetch(input, { ...(init || {}), cache: 'no-store' });
+  const sessionId = getSeatPickerSessionId();
+  const headers = new Headers(init?.headers || {});
+  if (sessionId && !headers.has('x-session-id')) {
+    headers.set('x-session-id', sessionId);
+  }
+  return fetch(input, { ...(init || {}), headers, cache: 'no-store' });
 };
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
