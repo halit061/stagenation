@@ -30,7 +30,7 @@ export const translations = {
       noEventsDesc: 'Check binnenkort terug voor nieuwe events of blijf op de hoogte via onze socials!',
       whyMax: 'Waarom',
       premiumTitle: 'Premium Ervaring',
-      premiumDesc: 'Geniet van een onvergetelijke avond met top-entertainment en sfeer',
+      premiumDesc: 'Geniet van een onvergetelijke dag met top-entertainment en sfeer',
       locationTitle: 'Centrale Locatie',
       locationDesc: 'Makkelijk bereikbaar met voldoende parking in Genk',
       secureTitle: 'Veilige Tickets',
