@@ -448,6 +448,9 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
       setErrors(allErrors);
       setTouched(new Set(['firstName', 'lastName', 'email', 'emailConfirm', 'phone', 'paymentMethod', 'termsAccepted']));
 
+      const firstError = Object.values(allErrors).find(Boolean);
+      if (firstError) setSubmitError(firstError);
+
       const fieldOrder: (keyof CheckoutFormData)[] = ['firstName', 'lastName', 'email', 'emailConfirm', 'phone', 'paymentMethod', 'termsAccepted'];
       for (const f of fieldOrder) {
         if (allErrors[f as keyof CheckoutFormErrors]) {
@@ -697,10 +700,12 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={!canSubmit || submitting}
+          disabled={submitting}
           className={`w-full py-3.5 rounded-xl font-semibold text-base transition-all flex items-center justify-center gap-2 focus-ring ${
-            canSubmit && !submitting
-              ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20'
+            !submitting
+              ? canSubmit
+                ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20'
+                : 'bg-emerald-600/70 hover:bg-emerald-600 text-white'
               : 'bg-slate-700 text-slate-500 cursor-not-allowed'
           }`}
         >

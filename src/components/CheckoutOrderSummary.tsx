@@ -243,10 +243,12 @@ export function CheckoutOrderSummary({
           <button
             type="button"
             onClick={onSubmit}
-            disabled={!canSubmit || submitting}
+            disabled={submitting}
             className={`w-full py-3.5 rounded-xl font-semibold text-base transition-all flex items-center justify-center gap-2 focus-ring ${
-              canSubmit && !submitting
-                ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20'
+              !submitting
+                ? canSubmit
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20'
+                  : 'bg-emerald-600/70 hover:bg-emerald-600 text-white'
                 : 'bg-slate-700 text-slate-500 cursor-not-allowed'
             }`}
           >
