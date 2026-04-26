@@ -8,9 +8,9 @@ const EVENT_ID = '1725edd5-4704-4633-a6f7-f21d91831147';
 const MIDLINE_X = 4440;
 
 const OFFSETS = {
-  'Plein Achteraan': { dx: 1.5, dy: 0, color: '#3b82f6' },
-  'Premium Seats Plein': { dx: -1.5, dy: 0, color: '#f59e0b' },
-  'Zitplaatsen Plein': { dx: 36, dy: 0, color: '#10b981' },
+  'Plein Achteraan': { dx: -86, dy: 0, color: '#3b82f6' },
+  'Premium Seats Plein': { dx: 1.5, dy: 0, color: '#f59e0b' },
+  'Zitplaatsen Plein': { dx: 80, dy: 0, color: '#10b981' },
   'Rolstoel + Begeleider (1+1)': { dx: 3, dy: 0, color: '#06b6d4' },
   'Tribune Kabouter Plop': { dx: -13.5, dy: -7, color: '#ec4899' },
   'Tribune Spotz-On': { dx: -13.5, dy: 7, color: '#ec4899' },
