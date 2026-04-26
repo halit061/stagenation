@@ -69,7 +69,7 @@ export const translations = {
     tickets: {
       title: 'koop je',
       titleHighlight: 'Tickets',
-      subtitle: 'Kies je ticket type en maak je avond onvergetelijk',
+      subtitle: 'Kies je ticket type en maak je dag onvergetelijk',
       loading: 'Tickets laden...',
       available: 'beschikbaar',
       onlyLeft: 'Nog maar {count} over!',
