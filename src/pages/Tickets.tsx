@@ -975,7 +975,7 @@ export function Tickets({ onNavigate }: TicketsProps) {
 
                         {isLocked ? (
                           <Lock className="w-5 h-5 text-slate-600" />
-                        ) : eventFloorplanEnabled ? (
+                        ) : eventFloorplanEnabled && seatBased ? (
                           (() => {
                             const seatCount = seatAvailability[ticketType.id];
                             const noSeats = seatCount !== undefined && seatCount <= 0;
