@@ -143,6 +143,48 @@ Deno.serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, serviceKey);
 
+    const ticketTypeIdSet = new Set<string>();
+    if (p_ticket_type_id) ticketTypeIdSet.add(p_ticket_type_id);
+    const { data: seatRows, error: seatErr } = await supabase
+      .from("seats")
+      .select("ticket_type_id")
+      .in("id", p_seat_ids);
+    if (seatErr) {
+      console.error("[create-seat-order] seat lookup error:", seatErr.message);
+      return jsonRes({ error: "Server error tijdens validatie" }, 500);
+    }
+    for (const s of seatRows ?? []) {
+      if (s?.ticket_type_id) ticketTypeIdSet.add(s.ticket_type_id);
+    }
+    if (ticketTypeIdSet.size > 0) {
+      const ttIds = Array.from(ticketTypeIdSet);
+      const { data: ttRows, error: ttErr } = await supabase
+        .from("ticket_types")
+        .select("id, is_active, sale_start, sale_end")
+        .in("id", ttIds);
+      if (ttErr) {
+        console.error("[create-seat-order] ticket_type lookup error:", ttErr.message);
+        return jsonRes({ error: "Server error tijdens validatie" }, 500);
+      }
+      const nowMs = Date.now();
+      for (const tt of ttRows ?? []) {
+        const startOk = !tt.sale_start || new Date(tt.sale_start as string).getTime() <= nowMs;
+        const endOk = !tt.sale_end || new Date(tt.sale_end as string).getTime() > nowMs;
+        if (!tt.is_active || !startOk || !endOk) {
+          console.warn(
+            `[create-seat-order] Sale window blocked: ticket_type=${tt.id} is_active=${tt.is_active} sale_start=${tt.sale_start} sale_end=${tt.sale_end} email=${p_customer_email}`,
+          );
+          return jsonRes(
+            {
+              error: "De verkoop voor dit ticket is nog niet geopend of is afgelopen.",
+              code: "sale_window_closed",
+            },
+            403,
+          );
+        }
+      }
+    }
+
     const { data, error } = await supabase.rpc("create_seat_order_pending_v2", {
       p_event_id,
       p_customer_first_name,
