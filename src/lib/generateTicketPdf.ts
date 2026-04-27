@@ -330,3 +330,180 @@ export async function generateTicketsPdf(
     doc.save(filename);
   }
 }
+
+export interface TicketPdfClassicTicket {
+  ticket_number: string | null;
+  ticket_type_name: string;
+  ticket_type_color?: string;
+  price: number;
+  qr_data: string | null;
+  holder_name?: string | null;
+}
+
+export async function generateClassicTicketsPdf(
+  order: TicketPdfOrder,
+  event: TicketPdfEvent,
+  tickets: TicketPdfClassicTicket[],
+): Promise<void> {
+  const qrDataUrls = await Promise.all(
+    tickets.map(t => {
+      const qrValue = t.qr_data || t.ticket_number || order.order_number;
+      return generateQRDataUrl(qrValue);
+    })
+  );
+
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const pw = doc.internal.pageSize.getWidth();
+  const ph = doc.internal.pageSize.getHeight();
+
+  for (let i = 0; i < tickets.length; i++) {
+    if (i > 0) doc.addPage('a4', 'landscape');
+    const t = tickets[i];
+    const ticketNumber = t.ticket_number || '';
+    const splitX = pw * 0.62;
+    const margin = 12;
+
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, pw, 28, 'F');
+
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255);
+    doc.text('STAGENATION', margin, 14);
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(148, 163, 184);
+    doc.text('TOEGANGSTICKET', margin, 21);
+
+    if (ticketNumber) {
+      doc.setFontSize(9);
+      doc.setFont('courier', 'bold');
+      doc.setTextColor(56, 189, 248);
+      doc.text(ticketNumber, splitX - 8, 14, { align: 'right' });
+    }
+
+    let y = 36;
+
+    doc.setTextColor(0);
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text(event.name || 'Event', margin, y);
+    y += 8;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(80);
+    if (event.start_date) {
+      doc.text(formatEventDate(event.start_date), margin, y);
+      doc.text('Aanvang: ' + formatEventTime(event.start_date), margin + 95, y);
+      y += 6;
+    }
+    const venue = [event.venue_name, event.location].filter(Boolean).join(' - ');
+    if (venue) {
+      doc.text(venue, margin, y);
+      y += 8;
+    } else {
+      y += 4;
+    }
+
+    doc.setDrawColor(200);
+    doc.setLineWidth(0.3);
+    doc.line(margin, y, splitX - 10, y);
+    y += 8;
+
+    const accent = t.ticket_type_color || '#3b82f6';
+    const [sr, sg, sb] = hexToRgb(accent);
+    doc.setFillColor(sr, sg, sb);
+    doc.roundedRect(margin, y - 4, 3, 16, 1, 1, 'F');
+
+    const labelX = margin + 8;
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0);
+    doc.text(t.ticket_type_name.toUpperCase(), labelX, y + 1);
+
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(60);
+    doc.text('Algemene toegang', labelX, y + 8);
+    y += 18;
+
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0);
+    doc.text('EUR ' + t.price.toFixed(2), splitX - 10, y, { align: 'right' });
+    y += 10;
+
+    doc.setDrawColor(200);
+    doc.setLineWidth(0.3);
+    doc.line(margin, y, splitX - 10, y);
+    y += 6;
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(80);
+    doc.text(t.holder_name || order.payer_name, margin, y);
+    y += 5;
+    doc.setFontSize(8);
+    doc.setTextColor(120);
+    doc.text('Bestelling: ' + order.order_number, margin, y);
+    y += 8;
+
+    const footerY = ph - 14;
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(150);
+    doc.text('Strikt persoonlijk, niet overdraagbaar.', margin, footerY);
+    doc.text('Voorwaarden: stagenation.be/terms  |  Privacy: stagenation.be/privacy', margin, footerY + 4);
+
+    doc.setDrawColor(180);
+    doc.setLineWidth(0.3);
+    doc.setLineDashPattern([1.5, 1.5], 0);
+    doc.line(splitX, 28, splitX, ph);
+    doc.setLineDashPattern([], 0);
+
+    const rightMargin = splitX + 10;
+    const rightW = pw - splitX - 20;
+
+    const qrDataUrl = qrDataUrls[i];
+
+    let ry = 40;
+    if (qrDataUrl) {
+      const qrSize = Math.min(rightW, 60);
+      const qrX = rightMargin + (rightW - qrSize) / 2;
+      doc.addImage(qrDataUrl, 'PNG', qrX, ry, qrSize, qrSize);
+      ry += qrSize + 6;
+    }
+
+    if (ticketNumber) {
+      doc.setFontSize(11);
+      doc.setFont('courier', 'bold');
+      doc.setTextColor(0);
+      doc.text(ticketNumber, rightMargin + rightW / 2, ry, { align: 'center' });
+    }
+
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(150);
+    doc.text('stagenation.be', rightMargin + rightW / 2, ph - 10, { align: 'center' });
+  }
+
+  const filename = 'StageNation-Tickets-' + order.order_number + '.pdf';
+  try {
+    const blob = doc.output('blob');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 200);
+  } catch {
+    doc.save(filename);
+  }
+}

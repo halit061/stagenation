@@ -7,7 +7,7 @@ import {
 import { supabase } from '../lib/supabaseClient';
 import { callEdgeFunction } from '../lib/callEdge';
 import { useToast } from './Toast';
-import { generateTicketsPdf } from '../lib/generateTicketPdf';
+import { generateTicketsPdf, generateClassicTicketsPdf } from '../lib/generateTicketPdf';
 import { DeleteOrderModal } from './DeleteOrderModal';
 
 interface OrderRow {
@@ -45,6 +45,17 @@ interface TicketSeatRow {
     seat_sections?: { name: string; color: string } | null;
   } | null;
   scans?: { scanned_at: string }[] | null;
+}
+
+interface ClassicTicketRow {
+  id: string;
+  ticket_number: string | null;
+  qr_data: string | null;
+  qr_code: string | null;
+  holder_name: string | null;
+  status: string;
+  ticket_type_id: string | null;
+  ticket_types?: { name: string; price: number } | null;
 }
 
 interface EventOption {
@@ -95,6 +106,7 @@ export function AdminOrderSearch({ orders, events, onOrdersChange }: Props) {
   const [ticketCodeSearching, setTicketCodeSearching] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<OrderRow | null>(null);
   const [ticketSeats, setTicketSeats] = useState<TicketSeatRow[]>([]);
+  const [classicTickets, setClassicTickets] = useState<ClassicTicketRow[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
@@ -202,21 +214,28 @@ export function AdminOrderSearch({ orders, events, onOrdersChange }: Props) {
     setShowTickets(true);
 
     try {
-      const { data, error } = await supabase
-        .from('ticket_seats')
-        .select(`
-          id, seat_id, price_paid, ticket_code, qr_data,
-          seats!inner(row_label, seat_number, seat_type, section_id,
-            seat_sections(name, color)
-          )
-        `)
-        .eq('order_id', order.id)
-        .limit(10000);
+      const [seatsRes, ticketsRes] = await Promise.all([
+        supabase
+          .from('ticket_seats')
+          .select(`
+            id, seat_id, price_paid, ticket_code, qr_data,
+            seats!inner(row_label, seat_number, seat_type, section_id,
+              seat_sections(name, color)
+            )
+          `)
+          .eq('order_id', order.id)
+          .limit(10000),
+        supabase
+          .from('tickets')
+          .select('id, ticket_number, qr_data, qr_code, holder_name, status, ticket_type_id, ticket_types(name, price)')
+          .eq('order_id', order.id)
+          .limit(10000),
+      ]);
 
-      if (error) throw error;
+      if (seatsRes.error) throw seatsRes.error;
 
       const withScans = await Promise.all(
-        (data || []).map(async (ts: any) => {
+        (seatsRes.data || []).map(async (ts: any) => {
           const { data: scanData } = await supabase
             .from('scans')
             .select('scanned_at')
@@ -227,8 +246,10 @@ export function AdminOrderSearch({ orders, events, onOrdersChange }: Props) {
       );
 
       setTicketSeats(withScans as TicketSeatRow[]);
+      setClassicTickets((ticketsRes.data || []) as ClassicTicketRow[]);
     } catch {
       setTicketSeats([]);
+      setClassicTickets([]);
     } finally {
       setDetailLoading(false);
     }
@@ -640,6 +661,7 @@ export function AdminOrderSearch({ orders, events, onOrdersChange }: Props) {
           <OrderDetailPanel
             order={selectedOrder}
             ticketSeats={ticketSeats}
+            classicTickets={classicTickets}
             loading={detailLoading}
             resendLoading={resendLoading}
             cancelLoading={cancelLoading}
@@ -734,6 +756,7 @@ export function AdminOrderSearch({ orders, events, onOrdersChange }: Props) {
 function OrderDetailPanel({
   order,
   ticketSeats,
+  classicTickets,
   loading,
   resendLoading,
   cancelLoading,
@@ -758,6 +781,7 @@ function OrderDetailPanel({
 }: {
   order: OrderRow;
   ticketSeats: TicketSeatRow[];
+  classicTickets: ClassicTicketRow[];
   loading: boolean;
   resendLoading: boolean;
   cancelLoading: boolean;
@@ -838,6 +862,47 @@ function OrderDetailPanel({
       showToast('PDF genereren mislukt', 'error');
     }
   }, [order, showToast, getEventData, mapSeatsForPdf]);
+
+  const mapClassicForPdf = useCallback((tickets: ClassicTicketRow[]) => {
+    return tickets.map(t => ({
+      ticket_number: t.ticket_number,
+      ticket_type_name: t.ticket_types?.name || 'Ticket',
+      price: Number(t.ticket_types?.price || 0) / 100,
+      qr_data: t.qr_data || t.qr_code || null,
+      holder_name: t.holder_name,
+    }));
+  }, []);
+
+  const handleDownloadClassicPdf = useCallback(async () => {
+    if (classicTickets.length === 0) return;
+    setPdfGenerating(true);
+    try {
+      const eventData = await getEventData();
+      await generateClassicTicketsPdf(
+        { order_number: order.order_number, payer_name: order.payer_name, payer_email: order.payer_email, verification_code: order.verification_code },
+        { name: eventData?.name || order.events?.name || 'Event', start_date: eventData?.start_date || '', location: eventData?.location || '', venue_name: eventData?.venue_name || '' },
+        mapClassicForPdf(classicTickets),
+      );
+      showToast('PDF gedownload', 'success');
+    } catch {
+      showToast('PDF genereren mislukt', 'error');
+    } finally {
+      setPdfGenerating(false);
+    }
+  }, [order, classicTickets, showToast, getEventData, mapClassicForPdf]);
+
+  const handleDownloadSingleClassicPdf = useCallback(async (t: ClassicTicketRow) => {
+    try {
+      const eventData = await getEventData();
+      await generateClassicTicketsPdf(
+        { order_number: order.order_number, payer_name: order.payer_name, payer_email: order.payer_email, verification_code: order.verification_code },
+        { name: eventData?.name || order.events?.name || 'Event', start_date: eventData?.start_date || '', location: eventData?.location || '', venue_name: eventData?.venue_name || '' },
+        mapClassicForPdf([t]),
+      );
+    } catch {
+      showToast('PDF genereren mislukt', 'error');
+    }
+  }, [order, showToast, getEventData, mapClassicForPdf]);
 
   return (
     <div className={`${window.innerWidth < 1280 ? 'fixed inset-0 bg-black/70 z-50 flex items-start justify-end' : 'w-1/2'}`}>
@@ -985,11 +1050,12 @@ function OrderDetailPanel({
                 onClick={() => setShowTickets(!showTickets)}
                 className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-800/50 transition-colors"
               >
-                <h4 className="text-xs text-slate-500 uppercase font-semibold">Tickets ({ticketSeats.length})</h4>
+                <h4 className="text-xs text-slate-500 uppercase font-semibold">Tickets ({ticketSeats.length + classicTickets.length})</h4>
                 {showTickets ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
               </button>
               {showTickets && ticketSeats.length > 0 && (
                 <div className="border-t border-slate-700">
+                  <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-slate-500 bg-slate-800/40">Stoelen</div>
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="text-slate-500 border-b border-slate-700/50">
@@ -1056,6 +1122,51 @@ function OrderDetailPanel({
                   </table>
                 </div>
               )}
+              {showTickets && classicTickets.length > 0 && (
+                <div className="border-t border-slate-700">
+                  <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-slate-500 bg-slate-800/40">Tickets</div>
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-slate-500 border-b border-slate-700/50">
+                        <th className="px-3 py-2 text-left font-medium">Type</th>
+                        <th className="px-2 py-2 text-left font-medium">Houder</th>
+                        <th className="px-2 py-2 text-right font-medium">Prijs</th>
+                        <th className="px-2 py-2 text-left font-medium">Nummer</th>
+                        <th className="px-3 py-2 text-left font-medium">Status</th>
+                        <th className="px-2 py-2 text-center font-medium w-8"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-700/30">
+                      {classicTickets.map(t => (
+                        <tr key={t.id} className="hover:bg-slate-800/30">
+                          <td className="px-3 py-2 text-slate-300 truncate max-w-[120px]">{t.ticket_types?.name || '-'}</td>
+                          <td className="px-2 py-2 text-slate-300 truncate max-w-[100px]">{t.holder_name || '-'}</td>
+                          <td className="px-2 py-2 text-right text-white font-medium tabular-nums">
+                            {'\u20AC'}{(Number(t.ticket_types?.price || 0) / 100).toFixed(2)}
+                          </td>
+                          <td className="px-2 py-2">
+                            {t.ticket_number && (
+                              <span className="font-mono text-cyan-400 bg-cyan-400/10 px-1.5 py-0.5 rounded select-all">
+                                {t.ticket_number}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-slate-400 capitalize">{t.status}</td>
+                          <td className="px-2 py-2 text-center">
+                            <button
+                              onClick={() => handleDownloadSingleClassicPdf(t)}
+                              title="Download dit ticket als PDF"
+                              className="p-1 text-slate-500 hover:text-emerald-400 transition-colors"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             <div className="bg-slate-900/60 rounded-lg p-4 space-y-1.5">
@@ -1099,6 +1210,26 @@ function OrderDetailPanel({
               {ticketSeats.length > 0 && (
                 <button
                   onClick={handleDownloadPdf}
+                  disabled={pdfGenerating}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-medium rounded-xl transition-colors text-sm"
+                >
+                  {pdfGenerating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      PDF genereren...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="w-4 h-4" />
+                      Download Stoelen (PDF)
+                    </>
+                  )}
+                </button>
+              )}
+
+              {classicTickets.length > 0 && (
+                <button
+                  onClick={handleDownloadClassicPdf}
                   disabled={pdfGenerating}
                   className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-medium rounded-xl transition-colors text-sm"
                 >
