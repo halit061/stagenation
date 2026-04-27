@@ -296,32 +296,28 @@ export function Tickets({ onNavigate }: TicketsProps) {
               setSectionNamesPerTicketType(nameMap);
 
               if (eventData?.floorplan_enabled) {
-                const seatedTicketTypeIds = Object.keys(sectionMap);
+                const allTicketTypeIds = data.map((t: any) => t.id);
                 const avail: Record<string, number> = {};
-                for (const ttId of seatedTicketTypeIds) avail[ttId] = 0;
+                for (const ttId of allTicketTypeIds) avail[ttId] = 0;
 
-                if (seatedTicketTypeIds.length > 0) {
-                  const { data: rpcRows, error: rpcErr } = await supabase
-                    .rpc('get_ticket_availability', { p_event_id: evId });
+                const { data: rpcRows, error: rpcErr } = await supabase
+                  .rpc('get_ticket_availability', { p_event_id: evId });
 
-                  if (!rpcErr && rpcRows) {
-                    for (const row of rpcRows as Array<{ ticket_type_id: string; available_count: number }>) {
-                      if (avail[row.ticket_type_id] !== undefined) {
-                        avail[row.ticket_type_id] = Number(row.available_count) || 0;
-                      }
-                    }
-                  } else {
-                    const { data: typeSeats } = await supabase
-                      .from('seats')
-                      .select('ticket_type_id')
-                      .in('ticket_type_id', seatedTicketTypeIds)
-                      .eq('is_active', true)
-                      .eq('status', 'available')
-                      .limit(20000);
-                    for (const s of (typeSeats || []) as any[]) {
-                      if (s.ticket_type_id && avail[s.ticket_type_id] !== undefined) {
-                        avail[s.ticket_type_id] = (avail[s.ticket_type_id] || 0) + 1;
-                      }
+                if (!rpcErr && rpcRows) {
+                  for (const row of rpcRows as Array<{ ticket_type_id: string; available_count: number }>) {
+                    avail[row.ticket_type_id] = Number(row.available_count) || 0;
+                  }
+                } else if (allTicketTypeIds.length > 0) {
+                  const { data: typeSeats } = await supabase
+                    .from('seats')
+                    .select('ticket_type_id')
+                    .in('ticket_type_id', allTicketTypeIds)
+                    .eq('is_active', true)
+                    .eq('status', 'available')
+                    .limit(20000);
+                  for (const s of (typeSeats || []) as any[]) {
+                    if (s.ticket_type_id) {
+                      avail[s.ticket_type_id] = (avail[s.ticket_type_id] || 0) + 1;
                     }
                   }
                 }
@@ -975,7 +971,7 @@ export function Tickets({ onNavigate }: TicketsProps) {
 
                         {isLocked ? (
                           <Lock className="w-5 h-5 text-slate-600" />
-                        ) : eventFloorplanEnabled && seatBased ? (
+                        ) : eventFloorplanEnabled ? (
                           (() => {
                             const seatCount = seatAvailability[ticketType.id];
                             const noSeats = seatCount !== undefined && seatCount <= 0;
