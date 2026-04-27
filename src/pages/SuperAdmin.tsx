@@ -469,14 +469,25 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
       const { data: allPaidOrders } = await supabase.from('orders').select('id').in('status', ['paid', 'comped']).limit(10000);
       const allPaidOrderIds = (allPaidOrders || []).map((o: any) => o.id);
       if (allPaidOrderIds.length > 0) {
-        const { data: paidTicketsData } = await supabase
-          .from('tickets')
-          .select('id, ticket_type_id')
-          .in('order_id', allPaidOrderIds)
-          .limit(10000);
+        const [paidTicketsRes, paidSeatsRes] = await Promise.all([
+          supabase
+            .from('tickets')
+            .select('id, ticket_type_id')
+            .in('order_id', allPaidOrderIds)
+            .limit(10000),
+          supabase
+            .from('ticket_seats')
+            .select('id, seats(ticket_type_id)')
+            .in('order_id', allPaidOrderIds)
+            .limit(10000),
+        ]);
         const counts: Record<string, number> = {};
-        (paidTicketsData || []).forEach((t: any) => {
-          counts[t.ticket_type_id] = (counts[t.ticket_type_id] || 0) + 1;
+        (paidTicketsRes.data || []).forEach((t: any) => {
+          if (t.ticket_type_id) counts[t.ticket_type_id] = (counts[t.ticket_type_id] || 0) + 1;
+        });
+        (paidSeatsRes.data || []).forEach((s: any) => {
+          const typeId = s.seats?.ticket_type_id;
+          if (typeId) counts[typeId] = (counts[typeId] || 0) + 1;
         });
         setPaidCountByType(counts);
       }

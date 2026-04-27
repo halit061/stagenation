@@ -263,12 +263,25 @@ export function Admin({ onNavigate }: AdminProps = {}) {
         .limit(10000);
       const allPaidOrderIds = (allPaidOrders || []).map((o: any) => o.id);
       if (allPaidOrderIds.length > 0) {
-        const { data: ticketsData } = await supabase
-          .from('tickets')
-          .select('id, ticket_type_id')
-          .in('order_id', allPaidOrderIds)
-          .limit(10000);
-        if (ticketsData) setPaidTickets(ticketsData);
+        const [ticketsRes, seatTicketsRes] = await Promise.all([
+          supabase
+            .from('tickets')
+            .select('id, ticket_type_id')
+            .in('order_id', allPaidOrderIds)
+            .limit(10000),
+          supabase
+            .from('ticket_seats')
+            .select('id, seats(ticket_type_id)')
+            .in('order_id', allPaidOrderIds)
+            .limit(10000),
+        ]);
+        const merged: { id: string; ticket_type_id: string | null }[] = [
+          ...((ticketsRes.data || []) as any[]).map((t: any) => ({ id: t.id, ticket_type_id: t.ticket_type_id })),
+          ...((seatTicketsRes.data || []) as any[])
+            .map((s: any) => ({ id: s.id, ticket_type_id: s.seats?.ticket_type_id ?? null }))
+            .filter((s) => s.ticket_type_id),
+        ];
+        setPaidTickets(merged);
       } else {
         setPaidTickets([]);
       }
