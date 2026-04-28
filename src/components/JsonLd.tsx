@@ -19,11 +19,13 @@ function buildOrganization() {
       '@type': 'ImageObject',
       url: 'https://stagenation.be/stagenation-logo-512.png',
     },
-    sameAs: ['https://www.instagram.com/stagenation/'],
+    sameAs: [
+      'https://www.instagram.com/stagenation.be',
+      'https://www.facebook.com/profile.php?id=61588941385113',
+    ],
     contactPoint: {
       '@type': 'ContactPoint',
       email: 'info@stagenation.be',
-      telephone: '+32493944631',
       contactType: 'customer service',
       availableLanguage: ['Dutch', 'Turkish', 'French', 'German'],
     },

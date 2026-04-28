@@ -1,4 +1,4 @@
-import { Mail, Phone, MapPin, MessageSquare, Send } from 'lucide-react';
+import { Mail, MapPin, MessageSquare, Send } from 'lucide-react';
 import { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -92,7 +92,7 @@ export function Contact() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
           <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-2xl p-6 hover:border-cyan-500/50 transition-all text-center">
             <div className="w-12 h-12 bg-cyan-500/10 rounded-xl flex items-center justify-center mx-auto mb-4">
               <Mail className="w-6 h-6 text-cyan-400" />
@@ -104,20 +104,6 @@ export function Contact() {
               className="text-cyan-400 hover:text-cyan-300 transition-colors"
             >
               info@stagenation.be
-            </a>
-          </div>
-
-          <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-2xl p-6 hover:border-cyan-500/50 transition-all text-center">
-            <div className="w-12 h-12 bg-cyan-500/10 rounded-xl flex items-center justify-center mx-auto mb-4">
-              <Phone className="w-6 h-6 text-cyan-400" />
-            </div>
-            <h3 className="font-bold mb-2">{t('contact.phone')}</h3>
-            <p className="text-slate-400 text-sm mb-2">{t('contact.phoneHours')}</p>
-            <a
-              href="tel:+32493944631"
-              className="text-cyan-400 hover:text-cyan-300 transition-colors"
-            >
-              0493 94 46 31
             </a>
           </div>
 

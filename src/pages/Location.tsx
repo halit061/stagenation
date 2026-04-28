@@ -48,14 +48,6 @@ export function Location() {
                 <h3 className="font-semibold text-white mb-1">{t('location.contact')}</h3>
                 <p>
                   <a
-                    href="tel:+32493944631"
-                    className="text-cyan-400 hover:text-cyan-300 transition-colors"
-                  >
-                    0493 94 46 31
-                  </a>
-                </p>
-                <p>
-                  <a
                     href="mailto:info@stagenation.be"
                     className="text-cyan-400 hover:text-cyan-300 transition-colors"
                   >

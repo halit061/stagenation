@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { X, Bot, User, ChevronDown, RotateCcw, Mail, Instagram } from 'lucide-react';
+import { X, Bot, User, ChevronDown, RotateCcw, Mail, Instagram, Facebook } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import type { Language } from '../lib/translations';
 
@@ -349,13 +349,24 @@ export function ChatAssistant() {
 
         {/* Instagram icon */}
         <a
-          href="https://www.instagram.com/stagenation/"
+          href="https://www.instagram.com/stagenation.be"
           target="_blank"
           rel="noopener noreferrer"
           className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center hover:bg-white/20 hover:scale-110 transition-all duration-200"
           aria-label="Instagram"
         >
           <Instagram className="w-5 h-5 text-white" />
+        </a>
+
+        {/* Facebook icon */}
+        <a
+          href="https://www.facebook.com/profile.php?id=61588941385113"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center hover:bg-white/20 hover:scale-110 transition-all duration-200"
+          aria-label="Facebook"
+        >
+          <Facebook className="w-5 h-5 text-white" />
         </a>
 
         {/* AI Chat button - at bottom with pulse */}

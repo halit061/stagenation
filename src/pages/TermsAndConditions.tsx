@@ -218,7 +218,6 @@ export function TermsAndConditions() {
             '',
             'İletişim:',
             'E-posta: info@stagenation.be',
-            'Telefon: +32 493 94 46 31',
           ],
         },
         {
@@ -413,7 +412,6 @@ export function TermsAndConditions() {
             '',
             'Contact :',
             'Email : info@stagenation.be',
-            'Téléphone : +32 493 94 46 31',
           ],
         },
         {
@@ -609,7 +607,6 @@ export function TermsAndConditions() {
             '',
             'Kontakt:',
             'E-Mail: info@stagenation.be',
-            'Telefon: +32 493 94 46 31',
           ],
         },
         {

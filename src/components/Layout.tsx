@@ -1,5 +1,5 @@
 import { ReactNode, useState, useEffect } from 'react';
-import { Menu, X, Ticket, Languages, Instagram } from 'lucide-react';
+import { Menu, X, Ticket, Languages, Instagram, Facebook } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { supabase } from '../lib/supabaseClient';
 
@@ -267,21 +267,30 @@ export function Layout({ children, currentPage = 'home', onNavigate }: LayoutPro
             <div>
               <h3 className="font-semibold mb-4 text-amber-400">{t('footer.contact')}</h3>
               <ul className="space-y-2 text-sm text-slate-400">
-                <li>info@stagenation.be</li>
                 <li>
-                  <a href="tel:+32493944631" className="hover:text-white transition-colors">
-                    0493 94 46 31
+                  <a href="mailto:info@stagenation.be" className="hover:text-white transition-colors">
+                    info@stagenation.be
                   </a>
                 </li>
-                <li className="pt-2">
+                <li className="pt-2 flex items-center gap-3">
                   <a
-                    href="https://www.instagram.com/stagenation/"
+                    href="https://www.instagram.com/stagenation.be"
                     target="_blank"
                     rel="noopener noreferrer"
+                    aria-label="Instagram"
                     className="inline-flex items-center space-x-2 text-amber-400 hover:text-amber-300 transition-colors"
                   >
                     <Instagram className="w-5 h-5" />
-                    <span>@stagenation</span>
+                    <span>@stagenation.be</span>
+                  </a>
+                  <a
+                    href="https://www.facebook.com/profile.php?id=61588941385113"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Facebook"
+                    className="inline-flex items-center text-amber-400 hover:text-amber-300 transition-colors"
+                  >
+                    <Facebook className="w-5 h-5" />
                   </a>
                 </li>
                 <li className="pt-3 border-t border-slate-700 mt-3">
