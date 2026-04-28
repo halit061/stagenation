@@ -94,7 +94,7 @@ export function Tickets({ onNavigate }: TicketsProps) {
           addressCountry: 'BE',
         },
       },
-      image: ['https://stagenation.be/og-image.png'],
+      image: ['https://stagenation.be/og-stagenation.png?v=sn-20260428'],
       description: 'Studio 100 Zingt live in Genk at Limburghal. Official tickets available via StageNation.',
       offers: {
         '@type': 'Offer',

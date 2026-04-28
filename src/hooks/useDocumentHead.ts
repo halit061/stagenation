@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 
 const SITE_NAME = 'StageNation';
 const BASE_URL = 'https://stagenation.be';
-const DEFAULT_IMAGE = `${BASE_URL}/og-image.png`;
+const DEFAULT_IMAGE = `${BASE_URL}/og-stagenation.png?v=sn-20260428`;
 
 interface HeadOptions {
   title: string;
