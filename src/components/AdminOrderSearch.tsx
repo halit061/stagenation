@@ -113,6 +113,90 @@ export function AdminOrderSearch({ orders, events, onOrdersChange }: Props) {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletedOrders, setDeletedOrders] = useState<any[]>([]);
+  const [rowPdfLoadingId, setRowPdfLoadingId] = useState<string | null>(null);
+
+  const handleRowDownloadPdf = useCallback(async (order: OrderRow, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (rowPdfLoadingId) return;
+    setRowPdfLoadingId(order.id);
+    try {
+      const [seatsRes, ticketsRes, eventRes] = await Promise.all([
+        supabase
+          .from('ticket_seats')
+          .select(`id, seat_id, price_paid, ticket_code, qr_data,
+            seats!inner(row_label, seat_number, seat_type, section_id,
+              seat_sections(name, color))`)
+          .eq('order_id', order.id)
+          .limit(10000),
+        supabase
+          .from('tickets')
+          .select('id, ticket_number, qr_data, qr_code, holder_name, ticket_type_id, ticket_types(name, price)')
+          .eq('order_id', order.id)
+          .limit(10000),
+        supabase
+          .from('events')
+          .select('name, start_date, location, venue_name')
+          .eq('id', order.event_id)
+          .maybeSingle(),
+      ]);
+
+      const seats = (seatsRes.data || []) as any[];
+      const tickets = (ticketsRes.data || []) as any[];
+      const eventData = eventRes.data;
+
+      const orderInfo = {
+        order_number: order.order_number,
+        payer_name: order.payer_name,
+        payer_email: order.payer_email,
+        verification_code: order.verification_code,
+      };
+      const eventInfo = {
+        name: eventData?.name || order.events?.name || 'Event',
+        start_date: eventData?.start_date || '',
+        location: eventData?.location || '',
+        venue_name: eventData?.venue_name || '',
+      };
+
+      if (seats.length > 0) {
+        await generateTicketsPdf(
+          orderInfo,
+          eventInfo,
+          seats.map((ts: any) => ({
+            row_label: ts.seats?.row_label || '-',
+            seat_number: ts.seats?.seat_number || 0,
+            section_name: ts.seats?.seat_sections?.name || 'Sectie',
+            section_color: ts.seats?.seat_sections?.color || '#64748b',
+            price: Number(ts.price_paid) / 100,
+            ticket_code: ts.ticket_code,
+            ticket_number: ts.ticket_code,
+            qr_data: ts.qr_data,
+            seat_type: ts.seats?.seat_type,
+          })),
+        );
+      } else if (tickets.length > 0) {
+        await generateClassicTicketsPdf(
+          orderInfo,
+          eventInfo,
+          tickets.map((t: any) => ({
+            ticket_number: t.ticket_number,
+            ticket_type_name: t.ticket_types?.name || 'Ticket',
+            price: Number(t.ticket_types?.price || 0) / 100,
+            qr_data: t.qr_data || t.qr_code || null,
+            holder_name: t.holder_name,
+          })),
+        );
+      } else {
+        showToast('Geen tickets gevonden voor deze order', 'error');
+        return;
+      }
+      showToast('PDF gedownload', 'success');
+    } catch (err) {
+      console.error('Row PDF error', err);
+      showToast('PDF genereren mislukt', 'error');
+    } finally {
+      setRowPdfLoadingId(null);
+    }
+  }, [rowPdfLoadingId, showToast]);
   const [notesValue, setNotesValue] = useState('');
   const [notesSaving, setNotesSaving] = useState(false);
   const [verifyInput, setVerifyInput] = useState('');
@@ -589,12 +673,13 @@ export function AdminOrderSearch({ orders, events, onOrdersChange }: Props) {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-300 hidden lg:table-cell">Event</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-slate-300">Bedrag</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-300">Status</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-300">PDF</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700/50">
                 {filteredOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center">
+                    <td colSpan={6} className="px-6 py-12 text-center">
                       <ShoppingCart className="w-10 h-10 mx-auto mb-3 text-slate-600" />
                       <p className="text-slate-400 text-sm">
                         {debouncedQuery.length >= 2
@@ -638,6 +723,21 @@ export function AdminOrderSearch({ orders, events, onOrdersChange }: Props) {
                       </td>
                       <td className="px-4 py-3">
                         {statusBadge(order.status)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={(e) => handleRowDownloadPdf(order, e)}
+                          disabled={rowPdfLoadingId === order.id}
+                          title="Download tickets als PDF"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-xs font-medium rounded-lg transition-colors"
+                        >
+                          {rowPdfLoadingId === order.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Download className="w-3.5 h-3.5" />
+                          )}
+                          PDF
+                        </button>
                       </td>
                     </tr>
                   ))
