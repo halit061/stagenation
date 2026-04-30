@@ -182,7 +182,7 @@ export function LiveSalesCounter({ eventId, eventName }: LiveSalesCounterProps) 
 
         <div className={`bg-gradient-to-br from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-xl p-5 transition-all ${pulse ? 'ring-2 ring-green-400 scale-[1.02]' : ''}`}>
           <div className="flex items-center justify-between mb-3">
-            <DollarSign className="w-6 h-6 text-green-400" />
+            <Euro className="w-6 h-6 text-green-400" />
             <span className="text-xs text-slate-400 uppercase tracking-wider">Omzet</span>
           </div>
           <div className="text-3xl font-bold text-white">
