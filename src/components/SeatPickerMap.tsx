@@ -636,6 +636,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (didPan.current) return;
                     if (!isRestricted) handleSectionClick(section.id);
                   }}
                 />
