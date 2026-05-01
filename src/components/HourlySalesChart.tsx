@@ -26,7 +26,7 @@ export function HourlySalesChart({ eventId }: HourlySalesChartProps) {
     try {
       const { data, error } = await supabase
         .from('orders')
-        .select('created_at, total_amount, status')
+        .select('id, created_at, total_amount, status')
         .eq('event_id', eventId)
         .eq('status', 'paid')
         .order('created_at', { ascending: true })
@@ -34,9 +34,29 @@ export function HourlySalesChart({ eventId }: HourlySalesChartProps) {
 
       if (error) throw error;
 
+      const orders = data || [];
+      const orderIds = orders.map((o) => o.id);
+
+      // Ticket counts come from either `tickets` (regular flow) or `ticket_seats` (seat picker).
+      const ticketCountByOrder = new Map<string, number>();
+      if (orderIds.length > 0) {
+        const [ticketsRes, seatsRes] = await Promise.all([
+          supabase.from('tickets').select('order_id').in('order_id', orderIds).limit(10000),
+          supabase.from('ticket_seats').select('order_id').in('order_id', orderIds).limit(10000),
+        ]);
+        for (const row of ticketsRes.data || []) {
+          if (!row.order_id) continue;
+          ticketCountByOrder.set(row.order_id, (ticketCountByOrder.get(row.order_id) || 0) + 1);
+        }
+        for (const row of seatsRes.data || []) {
+          if (!row.order_id) continue;
+          ticketCountByOrder.set(row.order_id, (ticketCountByOrder.get(row.order_id) || 0) + 1);
+        }
+      }
+
       const hourMap = new Map<string, { ticketsSold: number; revenueCents: number }>();
 
-      for (const order of data || []) {
+      for (const order of orders) {
         const date = new Date(order.created_at);
         const hourKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}T${String(date.getHours()).padStart(2, '0')}`;
 
@@ -44,7 +64,7 @@ export function HourlySalesChart({ eventId }: HourlySalesChartProps) {
           hourMap.set(hourKey, { ticketsSold: 0, revenueCents: 0 });
         }
         const entry = hourMap.get(hourKey)!;
-        entry.ticketsSold += 1;
+        entry.ticketsSold += ticketCountByOrder.get(order.id) || 0;
         entry.revenueCents += order.total_amount;
       }
 

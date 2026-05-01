@@ -68,11 +68,19 @@ export function SalesByCountry({ eventId }: SalesByCountryProps) {
 
         const orderIds = orders.map((o) => o.id);
 
-        const { data: tickets } = await supabase
-          .from('tickets')
-          .select('id, order_id')
-          .in('order_id', orderIds)
-          .limit(10000);
+        const [ticketsRes, seatsRes] = await Promise.all([
+          supabase
+            .from('tickets')
+            .select('id, order_id')
+            .in('order_id', orderIds)
+            .limit(10000),
+          supabase
+            .from('ticket_seats')
+            .select('id, order_id')
+            .in('order_id', orderIds)
+            .limit(10000),
+        ]);
+        const tickets = [...(ticketsRes.data || []), ...(seatsRes.data || [])];
 
         const orderMap = new Map<string, string | null>();
         for (const o of orders) {
@@ -81,7 +89,7 @@ export function SalesByCountry({ eventId }: SalesByCountryProps) {
 
         const grouped = new Map<string | null, { tickets: number; orderIds: Set<string> }>();
 
-        for (const t of tickets || []) {
+        for (const t of tickets) {
           const country = orderMap.get(t.order_id) ?? null;
           const key = country?.toUpperCase() ?? null;
           if (!grouped.has(key)) {

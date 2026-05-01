@@ -61,16 +61,25 @@ export function LiveSalesCounter({ eventId, eventName }: LiveSalesCounterProps) 
       const totalCapacity = ticketTypes.reduce((sum, tt) => sum + tt.quantity_total, 0);
       const totalRevenueCents = paidOrders.reduce((sum, o) => sum + o.total_amount, 0);
 
-      // Count tickets from paid + comped orders for accurate total
+      // Count tickets from paid + comped orders for accurate total.
+      // Events can use either the regular `tickets` table OR seat-picker `ticket_seats`.
+      // We count both and sum them so both event types render correctly.
       const allSoldOrderIds = allSoldOrders.map(o => o.id);
       let totalTicketsSold = 0;
       if (allSoldOrderIds.length > 0) {
-        const { data: ticketsData } = await supabase
-          .from('tickets')
-          .select('id')
-          .in('order_id', allSoldOrderIds)
-          .limit(10000);
-        totalTicketsSold = ticketsData?.length || 0;
+        const [ticketsRes, seatsRes] = await Promise.all([
+          supabase
+            .from('tickets')
+            .select('id')
+            .in('order_id', allSoldOrderIds)
+            .limit(10000),
+          supabase
+            .from('ticket_seats')
+            .select('id')
+            .in('order_id', allSoldOrderIds)
+            .limit(10000),
+        ]);
+        totalTicketsSold = (ticketsRes.data?.length || 0) + (seatsRes.data?.length || 0);
       }
 
       setSales({
