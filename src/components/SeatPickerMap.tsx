@@ -177,8 +177,9 @@ export const SeatPickerMap = memo(function SeatPickerMap({
       const rect = el.getBoundingClientRect();
       const cx = e.clientX - rect.left;
       const cy = e.clientY - rect.top;
-      const direction = e.deltaY < 0 ? 1 : -1;
-      const factor = direction > 0 ? 1.15 : 1 / 1.15;
+      const rawDelta = e.deltaY;
+      const clamped = Math.max(-50, Math.min(50, rawDelta));
+      const factor = Math.exp(-clamped * 0.0025);
       setZoom(prev => {
         const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, prev * factor));
         const s = newZoom / prev;
@@ -310,7 +311,8 @@ export const SeatPickerMap = memo(function SeatPickerMap({
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY,
       );
-      const scale = d / lastPinchDist.current;
+      const rawScale = d / lastPinchDist.current;
+      const scale = Math.max(0.92, Math.min(1.08, rawScale));
       lastPinchDist.current = d;
       const container = containerRef.current;
       if (!container) return;
