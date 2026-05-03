@@ -1,4 +1,4 @@
-import { Mail, MapPin, MessageSquare, Send } from 'lucide-react';
+import { Mail, MapPin, MessageSquare, Send, FileText, Shield, ExternalLink } from 'lucide-react';
 import { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -233,19 +233,37 @@ export function Contact() {
                 </p>
               </div>
 
-              <div className="bg-slate-900/50 rounded-xl p-6 border border-slate-700">
-                <h3 className="font-semibold mb-2 text-cyan-400">{t('contact.ticketTransfer')}</h3>
+              <a
+                href="/terms"
+                className="group block bg-slate-900/50 rounded-xl p-6 border border-slate-700 hover:border-cyan-500/50 hover:bg-slate-900/70 transition-all"
+              >
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-cyan-400" />
+                    <h3 className="font-semibold text-cyan-400">{t('contact.ticketTransfer')}</h3>
+                  </div>
+                  <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-cyan-400 transition-colors" />
+                </div>
                 <p className="text-slate-400 text-sm">
                   {t('contact.ticketTransferDesc')}
                 </p>
-              </div>
+              </a>
 
-              <div className="bg-slate-900/50 rounded-xl p-6 border border-slate-700">
-                <h3 className="font-semibold mb-2 text-cyan-400">{t('contact.cancelChange')}</h3>
+              <a
+                href="/privacy"
+                className="group block bg-slate-900/50 rounded-xl p-6 border border-slate-700 hover:border-cyan-500/50 hover:bg-slate-900/70 transition-all"
+              >
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-cyan-400" />
+                    <h3 className="font-semibold text-cyan-400">{t('contact.cancelChange')}</h3>
+                  </div>
+                  <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-cyan-400 transition-colors" />
+                </div>
                 <p className="text-slate-400 text-sm">
                   {t('contact.cancelChangeDesc')}
                 </p>
-              </div>
+              </a>
             </div>
           </div>
         </div>

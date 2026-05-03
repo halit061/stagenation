@@ -36,10 +36,6 @@ export function Info() {
       answer: 'We accepteren alle gangbare betaalmethoden via Mollie: iDEAL, Bancontact, creditcard, Apple Pay en Google Pay.',
     },
     {
-      question: 'Kan ik mijn ticket annuleren?',
-      answer: 'Tickets kunnen tot 14 dagen voor het evenement worden geannuleerd voor een volledige terugbetaling.',
-    },
-    {
       question: 'Is er garderobe beschikbaar?',
       answer: 'Ja, er is een beveiligde garderobe aanwezig in de venue tegen een kleine vergoeding.',
     },
