@@ -798,6 +798,23 @@ export function Tickets({ onNavigate }: TicketsProps) {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
+            <div className="relative overflow-hidden rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/10 via-slate-800/60 to-slate-900/60 p-5 shadow-lg shadow-cyan-500/5">
+              <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-cyan-400 to-blue-500" />
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-cyan-500/15 border border-cyan-400/30 flex items-center justify-center">
+                  <AlertTriangle className="w-5 h-5 text-cyan-300" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300/90 mb-1">
+                    Belangrijke info
+                  </p>
+                  <p className="text-[15px] leading-relaxed text-slate-100">
+                    Kinderen <span className="font-semibold text-white">vanaf 2 jaar</span> hebben een ticket nodig.
+                    <span className="text-slate-300"> Kindjes jonger dan 2 jaar mogen gratis op schoot bij de ouders.</span>
+                  </p>
+                </div>
+              </div>
+            </div>
             {ticketTypes.map((ticketType) => {
               const seatBased = seatAvailability[ticketType.id] !== undefined;
               const available = seatBased
