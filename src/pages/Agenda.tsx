@@ -306,7 +306,7 @@ export function Agenda({ onNavigate: _onNavigate }: AgendaProps) {
                           )}
 
                           {description && (
-                            <p className="text-slate-400 mb-5 line-clamp-2 leading-relaxed">
+                            <p className="text-slate-400 mb-5 leading-relaxed whitespace-pre-line">
                               {description}
                             </p>
                           )}
