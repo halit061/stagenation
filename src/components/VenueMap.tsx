@@ -661,7 +661,6 @@ export const VenueMap = memo(function VenueMap({
                 />
                 <span className="text-[11px] text-slate-600">
                   {item.label}
-                  <span className="text-slate-400 ml-1">({item.count})</span>
                 </span>
               </div>
             ))}
