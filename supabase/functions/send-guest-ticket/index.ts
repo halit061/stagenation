@@ -526,7 +526,14 @@ function buildMultiPersonEmail(event: any, recipientName: string, ticketCount: n
 }
 
 Deno.serve(async (req: Request) => {
-  const corsHeaders = getCorsHeaders(req);
+  const baseCors = getCorsHeaders(req);
+  const existingAllowHeaders = baseCors["Access-Control-Allow-Headers"] || "";
+  const corsHeaders = {
+    ...baseCors,
+    "Access-Control-Allow-Headers": existingAllowHeaders.includes("X-Session-Id")
+      ? existingAllowHeaders
+      : `${existingAllowHeaders}, X-Session-Id`,
+  };
   if (req.method === "OPTIONS") {
     return new Response(null, {
       status: 200,
