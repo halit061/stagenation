@@ -980,8 +980,22 @@ Deno.serve(async (req: Request) => {
     const adminClient = createClient(supabaseUrl, supabaseServiceKey);
 
     const token = authHeader.replace('Bearer ', '');
-    const isServiceRoleCall = token === supabaseServiceKey;
-    const isAnonKeyCall = token === supabaseAnonKey;
+
+    function decodeJwtRole(t: string): string | null {
+      try {
+        const parts = t.split('.');
+        if (parts.length !== 3) return null;
+        const pad = (s: string) => s + '='.repeat((4 - (s.length % 4)) % 4);
+        const payload = JSON.parse(atob(pad(parts[1].replace(/-/g, '+').replace(/_/g, '/'))));
+        return typeof payload?.role === 'string' ? payload.role : null;
+      } catch {
+        return null;
+      }
+    }
+
+    const jwtRole = decodeJwtRole(token);
+    const isServiceRoleCall = token === supabaseServiceKey || jwtRole === 'service_role';
+    const isAnonKeyCall = token === supabaseAnonKey || jwtRole === 'anon';
 
     if (isServiceRoleCall) {
       // Service role key detected - internal webhook call
