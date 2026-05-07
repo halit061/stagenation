@@ -266,6 +266,12 @@ export function Home({ onNavigate }: HomeProps) {
               </div>
             )}
 
+            {featuredEvent.description && (
+              <p className="text-white/80 mb-4 max-w-3xl leading-relaxed whitespace-pre-line text-sm md:text-base">
+                {featuredEvent.description}
+              </p>
+            )}
+
             <div className="flex flex-wrap items-center gap-4 mb-3 text-white/80 text-sm">
               <div className="flex items-center space-x-2">
                 <Calendar className="w-4 h-4 text-amber-400" />
