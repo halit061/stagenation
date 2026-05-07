@@ -943,7 +943,13 @@ async function buildTicketEmail(order: any, event: any, tickets: any[], brand: a
 }
 
 Deno.serve(async (req: Request) => {
-  const corsHeaders = getCorsHeaders(req);
+  const baseCors = getCorsHeaders(req);
+  const corsHeaders = {
+    ...baseCors,
+    'Access-Control-Allow-Headers':
+      (baseCors['Access-Control-Allow-Headers'] || 'Content-Type, Authorization, X-Client-Info, Apikey, Cache-Control') +
+      ', x-session-id',
+  };
 
   if (req.method === 'OPTIONS') {
     return new Response(null, {
