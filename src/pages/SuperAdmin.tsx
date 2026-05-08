@@ -536,7 +536,7 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
             .limit(10000),
           supabase
             .from('ticket_seats')
-            .select('id, order_id, price_paid, seats(id, ticket_type_id, row_label, seat_number, ticket_types(id, name, price))')
+            .select('id, order_id, price_paid, qr_data, ticket_number, ticket_code, seats(id, ticket_type_id, row_label, seat_number, ticket_types(id, name, price))')
             .in('order_id', orderIds)
             .limit(10000),
         ]);
@@ -580,6 +580,20 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
               qr_data: t.qr_data,
               holder_name: t.holder_name,
               event_id: t.event_id,
+            })),
+            individual_seat_tickets: orderSeatTickets.map((st: any) => ({
+              id: st.id,
+              ticket_number: st.ticket_number || st.ticket_code || '',
+              ticket_code: st.ticket_code || '',
+              qr_data: st.qr_data || '',
+              row_label: st.seats?.row_label || '',
+              seat_number: st.seats?.seat_number ?? '',
+              typeName: st.seats?.ticket_types?.name || 'Zitplaats',
+              typePrice: (() => {
+                const paid = parseFloat(st.price_paid);
+                return !isNaN(paid) && paid > 0 ? Math.round(paid * 100) : (st.seats?.ticket_types?.price || 0);
+              })(),
+              ticket_type_id: st.seats?.ticket_type_id || null,
             })),
           };
         });
@@ -727,6 +741,140 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
       showToast('Ticket PDF gedownload', 'success');
     } catch (error) {
       console.error('Error generating ticket PDF:', error);
+      showToast('PDF genereren mislukt', 'error');
+    } finally {
+      setTicketPdfLoading(null);
+    }
+  }
+
+  async function downloadSingleSeatTicketPdf(seat: any, order: any) {
+    setTicketPdfLoading(seat.id);
+    try {
+      const { data: eventData } = await supabase
+        .from('events')
+        .select('name, start_date, location, venue_name')
+        .eq('id', order.event_id)
+        .maybeSingle();
+
+      const { jsPDF } = await import('jspdf');
+      const QRCode = (await import('qrcode')).default;
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pw = doc.internal.pageSize.getWidth();
+      const m = 20;
+
+      let y = 22;
+      doc.setFontSize(22);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0);
+      doc.text('STAGENATION', pw / 2, y, { align: 'center' });
+      y += 10;
+
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(120);
+      doc.text('TOEGANGSTICKET', pw / 2, y, { align: 'center' });
+      y += 8;
+
+      doc.setDrawColor(200);
+      doc.setLineWidth(0.3);
+      doc.line(m, y, pw - m, y);
+      y += 12;
+
+      doc.setTextColor(0);
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text(eventData?.name || order.events?.name || 'Event', pw / 2, y, { align: 'center' });
+      y += 10;
+
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(80);
+      if (eventData?.start_date) {
+        const d = new Date(eventData.start_date);
+        const dateStr = d.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        const timeStr = d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+        doc.text(dateStr + ' - ' + timeStr, pw / 2, y, { align: 'center' });
+        y += 7;
+      }
+      const venue = [eventData?.venue_name, eventData?.location].filter(Boolean).join(', ');
+      if (venue) {
+        doc.text(venue, pw / 2, y, { align: 'center' });
+        y += 10;
+      } else {
+        y += 4;
+      }
+
+      doc.setDrawColor(0);
+      doc.setLineWidth(0.4);
+      doc.roundedRect(m + 10, y, pw - m * 2 - 20, 38, 3, 3);
+
+      const boxLeft = m + 18;
+      const valLeft = boxLeft + 38;
+      let by = y + 10;
+
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0);
+      doc.text('Type:', boxLeft, by);
+      doc.setFont('helvetica', 'normal');
+      doc.text(seat.typeName || 'Zitplaats', valLeft, by);
+      by += 8;
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('Plaats:', boxLeft, by);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Rij ' + (seat.row_label || '-') + '   Stoel ' + (seat.seat_number ?? '-'), valLeft, by);
+      by += 8;
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('Prijs:', boxLeft, by);
+      doc.setFont('helvetica', 'normal');
+      doc.text('EUR ' + ((seat.typePrice || 0) / 100).toFixed(2), valLeft, by);
+
+      y += 46;
+
+      const qrValue = seat.qr_data || seat.ticket_code || seat.id;
+      try {
+        const qrDataUrl = await QRCode.toDataURL(qrValue, { width: 400, margin: 2 });
+        if (qrDataUrl) {
+          const qrSize = 55;
+          const qrX = (pw - qrSize) / 2;
+          doc.addImage(qrDataUrl, 'PNG', qrX, y, qrSize, qrSize);
+          y += qrSize + 6;
+        }
+      } catch {
+        y += 6;
+      }
+
+      if (seat.ticket_number) {
+        doc.setFontSize(14);
+        doc.setFont('courier', 'bold');
+        doc.setTextColor(0);
+        doc.text(seat.ticket_number, pw / 2, y, { align: 'center' });
+        y += 12;
+      }
+
+      doc.setDrawColor(200);
+      doc.setLineWidth(0.3);
+      doc.line(m, y, pw - m, y);
+      y += 8;
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100);
+      doc.text('Bestelnummer: ' + order.order_number, pw / 2, y, { align: 'center' });
+      y += 5;
+      doc.text('Naam: ' + (order.payer_name || '-'), pw / 2, y, { align: 'center' });
+      y += 8;
+      doc.setFontSize(8);
+      doc.text('Dit ticket is uniek en kan slechts een keer gescand worden.', pw / 2, y, { align: 'center' });
+      y += 5;
+      doc.text('Toon dit ticket bij de ingang op je telefoon of geprint.', pw / 2, y, { align: 'center' });
+
+      doc.save('StageNation-Ticket-' + (seat.ticket_number || seat.id) + '.pdf');
+      showToast('Ticket PDF gedownload', 'success');
+    } catch (error) {
+      console.error('Error generating seat ticket PDF:', error);
       showToast('PDF genereren mislukt', 'error');
     } finally {
       setTicketPdfLoading(null);
@@ -4527,18 +4675,49 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
                         <div className="mt-4 pt-4 border-t border-slate-600">
                           <div className="text-sm font-semibold text-white mb-2">Gekocht</div>
                           <div className="space-y-1">
-                            {order.ticket_items.map((item: any, idx: number) => (
-                              <div key={idx} className="flex items-center justify-between text-sm bg-slate-700/50 rounded-lg px-3 py-2">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-white">{item.typeName}</span>
-                                  <span className="text-slate-400">x{item.quantity}</span>
+                            {order.ticket_items.map((item: any, idx: number) => {
+                              const seatsForType = (order.individual_seat_tickets || []).filter(
+                                (s: any) => s.ticket_type_id === item.typeId
+                              );
+                              return (
+                                <div key={idx} className="space-y-1">
+                                  <div className="flex items-center justify-between text-sm bg-slate-700/50 rounded-lg px-3 py-2">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-white">{item.typeName}</span>
+                                      <span className="text-slate-400">x{item.quantity}</span>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                      <span className="text-slate-400">@{'\u20AC'}{(item.typePrice / 100).toFixed(2)}</span>
+                                      <span className="text-white font-medium">{'\u20AC'}{((item.typePrice * item.quantity) / 100).toFixed(2)}</span>
+                                    </div>
+                                  </div>
+                                  {seatsForType.length > 0 && (
+                                    <div className="ml-3 pl-3 border-l-2 border-slate-600/60 space-y-1">
+                                      {seatsForType.map((seat: any) => (
+                                        <div key={seat.id} className="flex items-center justify-between text-xs bg-slate-700/30 rounded-md px-3 py-1.5">
+                                          <div className="flex items-center gap-3 text-slate-300">
+                                            <span className="font-medium text-white">Rij {seat.row_label}</span>
+                                            <span className="text-slate-400">Stoel {seat.seat_number}</span>
+                                            {seat.ticket_number && (
+                                              <span className="text-slate-500 font-mono">{seat.ticket_number}</span>
+                                            )}
+                                          </div>
+                                          <button
+                                            onClick={() => downloadSingleSeatTicketPdf(seat, order)}
+                                            disabled={ticketPdfLoading === seat.id}
+                                            className="flex items-center gap-1 px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded text-xs text-emerald-400 transition-colors disabled:opacity-50"
+                                            title="Download ticket PDF"
+                                          >
+                                            {ticketPdfLoading === seat.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
+                                            Download
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
-                                <div className="flex items-center gap-4">
-                                  <span className="text-slate-400">@{'\u20AC'}{(item.typePrice / 100).toFixed(2)}</span>
-                                  <span className="text-white font-medium">{'\u20AC'}{((item.typePrice * item.quantity) / 100).toFixed(2)}</span>
-                                </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       ) : order.status === 'comped' ? (
