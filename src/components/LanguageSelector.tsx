@@ -10,7 +10,6 @@ export function LanguageSelector({ onSelectLanguage }: LanguageSelectorProps) {
     { code: 'fr' as Language, name: 'Français', flag: '🇫🇷' },
     { code: 'en' as Language, name: 'English', flag: '🇬🇧' },
     { code: 'de' as Language, name: 'Deutsch', flag: '🇩🇪' },
-    { code: 'tr' as Language, name: 'Türkçe', flag: '🇹🇷' },
   ];
 
   return (

@@ -33,6 +33,7 @@ const SeatPicker = lazy(() => import('./pages/SeatPicker').then(m => ({ default:
 const SeatCheckout = lazy(() => import('./pages/SeatCheckout').then(m => ({ default: m.SeatCheckout })));
 const SeatConfirmation = lazy(() => import('./pages/SeatConfirmation').then(m => ({ default: m.SeatConfirmation })));
 const TicketVerify = lazy(() => import('./pages/TicketVerify').then(m => ({ default: m.TicketVerify })));
+const Samenwerking = lazy(() => import('./pages/Samenwerking').then(m => ({ default: m.Samenwerking })));
 
 declare global {
   interface Window {
@@ -203,6 +204,8 @@ function App() {
         return <TableReservation onNavigate={navigate} />;
 case 'contact':
         return <Contact />;
+      case 'samenwerking':
+        return <Samenwerking onNavigate={navigate} />;
       case 'login':
         return <Login onNavigate={navigate} />;
       case 'scanner':
