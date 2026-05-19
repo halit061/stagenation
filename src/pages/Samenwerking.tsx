@@ -56,31 +56,32 @@ export function Samenwerking({ onNavigate }: SamenwerkingProps) {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
     setSending(true);
 
-    const subject = encodeURIComponent(`Samenwerking aanvraag: ${form.bedrijf}`);
-    const body = encodeURIComponent(
-      `Naam onderneming: ${form.bedrijf}\n` +
-      `Contactpersoon: ${form.contactpersoon}\n` +
-      `E-mail: ${form.email}\n` +
-      `Telefoon: ${form.telefoon}\n` +
-      `Type concept: ${form.concept}\n` +
-      `Beschrijving: ${form.beschrijving}\n` +
-      `Benodigde ruimte: ${form.ruimte || 'Niet opgegeven'}\n` +
-      `Stroomvereisten: ${form.stroom || 'Niet opgegeven'}\n` +
-      `Social media / website: ${form.social || 'Niet opgegeven'}`
-    );
+    try {
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-samenwerking-form`;
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
 
-    window.location.href = `mailto:info@stagenation.be?subject=${subject}&body=${body}`;
+      const data = await res.json();
 
-    setTimeout(() => {
-      setSending(false);
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Verzending mislukt');
+      }
+
       setSubmitted(true);
-    }, 500);
+    } catch (err: any) {
+      setErrors({ _form: err.message || 'Er ging iets mis, probeer het later opnieuw.' });
+    } finally {
+      setSending(false);
+    }
   };
 
   const updateField = (field: string, value: string) => {
@@ -311,6 +312,12 @@ export function Samenwerking({ onNavigate }: SamenwerkingProps) {
                 placeholder="Instagram, Facebook of website URL"
               />
             </div>
+
+            {errors._form && (
+              <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+                <p className="text-red-400 text-sm">{errors._form}</p>
+              </div>
+            )}
 
             <div className="pt-4">
               <button
