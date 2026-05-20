@@ -18,6 +18,7 @@ import { AdminOrderSearch } from '../components/AdminOrderSearch';
 import { DeleteOrderModal } from '../components/DeleteOrderModal';
 import { GuestTicketSeatSelector } from '../components/GuestTicketSeatSelector';
 import type { SeatAssignment } from '../components/GuestTicketSeatSelector';
+import { AdminSourceTracking } from '../components/AdminSourceTracking';
 import { getAllLayouts, saveLayout, getTemplates, copyTemplateForEvent } from '../services/seatService';
 import type { VenueLayout } from '../types/seats';
 
@@ -44,7 +45,7 @@ interface AdminProps {
   onNavigate?: (page: string) => void;
 }
 
-const ALLOWED_TABS = ['dashboard', 'events', 'floorplan', 'venue_map', 'tickets', 'guest_tickets', 'table_guests', 'scanners', 'orders', 'entrances', 'refund_protection'] as const;
+const ALLOWED_TABS = ['dashboard', 'events', 'floorplan', 'venue_map', 'tickets', 'guest_tickets', 'table_guests', 'scanners', 'orders', 'entrances', 'refund_protection', 'source_tracking'] as const;
 type AllowedTab = typeof ALLOWED_TABS[number];
 
 export function Admin({ onNavigate }: AdminProps = {}) {
@@ -901,7 +902,7 @@ export function Admin({ onNavigate }: AdminProps = {}) {
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white text-sm font-medium transition-colors"
             >
-              <span className="capitalize">{activeTab === 'guest_tickets' ? 'Guest Tickets' : activeTab === 'table_guests' ? 'Tafel Gasten' : activeTab === 'entrances' ? 'Ingangen & Typen' : activeTab === 'refund_protection' ? 'Refund Protection' : activeTab}</span>
+              <span className="capitalize">{activeTab === 'guest_tickets' ? 'Guest Tickets' : activeTab === 'table_guests' ? 'Tafel Gasten' : activeTab === 'entrances' ? 'Ingangen & Typen' : activeTab === 'refund_protection' ? 'Refund Protection' : activeTab === 'source_tracking' ? 'Bron Tracking' : activeTab}</span>
               <ChevronDown className={`w-4 h-4 transition-transform ${sidebarOpen ? 'rotate-180' : ''}`} />
             </button>
             </div>
@@ -940,6 +941,9 @@ export function Admin({ onNavigate }: AdminProps = {}) {
               </button>
               <button onClick={() => handleTabChange('refund_protection')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium ${activeTab === 'refund_protection' ? 'bg-red-500 text-white' : 'text-slate-300 hover:bg-slate-700'}`}>
                 <ShieldCheck className="w-4 h-4" /><span>Refund Protection</span>
+              </button>
+              <button onClick={() => handleTabChange('source_tracking')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium ${activeTab === 'source_tracking' ? 'bg-red-500 text-white' : 'text-slate-300 hover:bg-slate-700'}`}>
+                <TrendingUp className="w-4 h-4" /><span>Bron Tracking</span>
               </button>
               <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-700 border-t border-slate-700 mt-2 pt-2">
                 <LogOut className="w-4 h-4" /><span>Uitloggen</span>
@@ -2233,6 +2237,10 @@ export function Admin({ onNavigate }: AdminProps = {}) {
           </div>
         </div>
       )}
+
+          {activeTab === 'source_tracking' && (
+            <AdminSourceTracking />
+          )}
     </div>
   );
 }

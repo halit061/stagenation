@@ -11,6 +11,7 @@ import { Login } from './pages/Login';
 import { useLanguage } from './contexts/LanguageContext';
 import { useAuth } from './contexts/AuthContext';
 import { track as fbTrack } from './lib/fbPixel';
+import { captureSource } from './lib/sourceTracking';
 
 const Agenda = lazy(() => import('./pages/Agenda').then(m => ({ default: m.Agenda })));
 const Info = lazy(() => import('./pages/Info').then(m => ({ default: m.Info })));
@@ -70,6 +71,10 @@ function App() {
     }
     window.scrollTo(0, 0);
     fbTrack('PageView');
+  }, []);
+
+  useEffect(() => {
+    captureSource();
   }, []);
 
   useEffect(() => {

@@ -15,6 +15,7 @@ import {
 } from '../services/seatPickerService';
 import type { FloorplanObject, TicketTypeColor } from '../services/seatPickerService';
 import type { Seat, SeatSection } from '../types/seats';
+import { attachSourceToOrder } from '../lib/sourceTracking';
 
 type TicketType = Database['public']['Tables']['ticket_types']['Row'];
 
@@ -544,6 +545,7 @@ export function Tickets({ onNavigate }: TicketsProps) {
       setReservationExpiresAt(result.expires_at);
       setReservationExpired(false);
       setShowCheckoutForm(true);
+      attachSourceToOrder(result.order_id);
     } catch (err: any) {
       if (err.message === 'SOLD_OUT') {
         setError(t('tickets.soldOut') + '!');
