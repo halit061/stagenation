@@ -124,8 +124,11 @@ Deno.serve(async (req: Request) => {
 </body>
 </html>`;
 
+    const emailFrom = Deno.env.get("EMAIL_FROM") || "StageNation <tickets@stagenation.be>";
+    const samenwerkingFrom = emailFrom.replace(/^[^<]*</, "StageNation Samenwerking <");
+
     const result = await resend.emails.send({
-      from: "StageNation Samenwerking <samenwerking@stagenation.be>",
+      from: samenwerkingFrom,
       to: ["samenwerking@stagenation.be"],
       reply_to: body.email,
       subject: `Samenwerking aanvraag: ${body.bedrijf} (${body.concept})`,
