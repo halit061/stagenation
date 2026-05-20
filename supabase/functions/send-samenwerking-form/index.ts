@@ -140,6 +140,58 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    const confirmHtml = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; padding: 40px 20px;">
+  <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08);">
+    <div style="background: #0f172a; padding: 32px 24px; text-align: center;">
+      <h1 style="color: #f59e0b; margin: 0; font-size: 22px; font-weight: 700; letter-spacing: 2px;">STAGENATION</h1>
+      <p style="color: #94a3b8; margin: 8px 0 0; font-size: 14px;">Bevestiging samenwerking aanvraag</p>
+    </div>
+    <div style="padding: 32px 24px;">
+      <p style="color: #0f172a; font-size: 15px; line-height: 1.6; margin: 0 0 16px;">Beste ${escapeHtml(body.contactpersoon)},</p>
+      <p style="color: #374151; font-size: 14px; line-height: 1.6; margin: 0 0 16px;">Bedankt voor je samenwerkingsaanvraag! We hebben je bericht goed ontvangen en nemen zo snel mogelijk contact met je op.</p>
+      <p style="color: #374151; font-size: 14px; line-height: 1.6; margin: 0 0 24px;">Hieronder een overzicht van je aanvraag:</p>
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; color: #64748b; font-size: 13px; width: 140px; vertical-align: top;">Onderneming</td>
+          <td style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; color: #0f172a; font-size: 14px;">${escapeHtml(body.bedrijf)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; color: #64748b; font-size: 13px; vertical-align: top;">Type concept</td>
+          <td style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; color: #0f172a; font-size: 14px;">${escapeHtml(body.concept)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; color: #64748b; font-size: 13px; vertical-align: top;">Beschrijving</td>
+          <td style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; color: #0f172a; font-size: 14px; white-space: pre-wrap;">${escapeHtml(body.beschrijving)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px 0; color: #64748b; font-size: 13px; vertical-align: top;">Benodigde ruimte</td>
+          <td style="padding: 10px 0; color: #0f172a; font-size: 14px;">${escapeHtml(body.ruimte || "Niet opgegeven")}</td>
+        </tr>
+      </table>
+      <p style="color: #374151; font-size: 14px; line-height: 1.6; margin: 24px 0 0;">Met vriendelijke groet,<br><strong>Team StageNation</strong></p>
+    </div>
+    <div style="background: #f8fafc; padding: 16px 24px; text-align: center; border-top: 1px solid #e2e8f0;">
+      <p style="color: #94a3b8; margin: 0; font-size: 12px;">Dit is een automatische bevestiging. Je hoeft niet te antwoorden op dit bericht.</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    try {
+      await resend.emails.send({
+        from: "StageNation Samenwerking <samenwerking@stagenation.be>",
+        to: [body.email],
+        subject: `Bevestiging: je samenwerkingsaanvraag bij StageNation`,
+        html: confirmHtml,
+      });
+    } catch (confirmErr) {
+      console.error("Confirmation email failed (non-blocking):", confirmErr.message);
+    }
+
     return new Response(
       JSON.stringify({ ok: true }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
