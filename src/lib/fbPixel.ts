@@ -71,7 +71,10 @@ export function grantConsent() {
     window.fbq('consent', 'grant');
   }
   if (window.ttq) {
+    console.log('[TikTok] About to grant consent');
     window.ttq.grantConsent();
+    console.log('[TikTok] Consent granted');
+    console.log('[TikTok] Sending page event');
     window.ttq.page();
   }
 }
@@ -103,8 +106,11 @@ export function track(event: string, params?: Record<string, unknown>, options?:
     }
     if (window.ttq) {
       if (event === 'PageView') {
+        console.log('[TikTok] Route changed to:', window.location.pathname);
+        console.log('[TikTok] Calling ttq.page()');
         window.ttq.page();
       } else {
+        console.log('[TikTok] Tracking event:', event);
         window.ttq('track', event, params || {});
       }
     }
