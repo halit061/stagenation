@@ -91,13 +91,22 @@ export interface TrackOptions {
 }
 
 export function track(event: string, params?: Record<string, unknown>, options?: TrackOptions) {
-  if (typeof window === 'undefined' || typeof window.fbq !== 'function') return;
+  if (typeof window === 'undefined') return;
   if (!hasMarketingConsent()) return;
   try {
-    if (options?.eventID) {
-      window.fbq('track', event, params || {}, { eventID: options.eventID });
-    } else {
-      window.fbq('track', event, params || {});
+    if (typeof window.fbq === 'function') {
+      if (options?.eventID) {
+        window.fbq('track', event, params || {}, { eventID: options.eventID });
+      } else {
+        window.fbq('track', event, params || {});
+      }
+    }
+    if (window.ttq) {
+      if (event === 'PageView') {
+        window.ttq.page();
+      } else {
+        window.ttq('track', event, params || {});
+      }
     }
   } catch {
     /* noop */
