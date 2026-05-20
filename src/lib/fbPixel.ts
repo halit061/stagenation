@@ -2,10 +2,19 @@ export const FB_PIXEL_ID = '1457559385824293';
 
 type FbqFn = (...args: unknown[]) => void;
 
+type TtqFn = {
+  (...args: unknown[]): void;
+  page: () => void;
+  grantConsent: () => void;
+  revokeConsent: () => void;
+  holdConsent: () => void;
+};
+
 declare global {
   interface Window {
     fbq?: FbqFn;
     _fbq?: FbqFn;
+    ttq?: TtqFn;
   }
 }
 
@@ -56,14 +65,25 @@ export function initPixel() {
 }
 
 export function grantConsent() {
-  if (typeof window === 'undefined' || typeof window.fbq !== 'function') return;
-  initPixel();
-  window.fbq('consent', 'grant');
+  if (typeof window === 'undefined') return;
+  if (typeof window.fbq === 'function') {
+    initPixel();
+    window.fbq('consent', 'grant');
+  }
+  if (window.ttq) {
+    window.ttq.grantConsent();
+    window.ttq.page();
+  }
 }
 
 export function revokeConsent() {
-  if (typeof window === 'undefined' || typeof window.fbq !== 'function') return;
-  window.fbq('consent', 'revoke');
+  if (typeof window === 'undefined') return;
+  if (typeof window.fbq === 'function') {
+    window.fbq('consent', 'revoke');
+  }
+  if (window.ttq) {
+    window.ttq.revokeConsent();
+  }
 }
 
 export interface TrackOptions {
