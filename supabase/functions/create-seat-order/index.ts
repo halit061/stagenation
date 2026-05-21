@@ -108,6 +108,7 @@ Deno.serve(async (req: Request) => {
       p_seat_ids,
       p_seat_prices,
       p_ticket_type_id,
+      source_data,
     } = body;
 
     if (
@@ -190,6 +191,20 @@ Deno.serve(async (req: Request) => {
     const orderNumber = data.order_number;
     const totalAmountCents = data.total_amount_cents;
     const amountInEuros = (totalAmountCents / 100).toFixed(2);
+
+    if (source_data && typeof source_data === 'object') {
+      const sanitize = (v: unknown, max = 500) => typeof v === 'string' ? v.trim().substring(0, max) || null : null;
+      await supabase.from('orders').update({
+        utm_source: sanitize(source_data.utm_source, 200),
+        utm_medium: sanitize(source_data.utm_medium, 200),
+        utm_campaign: sanitize(source_data.utm_campaign, 500),
+        utm_content: sanitize(source_data.utm_content, 500),
+        utm_term: sanitize(source_data.utm_term, 500),
+        referrer: sanitize(source_data.referrer, 2000),
+        landing_page: sanitize(source_data.landing_page, 2000),
+        first_visit_at: sanitize(source_data.first_visit_at, 50),
+      }).eq('id', orderId);
+    }
 
     const requestOrigin = req.headers.get("origin") ||
       req.headers.get("referer")?.replace(/\/[^/]*$/, "") || "";

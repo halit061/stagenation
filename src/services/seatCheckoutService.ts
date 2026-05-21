@@ -23,6 +23,16 @@ export interface SeatOrderData {
   seatIds: string[];
   seatPrices: number[];
   ticketTypeId?: string;
+  sourceData?: {
+    utm_source?: string | null;
+    utm_medium?: string | null;
+    utm_campaign?: string | null;
+    utm_content?: string | null;
+    utm_term?: string | null;
+    referrer?: string | null;
+    landing_page?: string | null;
+    first_visit_at?: string | null;
+  };
 }
 
 export async function validateHoldsActive(sessionId: string, eventId: string): Promise<{
@@ -67,6 +77,7 @@ export async function createSeatOrder(order: SeatOrderData): Promise<SeatOrderRe
       p_seat_ids: order.seatIds,
       p_seat_prices: order.seatPrices,
       p_ticket_type_id: order.ticketTypeId || null,
+      source_data: order.sourceData || null,
     }),
   });
 

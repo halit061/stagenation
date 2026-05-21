@@ -20,7 +20,7 @@ import { NavigationGuard } from '../components/NavigationGuard';
 import { useLanguage } from '../contexts/LanguageContext';
 import { st } from '../lib/seatTranslations';
 import { track as fbTrack, buildAdvancedMatch } from '../lib/fbPixel';
-import { attachSourceToOrder } from '../lib/sourceTracking';
+import { getSourceData } from '../lib/sourceTracking';
 import type { CheckoutFormData, CheckoutFormErrors } from '../components/CheckoutForm';
 import type { PickerSeat, PriceCategory } from '../hooks/useSeatPickerState';
 import type { SeatSection, Seat } from '../types/seats';
@@ -506,12 +506,10 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
         seatIds: heldSeats.map(s => s.id),
         seatPrices,
         ticketTypeId: ticketTypeId || undefined,
+        sourceData: getSourceData() || undefined,
       });
 
       if (result.success && result.checkoutUrl) {
-        if (result.order_id) {
-          attachSourceToOrder(result.order_id);
-        }
         try {
           const userData = await buildAdvancedMatch({
             email: formData.email,

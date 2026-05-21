@@ -112,6 +112,17 @@ Deno.serve(async (req: Request) => {
     const reservedOrderId = sanitizeString(body.order_id || '', 36);
     const refund_protection = body.refund_protection === true;
 
+    const sourceData = body.source_data && typeof body.source_data === 'object' ? {
+      utm_source: sanitizeString(body.source_data.utm_source || '', 200) || null,
+      utm_medium: sanitizeString(body.source_data.utm_medium || '', 200) || null,
+      utm_campaign: sanitizeString(body.source_data.utm_campaign || '', 500) || null,
+      utm_content: sanitizeString(body.source_data.utm_content || '', 500) || null,
+      utm_term: sanitizeString(body.source_data.utm_term || '', 500) || null,
+      referrer: sanitizeString(body.source_data.referrer || '', 2000) || null,
+      landing_page: sanitizeString(body.source_data.landing_page || '', 2000) || null,
+      first_visit_at: sanitizeString(body.source_data.first_visit_at || '', 50) || null,
+    } : null;
+
     // Determine if this is a reservation-based checkout
     const isReservationFlow = reservedOrderId && isValidUUID(reservedOrderId);
 
@@ -393,6 +404,16 @@ Deno.serve(async (req: Request) => {
         idempotency_key: clientIdempotencyKey || null,
         refund_protection: refund_protection,
         refund_protection_fee_cents: refundProtectionFeeCents,
+        ...(sourceData ? {
+          utm_source: sourceData.utm_source,
+          utm_medium: sourceData.utm_medium,
+          utm_campaign: sourceData.utm_campaign,
+          utm_content: sourceData.utm_content,
+          utm_term: sourceData.utm_term,
+          referrer: sourceData.referrer,
+          landing_page: sourceData.landing_page,
+          first_visit_at: sourceData.first_visit_at,
+        } : {}),
         metadata: {
           type: 'ticket_purchase',
           cart,
@@ -590,6 +611,16 @@ Deno.serve(async (req: Request) => {
       idempotency_key: idempotencyKey,
       refund_protection: refund_protection,
       refund_protection_fee_cents: refundProtectionFeeCents,
+      ...(sourceData ? {
+        utm_source: sourceData.utm_source,
+        utm_medium: sourceData.utm_medium,
+        utm_campaign: sourceData.utm_campaign,
+        utm_content: sourceData.utm_content,
+        utm_term: sourceData.utm_term,
+        referrer: sourceData.referrer,
+        landing_page: sourceData.landing_page,
+        first_visit_at: sourceData.first_visit_at,
+      } : {}),
       metadata: {
         type: 'ticket_purchase',
         cart,

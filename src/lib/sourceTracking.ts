@@ -1,5 +1,3 @@
-import { supabase } from './supabaseClient';
-
 export interface SourceData {
   utm_source: string | null;
   utm_medium: string | null;
@@ -43,25 +41,6 @@ export function getSourceData(): SourceData | null {
   }
 }
 
-export function attachSourceToOrder(orderId: string): void {
-  const source = getSourceData();
-  if (!source) return;
-
-  supabase
-    .from('orders')
-    .update({
-      utm_source: source.utm_source,
-      utm_medium: source.utm_medium,
-      utm_campaign: source.utm_campaign,
-      utm_content: source.utm_content,
-      utm_term: source.utm_term,
-      referrer: source.referrer,
-      landing_page: source.landing_page,
-      first_visit_at: source.first_visit_at,
-    })
-    .eq('id', orderId)
-    .then(() => {});
-}
 
 export function getReferrerSource(referrer: string | null): string {
   if (!referrer) return 'direct';

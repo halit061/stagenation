@@ -20,6 +20,16 @@ interface CheckoutPayload {
   idempotency_key: string;
   order_id?: string;
   refund_protection?: boolean;
+  source_data?: {
+    utm_source?: string | null;
+    utm_medium?: string | null;
+    utm_campaign?: string | null;
+    utm_content?: string | null;
+    utm_term?: string | null;
+    referrer?: string | null;
+    landing_page?: string | null;
+    first_visit_at?: string | null;
+  };
 }
 
 interface CheckoutResult {
