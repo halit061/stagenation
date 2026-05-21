@@ -817,6 +817,53 @@ export function Tickets({ onNavigate }: TicketsProps) {
                 </div>
               </div>
             </div>
+            <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-2xl p-5 sm:p-6">
+              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <span className="text-xl">{'📅'}</span> Dagprogramma — 21 juni 2026
+              </h3>
+              <div className="space-y-4">
+                <div className="flex gap-3">
+                  <span className="text-xl flex-shrink-0 mt-0.5">{'🚪'}</span>
+                  <div>
+                    <p className="text-white font-semibold">11:00 — Deuren open</p>
+                    <p className="text-slate-300 text-sm leading-relaxed mt-0.5">Verwelkoming met diverse activiteiten: geniet van een drankje en lekkernijen, en bij mooi weer kunnen de kinderen zich uitleven op het springkasteel en andere randanimatie.</p>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <span className="text-xl flex-shrink-0 mt-0.5">{'🎁'}</span>
+                  <div>
+                    <p className="text-white font-semibold">13:30 — Trekking van de winnaars</p>
+                    <p className="text-slate-300 text-sm leading-relaxed mt-0.5">Spannend moment: de gelukkige winnaars worden op het podium bekendgemaakt.</p>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <span className="text-xl flex-shrink-0 mt-0.5">{'🎤'}</span>
+                  <div>
+                    <p className="text-white font-semibold">14:00 — Start show Studio 100 Zingt</p>
+                    <p className="text-slate-300 text-sm leading-relaxed mt-0.5">De grote show begint! Een onvergetelijke familievoorstelling boordevol Studio 100-klassiekers.</p>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <span className="text-xl flex-shrink-0 mt-0.5">{'🌟'}</span>
+                  <div>
+                    <p className="text-white font-semibold">15:30 — Meet & Greet met Maya de Bij</p>
+                    <p className="text-slate-300 text-sm leading-relaxed mt-0.5">Na haar passage op het podium neemt Maya even de tijd voor een Meet & Greet. Een unieke kans op een foto en knuffel!</p>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <span className="text-xl flex-shrink-0 mt-0.5">{'🎉'}</span>
+                  <div>
+                    <p className="text-white font-semibold">Na de show</p>
+                    <p className="text-slate-300 text-sm leading-relaxed mt-0.5">Nog niet uitgekeken? Geniet gerust nog even na met een hapje en drankje, of laat de kinderen nog spelen op de randanimatie.</p>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-700 flex items-center gap-2 text-slate-400 text-sm">
+                <span className="text-base">{'📍'}</span>
+                <span className="font-medium">Limburghal Genk</span>
+              </div>
+            </div>
+
             {ticketTypes.map((ticketType) => {
               const seatBased = seatAvailability[ticketType.id] !== undefined;
               const available = seatBased

@@ -53,6 +53,53 @@ export function Info() {
           </p>
         </div>
 
+        <div className="bg-slate-800/50 backdrop-blur border border-cyan-500/20 rounded-2xl p-6 sm:p-8 mb-12">
+          <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+            <span className="text-2xl">{'📅'}</span> Dagprogramma — 21 juni 2026
+          </h2>
+          <div className="space-y-5">
+            <div className="flex gap-3">
+              <span className="text-xl flex-shrink-0 mt-0.5">{'🚪'}</span>
+              <div>
+                <p className="text-white font-semibold text-lg">11:00 — Deuren open</p>
+                <p className="text-slate-300 text-sm leading-relaxed mt-1">Verwelkoming met diverse activiteiten: geniet van een drankje en lekkernijen, en bij mooi weer kunnen de kinderen zich uitleven op het springkasteel en andere randanimatie.</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <span className="text-xl flex-shrink-0 mt-0.5">{'🎁'}</span>
+              <div>
+                <p className="text-white font-semibold text-lg">13:30 — Trekking van de winnaars</p>
+                <p className="text-slate-300 text-sm leading-relaxed mt-1">Spannend moment: de gelukkige winnaars worden op het podium bekendgemaakt.</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <span className="text-xl flex-shrink-0 mt-0.5">{'🎤'}</span>
+              <div>
+                <p className="text-white font-semibold text-lg">14:00 — Start show Studio 100 Zingt</p>
+                <p className="text-slate-300 text-sm leading-relaxed mt-1">De grote show begint! Een onvergetelijke familievoorstelling boordevol Studio 100-klassiekers.</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <span className="text-xl flex-shrink-0 mt-0.5">{'🌟'}</span>
+              <div>
+                <p className="text-white font-semibold text-lg">15:30 — Meet & Greet met Maya de Bij</p>
+                <p className="text-slate-300 text-sm leading-relaxed mt-1">Na haar passage op het podium neemt Maya even de tijd voor een Meet & Greet. Een unieke kans op een foto en knuffel!</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <span className="text-xl flex-shrink-0 mt-0.5">{'🎉'}</span>
+              <div>
+                <p className="text-white font-semibold text-lg">Na de show</p>
+                <p className="text-slate-300 text-sm leading-relaxed mt-1">Nog niet uitgekeken? Geniet gerust nog even na met een hapje en drankje, of laat de kinderen nog spelen op de randanimatie.</p>
+              </div>
+            </div>
+          </div>
+          <div className="mt-5 pt-4 border-t border-slate-700 flex items-center gap-2 text-slate-400">
+            <span className="text-lg">{'📍'}</span>
+            <span className="font-medium">Limburghal Genk</span>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-20">
           <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-2xl p-8">
             <div className="flex items-center space-x-3 mb-6">
