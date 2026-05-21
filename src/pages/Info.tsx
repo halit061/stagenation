@@ -1,7 +1,9 @@
 import { Music, Clock, Star, Info as InfoIcon } from 'lucide-react';
 import { useDocumentHead } from '../hooks/useDocumentHead';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export function Info() {
+  const { t } = useLanguage();
   useDocumentHead({
     title: 'Evenement Info',
     description: 'Programma, FAQ en praktische informatie over StageNation evenementen.',
@@ -55,48 +57,48 @@ export function Info() {
 
         <div className="bg-slate-800/50 backdrop-blur border border-cyan-500/20 rounded-2xl p-6 sm:p-8 mb-12">
           <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
-            <span className="text-2xl">{'📅'}</span> Dagprogramma — 21 juni 2026
+            <span className="text-2xl">{'📅'}</span> {t('program.title')}
           </h2>
           <div className="space-y-5">
             <div className="flex gap-3">
               <span className="text-xl flex-shrink-0 mt-0.5">{'🚪'}</span>
               <div>
-                <p className="text-white font-semibold text-lg">11:00 — Deuren open</p>
-                <p className="text-slate-300 text-sm leading-relaxed mt-1">Welkom! Geniet van een drankje en lekkernijen terwijl de kinderen zich uitleven op het springkasteel en andere randanimatie.</p>
+                <p className="text-white font-semibold text-lg">{t('program.doorsTime')}</p>
+                <p className="text-slate-300 text-sm leading-relaxed mt-1">{t('program.doorsDesc')}</p>
               </div>
             </div>
             <div className="flex gap-3">
               <span className="text-xl flex-shrink-0 mt-0.5">{'🎁'}</span>
               <div>
-                <p className="text-white font-semibold text-lg">13:30 — Trekking van de winnaars</p>
-                <p className="text-slate-300 text-sm leading-relaxed mt-1">Spannend moment: de gelukkige winnaars worden op het podium bekendgemaakt.</p>
+                <p className="text-white font-semibold text-lg">{t('program.drawTime')}</p>
+                <p className="text-slate-300 text-sm leading-relaxed mt-1">{t('program.drawDesc')}</p>
               </div>
             </div>
             <div className="flex gap-3">
               <span className="text-xl flex-shrink-0 mt-0.5">{'🎤'}</span>
               <div>
-                <p className="text-white font-semibold text-lg">14:00 — Start show Studio 100 Zingt</p>
-                <p className="text-slate-300 text-sm leading-relaxed mt-1">De grote show begint! Een onvergetelijke familievoorstelling boordevol Studio 100-klassiekers.</p>
+                <p className="text-white font-semibold text-lg">{t('program.showTime')}</p>
+                <p className="text-slate-300 text-sm leading-relaxed mt-1">{t('program.showDesc')}</p>
               </div>
             </div>
             <div className="flex gap-3">
               <span className="text-xl flex-shrink-0 mt-0.5">{'🌟'}</span>
               <div>
-                <p className="text-white font-semibold text-lg">15:30 — Meet & Greet met Maya de Bij</p>
-                <p className="text-slate-300 text-sm leading-relaxed mt-1">Na haar passage op het podium neemt Maya even de tijd voor een Meet & Greet. Een unieke kans op een foto en knuffel!</p>
+                <p className="text-white font-semibold text-lg">{t('program.meetTime')}</p>
+                <p className="text-slate-300 text-sm leading-relaxed mt-1">{t('program.meetDesc')}</p>
               </div>
             </div>
             <div className="flex gap-3">
               <span className="text-xl flex-shrink-0 mt-0.5">{'🎉'}</span>
               <div>
-                <p className="text-white font-semibold text-lg">Na de show</p>
-                <p className="text-slate-300 text-sm leading-relaxed mt-1">Nog niet uitgekeken? Geniet gerust nog even na met een hapje en drankje, of laat de kinderen nog spelen op de randanimatie.</p>
+                <p className="text-white font-semibold text-lg">{t('program.afterTitle')}</p>
+                <p className="text-slate-300 text-sm leading-relaxed mt-1">{t('program.afterDesc')}</p>
               </div>
             </div>
           </div>
           <div className="mt-5 pt-4 border-t border-slate-700 flex items-center gap-2 text-slate-400">
             <span className="text-lg">{'📍'}</span>
-            <span className="font-medium">Limburghal Genk</span>
+            <span className="font-medium">{t('program.venue')}</span>
           </div>
         </div>
 

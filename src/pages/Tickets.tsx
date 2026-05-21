@@ -827,8 +827,8 @@ export function Tickets({ onNavigate }: TicketsProps) {
                 <div className="flex items-center gap-2">
                   <span className="text-xl">{'📅'}</span>
                   <div>
-                    <h3 className="text-lg font-bold text-white">Dagprogramma — 21 juni 2026</h3>
-                    <p className="text-slate-400 text-sm mt-0.5">Deuren open vanaf 11:00 — welkom met randanimatie & lekkernijen</p>
+                    <h3 className="text-lg font-bold text-white">{t('program.title')}</h3>
+                    <p className="text-slate-400 text-sm mt-0.5">{t('program.teaser')}</p>
                   </div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-200 flex-shrink-0 ml-3 ${showProgram ? 'rotate-180' : ''}`} />
@@ -838,41 +838,41 @@ export function Tickets({ onNavigate }: TicketsProps) {
                   <div className="flex gap-3">
                     <span className="text-xl flex-shrink-0 mt-0.5">{'🚪'}</span>
                     <div>
-                      <p className="text-white font-semibold">11:00 — Deuren open</p>
-                      <p className="text-slate-300 text-sm leading-relaxed mt-0.5">Welkom! Geniet van een drankje en lekkernijen terwijl de kinderen zich uitleven op het springkasteel en andere randanimatie.</p>
+                      <p className="text-white font-semibold">{t('program.doorsTime')}</p>
+                      <p className="text-slate-300 text-sm leading-relaxed mt-0.5">{t('program.doorsDesc')}</p>
                     </div>
                   </div>
                   <div className="flex gap-3">
                     <span className="text-xl flex-shrink-0 mt-0.5">{'🎁'}</span>
                     <div>
-                      <p className="text-white font-semibold">13:30 — Trekking van de winnaars</p>
-                      <p className="text-slate-300 text-sm leading-relaxed mt-0.5">Spannend moment: de gelukkige winnaars worden op het podium bekendgemaakt.</p>
+                      <p className="text-white font-semibold">{t('program.drawTime')}</p>
+                      <p className="text-slate-300 text-sm leading-relaxed mt-0.5">{t('program.drawDesc')}</p>
                     </div>
                   </div>
                   <div className="flex gap-3">
                     <span className="text-xl flex-shrink-0 mt-0.5">{'🎤'}</span>
                     <div>
-                      <p className="text-white font-semibold">14:00 — Start show Studio 100 Zingt</p>
-                      <p className="text-slate-300 text-sm leading-relaxed mt-0.5">De grote show begint! Een onvergetelijke familievoorstelling boordevol Studio 100-klassiekers.</p>
+                      <p className="text-white font-semibold">{t('program.showTime')}</p>
+                      <p className="text-slate-300 text-sm leading-relaxed mt-0.5">{t('program.showDesc')}</p>
                     </div>
                   </div>
                   <div className="flex gap-3">
                     <span className="text-xl flex-shrink-0 mt-0.5">{'🌟'}</span>
                     <div>
-                      <p className="text-white font-semibold">15:30 — Meet & Greet met Maya de Bij</p>
-                      <p className="text-slate-300 text-sm leading-relaxed mt-0.5">Na haar passage op het podium neemt Maya even de tijd voor een Meet & Greet. Een unieke kans op een foto en knuffel!</p>
+                      <p className="text-white font-semibold">{t('program.meetTime')}</p>
+                      <p className="text-slate-300 text-sm leading-relaxed mt-0.5">{t('program.meetDesc')}</p>
                     </div>
                   </div>
                   <div className="flex gap-3">
                     <span className="text-xl flex-shrink-0 mt-0.5">{'🎉'}</span>
                     <div>
-                      <p className="text-white font-semibold">Na de show</p>
-                      <p className="text-slate-300 text-sm leading-relaxed mt-0.5">Nog niet uitgekeken? Geniet gerust nog even na met een hapje en drankje, of laat de kinderen nog spelen op de randanimatie.</p>
+                      <p className="text-white font-semibold">{t('program.afterTitle')}</p>
+                      <p className="text-slate-300 text-sm leading-relaxed mt-0.5">{t('program.afterDesc')}</p>
                     </div>
                   </div>
                   <div className="mt-4 pt-3 border-t border-slate-700 flex items-center gap-2 text-slate-400 text-sm">
                     <span className="text-base">{'📍'}</span>
-                    <span className="font-medium">Limburghal Genk</span>
+                    <span className="font-medium">{t('program.venue')}</span>
                   </div>
                 </div>
               )}
