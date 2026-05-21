@@ -1,4 +1,4 @@
-import { Shield, Calendar, Users, Plus, CreditCard as Edit2, Trash2, AlertCircle, CheckCircle, XCircle, Ticket, LogOut, Download, Zap, Image as ImageIcon, Mail, ShoppingCart, Grid2x2 as Grid, MapPin, Package, DollarSign, Bug, BarChart3, Sun, Moon, Menu, X, Crop, ZoomIn, ChevronLeft, ChevronRight, Key, Eye, EyeOff, RefreshCw, FileText, Search, Filter, Loader2, Tag } from 'lucide-react';
+import { Shield, Calendar, Users, Plus, CreditCard as Edit2, Trash2, AlertCircle, CheckCircle, XCircle, Ticket, LogOut, Download, Zap, Image as ImageIcon, Mail, ShoppingCart, Grid2x2 as Grid, MapPin, Package, DollarSign, Bug, BarChart3, Sun, Moon, Menu, X, Crop, ZoomIn, ChevronLeft, ChevronRight, Key, Eye, EyeOff, RefreshCw, FileText, Search, Filter, Loader2, Tag, TrendingUp } from 'lucide-react';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Cropper from 'react-easy-crop';
 import type { Area } from 'react-easy-crop';
@@ -17,6 +17,7 @@ import { EventAnalytics } from '../components/EventAnalytics';
 import { PromoCodesManager } from '../components/PromoCodesManager';
 import { GuestTicketSeatSelector } from '../components/GuestTicketSeatSelector';
 import type { SeatAssignment } from '../components/GuestTicketSeatSelector';
+import { AdminSourceTracking } from '../components/AdminSourceTracking';
 
 type Event = Database['public']['Tables']['events']['Row'];
 type TicketType = Database['public']['Tables']['ticket_types']['Row'];
@@ -41,7 +42,7 @@ interface SuperAdminProps {
 export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
   const { user, role, loading: authLoading, isSuperAdmin, logout, canManageRoles, getRedirectPath } = useAuth();
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'events' | 'tickets' | 'orders' | 'ticketverkopen' | 'table_bookings' | 'floorplan' | 'roles' | 'gebruikers' | 'packages' | 'guest_tickets' | 'table_guests' | 'guest_audit' | 'analytics' | 'media' | 'debug' | 'promo_codes'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'events' | 'tickets' | 'orders' | 'ticketverkopen' | 'table_bookings' | 'floorplan' | 'roles' | 'gebruikers' | 'packages' | 'guest_tickets' | 'table_guests' | 'guest_audit' | 'analytics' | 'media' | 'debug' | 'promo_codes' | 'source_tracking'>('dashboard');
   const canUploadImages = isSuperAdmin || role === 'admin';
   const [events, setEvents] = useState<Event[]>([]);
   const [ticketTypes, setTicketTypes] = useState<TicketType[]>([]);
@@ -2583,6 +2584,7 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
     { tab: 'media', icon: <ImageIcon className="w-5 h-5" />, label: 'Media', show: role === 'super_admin' },
     { tab: 'analytics', icon: <BarChart3 className="w-5 h-5" />, label: 'Analytics', show: role === 'super_admin' },
     { tab: 'roles', icon: <Users className="w-5 h-5" />, label: 'Rollen', show: role === 'super_admin' && isSuperAdmin() },
+    { tab: 'source_tracking', icon: <TrendingUp className="w-5 h-5" />, label: 'Bron Tracking', show: role === 'super_admin' },
     { tab: 'debug', icon: <Bug className="w-5 h-5" />, label: 'Logs / Activity', show: role === 'super_admin' },
   ];
 
@@ -6075,6 +6077,10 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
             </div>
 
           </div>
+        )}
+
+        {activeTab === 'source_tracking' && role === 'super_admin' && (
+          <AdminSourceTracking />
         )}
 
         {activeTab === 'floorplan' && role !== 'super_admin' && (
