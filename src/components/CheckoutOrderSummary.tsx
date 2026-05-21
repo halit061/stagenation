@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Calendar, MapPin, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Calendar, MapPin, Loader2, ChevronDown, ChevronUp, Tag, X } from 'lucide-react';
 import type { PickerSeat, PriceCategory } from '../hooks/useSeatPickerState';
 import type { SeatSection } from '../types/seats';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -26,6 +26,13 @@ interface Props {
   ticketTypeColorMap?: Map<string, string>;
   promoDiscount?: number;
   promoCode?: string;
+  promoInputValue?: string;
+  promoApplied?: { code: string; discount_type: string; discount_value: number } | null;
+  promoLoading?: boolean;
+  promoError?: string;
+  onPromoChange?: (value: string) => void;
+  onPromoApply?: () => void;
+  onPromoRemove?: () => void;
 }
 
 export function CheckoutOrderSummary({
@@ -49,6 +56,13 @@ export function CheckoutOrderSummary({
   ticketTypeColorMap,
   promoDiscount,
   promoCode,
+  promoInputValue,
+  promoApplied,
+  promoLoading,
+  promoError,
+  onPromoChange,
+  onPromoApply,
+  onPromoRemove,
 }: Props) {
   const { language } = useLanguage();
 
@@ -281,6 +295,63 @@ export function CheckoutOrderSummary({
           >
             {st(language, 'checkout.changeSeats')}
           </button>
+
+          {onPromoApply && (
+            <div className="mt-4 pt-4 border-t border-slate-800">
+              <label className="block text-xs font-medium text-slate-400 mb-2">
+                <Tag className="w-3 h-3 inline-block mr-1 -mt-0.5" aria-hidden="true" />
+                {st(language, 'checkout.promoLabel')}
+              </label>
+              {promoApplied ? (
+                <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-emerald-400 text-xs font-semibold">{promoApplied.code}</span>
+                    <span className="text-slate-400 text-[10px]">
+                      ({promoApplied.discount_type === 'percentage'
+                        ? `${promoApplied.discount_value}%`
+                        : `EUR ${(promoApplied.discount_value / 100).toFixed(2)}`})
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onPromoRemove}
+                    className="p-0.5 text-slate-400 hover:text-red-400 transition-colors rounded"
+                    aria-label="Verwijder code"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    value={promoInputValue || ''}
+                    onChange={(e) => onPromoChange?.(e.target.value)}
+                    placeholder="PROMO2025"
+                    onKeyDown={(e) => e.key === 'Enter' && onPromoApply?.()}
+                    className={`flex-1 px-2.5 py-2 bg-slate-800 border rounded-lg text-white text-xs placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-colors ${
+                      promoError ? 'border-red-500/50' : 'border-slate-700'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={onPromoApply}
+                    disabled={promoLoading || !(promoInputValue || '').trim()}
+                    className="px-3 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg transition-colors"
+                  >
+                    {promoLoading ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      st(language, 'checkout.promoApply')
+                    )}
+                  </button>
+                </div>
+              )}
+              {promoError && (
+                <p className="text-red-400 text-[10px] mt-1">{promoError}</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );

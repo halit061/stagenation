@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { ArrowLeft, Loader2, Tag, X } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import {
   fetchLayoutByEvent,
@@ -764,6 +764,13 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
           ticketTypeColorMap={ticketTypeColors}
           promoDiscount={promoDiscountAmount}
           promoCode={promoApplied?.code}
+          promoInputValue={promoCode}
+          promoApplied={promoApplied}
+          promoLoading={promoLoading}
+          promoError={promoError}
+          onPromoChange={(v) => { setPromoCode(v.toUpperCase()); setPromoError(''); }}
+          onPromoApply={handleApplyPromo}
+          onPromoRemove={handleRemovePromo}
         />
       </div>
 
@@ -776,61 +783,6 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
               onChange={handleFieldChange}
               onValidateField={handleValidateField}
             />
-
-            <div className="mt-5 bg-slate-900 border border-slate-800 rounded-xl p-5">
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                <Tag className="w-3.5 h-3.5 inline-block mr-1.5 -mt-0.5" aria-hidden="true" />
-                {st(language, 'checkout.promoLabel')}
-              </label>
-              {promoApplied ? (
-                <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-emerald-400 text-sm font-semibold">{promoApplied.code}</span>
-                    <span className="text-slate-400 text-xs">
-                      ({promoApplied.discount_type === 'percentage'
-                        ? `${promoApplied.discount_value}%`
-                        : `EUR ${(promoApplied.discount_value / 100).toFixed(2)}`})
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleRemovePromo}
-                    className="p-1 text-slate-400 hover:text-red-400 transition-colors rounded"
-                    aria-label="Verwijder code"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ) : (
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={promoCode}
-                    onChange={(e) => { setPromoCode(e.target.value.toUpperCase()); setPromoError(''); }}
-                    placeholder="PROMO2025"
-                    onKeyDown={(e) => e.key === 'Enter' && handleApplyPromo()}
-                    className={`flex-1 px-3 py-2.5 bg-slate-800 border rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-colors ${
-                      promoError ? 'border-red-500/50' : 'border-slate-700'
-                    }`}
-                  />
-                  <button
-                    type="button"
-                    onClick={handleApplyPromo}
-                    disabled={promoLoading || !promoCode.trim()}
-                    className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
-                  >
-                    {promoLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      st(language, 'checkout.promoApply')
-                    )}
-                  </button>
-                </div>
-              )}
-              {promoError && (
-                <p className="text-red-400 text-xs mt-1.5">{promoError}</p>
-              )}
-            </div>
 
             {submitError && (
               <div className="mt-4 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm" role="alert">
@@ -859,6 +811,13 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
               ticketTypeColorMap={ticketTypeColors}
               promoDiscount={promoDiscountAmount}
               promoCode={promoApplied?.code}
+              promoInputValue={promoCode}
+              promoApplied={promoApplied}
+              promoLoading={promoLoading}
+              promoError={promoError}
+              onPromoChange={(v) => { setPromoCode(v.toUpperCase()); setPromoError(''); }}
+              onPromoApply={handleApplyPromo}
+              onPromoRemove={handleRemovePromo}
             />
           </div>
         </div>
