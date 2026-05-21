@@ -304,7 +304,7 @@ export function Home({ onNavigate }: HomeProps) {
           <div className="mt-6 max-w-md bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl px-4 py-3">
             <p className="text-amber-300 font-semibold text-xs uppercase tracking-wider mb-2">{'📅'} Dagprogramma — 21 juni 2026</p>
             <div className="space-y-1 text-sm text-white/80">
-              <p><span className="mr-1.5">{'🚪'}</span><span className="font-semibold text-white">11:00</span> Deuren open + randanimatie & lekkernijen</p>
+              <p><span className="mr-1.5">{'🚪'}</span><span className="font-semibold text-white">11:00</span> Deuren open — welkom met randanimatie & lekkernijen</p>
               <p><span className="mr-1.5">{'🎁'}</span><span className="font-semibold text-white">13:30</span> Trekking van de winnaars</p>
               <p><span className="mr-1.5">{'🎤'}</span><span className="font-semibold text-white">14:00</span> Start show</p>
               <p><span className="mr-1.5">{'🌟'}</span><span className="font-semibold text-white">15:30</span> Meet & Greet met Maya de Bij</p>

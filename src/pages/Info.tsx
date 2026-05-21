@@ -62,7 +62,7 @@ export function Info() {
               <span className="text-xl flex-shrink-0 mt-0.5">{'🚪'}</span>
               <div>
                 <p className="text-white font-semibold text-lg">11:00 — Deuren open</p>
-                <p className="text-slate-300 text-sm leading-relaxed mt-1">Verwelkoming met diverse activiteiten: geniet van een drankje en lekkernijen, en bij mooi weer kunnen de kinderen zich uitleven op het springkasteel en andere randanimatie.</p>
+                <p className="text-slate-300 text-sm leading-relaxed mt-1">Welkom! Geniet van een drankje en lekkernijen terwijl de kinderen zich uitleven op het springkasteel en andere randanimatie.</p>
               </div>
             </div>
             <div className="flex gap-3">
