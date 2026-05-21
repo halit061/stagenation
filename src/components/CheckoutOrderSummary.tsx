@@ -24,6 +24,8 @@ interface Props {
   ticketTypePriceMap?: Map<string, number>;
   ticketTypeNameMap?: Map<string, string>;
   ticketTypeColorMap?: Map<string, string>;
+  promoDiscount?: number;
+  promoCode?: string;
 }
 
 export function CheckoutOrderSummary({
@@ -45,6 +47,8 @@ export function CheckoutOrderSummary({
   ticketTypePriceMap,
   ticketTypeNameMap,
   ticketTypeColorMap,
+  promoDiscount,
+  promoCode,
 }: Props) {
   const { language } = useLanguage();
 
@@ -221,6 +225,15 @@ export function CheckoutOrderSummary({
             <span className="text-slate-400">{st(language, 'checkout.subtotal')}</span>
             <span className="text-slate-300 tabular-nums">EUR {subtotal.toFixed(2)}</span>
           </div>
+          {promoDiscount && promoDiscount > 0 ? (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-emerald-400">
+                {st(language, 'checkout.promoDiscount')}
+                {promoCode && <span className="text-xs ml-1 opacity-70">({promoCode})</span>}
+              </span>
+              <span className="text-emerald-400 font-semibold tabular-nums">-EUR {promoDiscount.toFixed(2)}</span>
+            </div>
+          ) : null}
           <div className="flex items-center justify-between text-sm">
             <span className="text-slate-400">
               {feePerTicket && feePerTicket > 0

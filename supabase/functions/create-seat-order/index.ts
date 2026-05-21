@@ -109,6 +109,8 @@ Deno.serve(async (req: Request) => {
       p_seat_prices,
       p_ticket_type_id,
       source_data,
+      p_promo_code,
+      p_promo_discount_amount,
     } = body;
 
     if (
@@ -189,7 +191,55 @@ Deno.serve(async (req: Request) => {
 
     const orderId = data.order_id;
     const orderNumber = data.order_number;
-    const totalAmountCents = data.total_amount_cents;
+    let totalAmountCents = data.total_amount_cents;
+    let discountCents = 0;
+
+    // Server-side promo code validation
+    if (p_promo_code && typeof p_promo_code === 'string' && p_promo_code.trim()) {
+      const promoCodeUpper = p_promo_code.trim().toUpperCase();
+      const { data: promo } = await supabase
+        .from('promo_codes')
+        .select('*')
+        .eq('code', promoCodeUpper)
+        .eq('is_active', true)
+        .eq('event_id', p_event_id)
+        .maybeSingle();
+
+      if (promo) {
+        const now = new Date();
+        const validFrom = promo.valid_from ? new Date(promo.valid_from) : null;
+        const validUntil = promo.valid_until ? new Date(promo.valid_until) : null;
+        const withinDates = (!validFrom || validFrom <= now) && (!validUntil || validUntil >= now);
+        const withinUsage = !promo.max_uses || promo.used_count < promo.max_uses;
+
+        if (withinDates && withinUsage) {
+          // Compute subtotal in cents (total minus service fee)
+          const subtotalCents = totalAmountCents - Math.round((p_service_fee ?? 0) * 100);
+
+          if (promo.discount_type === 'percentage') {
+            discountCents = Math.round(subtotalCents * promo.discount_value / 100);
+          } else {
+            // fixed discount_value is stored in cents
+            discountCents = Math.min(promo.discount_value, subtotalCents);
+          }
+
+          if (discountCents > 0) {
+            totalAmountCents = Math.max(0, totalAmountCents - discountCents);
+
+            await supabase.from('orders').update({
+              promo_code: promoCodeUpper,
+              discount_amount: discountCents,
+              total_amount: totalAmountCents,
+            }).eq('id', orderId);
+
+            await supabase.from('promo_codes').update({
+              used_count: (promo.used_count || 0) + 1,
+            }).eq('id', promo.id);
+          }
+        }
+      }
+    }
+
     const amountInEuros = (totalAmountCents / 100).toFixed(2);
 
     if (source_data && typeof source_data === 'object') {

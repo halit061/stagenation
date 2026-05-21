@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Tag, X } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import {
   fetchLayoutByEvent,
@@ -134,6 +134,15 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
   const [seatTicketTypePrices, setSeatTicketTypePrices] = useState<Map<string, number>>(new Map());
   const [ticketTypeNames, setTicketTypeNames] = useState<Map<string, string>>(new Map());
   const [ticketTypeColors, setTicketTypeColors] = useState<Map<string, string>>(new Map());
+
+  const [promoCode, setPromoCode] = useState('');
+  const [promoApplied, setPromoApplied] = useState<{
+    code: string;
+    discount_type: string;
+    discount_value: number;
+  } | null>(null);
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [promoError, setPromoError] = useState('');
 
   const [formData, setFormData] = useState<CheckoutFormData>({
     firstName: '',
@@ -362,7 +371,17 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
   }, [heldSeats, sections, sectionTicketPrices, seatTicketTypePrices]);
 
   const serviceFee = feePerTicket * heldSeats.length;
-  const totalPrice = subtotal + serviceFee;
+
+  const promoDiscountAmount = useMemo(() => {
+    if (!promoApplied || subtotal === 0) return 0;
+    if (promoApplied.discount_type === 'percentage') {
+      return Math.round(subtotal * promoApplied.discount_value) / 100;
+    }
+    const fixedEuros = promoApplied.discount_value / 100;
+    return Math.min(fixedEuros, subtotal);
+  }, [promoApplied, subtotal]);
+
+  const totalPrice = Math.max(0, subtotal - promoDiscountAmount + serviceFee);
 
   const seatPrices = useMemo(() => {
     return heldSeats.map(seat => {
@@ -423,6 +442,86 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
     clearHoldStorage();
     releaseSessionHolds(eventId).catch(() => {});
   }, [eventId]);
+
+  const handleApplyPromo = useCallback(async () => {
+    const code = promoCode.trim().toUpperCase();
+    if (!code) return;
+
+    setPromoLoading(true);
+    setPromoError('');
+
+    try {
+      const { data, error } = await supabase
+        .from('promo_codes')
+        .select('*')
+        .eq('code', code)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (error || !data) {
+        setPromoError(st(language, 'checkout.promoInvalid'));
+        setPromoApplied(null);
+        setPromoLoading(false);
+        return;
+      }
+
+      if (data.event_id && data.event_id !== eventId) {
+        setPromoError(st(language, 'checkout.promoInvalid'));
+        setPromoApplied(null);
+        setPromoLoading(false);
+        return;
+      }
+
+      if (data.max_uses && data.used_count >= data.max_uses) {
+        setPromoError(st(language, 'checkout.promoExpired'));
+        setPromoApplied(null);
+        setPromoLoading(false);
+        return;
+      }
+
+      const now = new Date();
+      if (data.valid_from && new Date(data.valid_from) > now) {
+        setPromoError(st(language, 'checkout.promoInvalid'));
+        setPromoApplied(null);
+        setPromoLoading(false);
+        return;
+      }
+      if (data.valid_until && new Date(data.valid_until) < now) {
+        setPromoError(st(language, 'checkout.promoExpired'));
+        setPromoApplied(null);
+        setPromoLoading(false);
+        return;
+      }
+
+      if (data.ticket_type_id) {
+        const seatHasType = heldSeats.some(s => s.ticket_type_id === data.ticket_type_id);
+        if (!seatHasType) {
+          setPromoError(st(language, 'checkout.promoInvalid'));
+          setPromoApplied(null);
+          setPromoLoading(false);
+          return;
+        }
+      }
+
+      setPromoApplied({
+        code: data.code,
+        discount_type: data.discount_type,
+        discount_value: data.discount_value,
+      });
+      setPromoError('');
+    } catch {
+      setPromoError(st(language, 'checkout.promoInvalid'));
+      setPromoApplied(null);
+    } finally {
+      setPromoLoading(false);
+    }
+  }, [promoCode, eventId, heldSeats, language]);
+
+  const handleRemovePromo = useCallback(() => {
+    setPromoApplied(null);
+    setPromoCode('');
+    setPromoError('');
+  }, []);
 
   const handleExtendHold = useCallback(async () => {
     if (holdExtended) return;
@@ -500,13 +599,15 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
         phone: formData.phone.trim(),
         subtotal,
         serviceFee,
-        totalAmount: totalPrice,
+        totalAmount: subtotal + serviceFee,
         paymentMethod: formData.paymentMethod,
         notes: formData.notes.trim(),
         seatIds: heldSeats.map(s => s.id),
         seatPrices,
         ticketTypeId: ticketTypeId || undefined,
         sourceData: getSourceData() || undefined,
+        promoCode: promoApplied?.code || undefined,
+        promoDiscountAmount: promoDiscountAmount > 0 ? promoDiscountAmount : undefined,
       });
 
       if (result.success && result.checkoutUrl) {
@@ -655,6 +756,8 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
           ticketTypePriceMap={seatTicketTypePrices}
           ticketTypeNameMap={ticketTypeNames}
           ticketTypeColorMap={ticketTypeColors}
+          promoDiscount={promoDiscountAmount}
+          promoCode={promoApplied?.code}
         />
       </div>
 
@@ -667,6 +770,61 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
               onChange={handleFieldChange}
               onValidateField={handleValidateField}
             />
+
+            <div className="mt-5 bg-slate-900 border border-slate-800 rounded-xl p-5">
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                <Tag className="w-3.5 h-3.5 inline-block mr-1.5 -mt-0.5" aria-hidden="true" />
+                {st(language, 'checkout.promoLabel')}
+              </label>
+              {promoApplied ? (
+                <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-emerald-400 text-sm font-semibold">{promoApplied.code}</span>
+                    <span className="text-slate-400 text-xs">
+                      ({promoApplied.discount_type === 'percentage'
+                        ? `${promoApplied.discount_value}%`
+                        : `EUR ${(promoApplied.discount_value / 100).toFixed(2)}`})
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemovePromo}
+                    className="p-1 text-slate-400 hover:text-red-400 transition-colors rounded"
+                    aria-label="Verwijder code"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={promoCode}
+                    onChange={(e) => { setPromoCode(e.target.value.toUpperCase()); setPromoError(''); }}
+                    placeholder="PROMO2025"
+                    onKeyDown={(e) => e.key === 'Enter' && handleApplyPromo()}
+                    className={`flex-1 px-3 py-2.5 bg-slate-800 border rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-colors ${
+                      promoError ? 'border-red-500/50' : 'border-slate-700'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleApplyPromo}
+                    disabled={promoLoading || !promoCode.trim()}
+                    className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
+                  >
+                    {promoLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      st(language, 'checkout.promoApply')
+                    )}
+                  </button>
+                </div>
+              )}
+              {promoError && (
+                <p className="text-red-400 text-xs mt-1.5">{promoError}</p>
+              )}
+            </div>
 
             {submitError && (
               <div className="mt-4 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm" role="alert">
@@ -693,6 +851,8 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
               ticketTypePriceMap={seatTicketTypePrices}
               ticketTypeNameMap={ticketTypeNames}
               ticketTypeColorMap={ticketTypeColors}
+              promoDiscount={promoDiscountAmount}
+              promoCode={promoApplied?.code}
             />
           </div>
         </div>

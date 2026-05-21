@@ -33,6 +33,8 @@ export interface SeatOrderData {
     landing_page?: string | null;
     first_visit_at?: string | null;
   };
+  promoCode?: string;
+  promoDiscountAmount?: number;
 }
 
 export async function validateHoldsActive(sessionId: string, eventId: string): Promise<{
@@ -78,6 +80,8 @@ export async function createSeatOrder(order: SeatOrderData): Promise<SeatOrderRe
       p_seat_prices: order.seatPrices,
       p_ticket_type_id: order.ticketTypeId || null,
       source_data: order.sourceData || null,
+      p_promo_code: order.promoCode || null,
+      p_promo_discount_amount: order.promoDiscountAmount || null,
     }),
   });
 
