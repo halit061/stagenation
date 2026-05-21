@@ -504,6 +504,16 @@ export function Tickets({ onNavigate }: TicketsProps) {
         }
       }
 
+      // City-restricted promo: "GENK" requires city to be Genk
+      if (code === 'GENK') {
+        const enteredCity = customerInfo.city.trim().toLowerCase();
+        if (enteredCity !== 'genk') {
+          setPromoError(t('tickets.promoCityInvalid'));
+          setPromoApplied(null);
+          return;
+        }
+      }
+
       setPromoApplied({
         code: data.code,
         discount_type: data.discount_type,
@@ -591,6 +601,12 @@ export function Tickets({ onNavigate }: TicketsProps) {
 
       if (!customerInfo.acceptTerms) {
         throw new Error(t('tickets.termsRequired'));
+      }
+
+      if (promoApplied && promoApplied.code.toUpperCase() === 'GENK') {
+        if (customerInfo.city.trim().toLowerCase() !== 'genk') {
+          throw new Error(t('tickets.promoCityInvalid'));
+        }
       }
 
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
