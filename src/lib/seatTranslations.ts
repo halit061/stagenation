@@ -114,6 +114,8 @@ const seatStrings: Record<Language, Record<string, string>> = {
     'checkout.promoInvalid': 'Ongeldige promotiecode',
     'checkout.promoExpired': 'Deze promotiecode is verlopen',
     'checkout.promoDiscount': 'Korting',
+    'checkout.gemeente': 'Gemeente',
+    'checkout.gemeentePlaceholder': 'Bijv. Genk, Hasselt, Antwerpen...',
 
     'validation.firstNameRequired': 'Vul je voornaam in',
     'validation.firstNameInvalid': 'Vul een geldige voornaam in',
@@ -123,6 +125,7 @@ const seatStrings: Record<Language, Record<string, string>> = {
     'validation.emailConfirmRequired': 'Bevestig je e-mailadres',
     'validation.emailMismatch': 'E-mailadressen komen niet overeen',
     'validation.phoneInvalid': 'Vul een geldig telefoonnummer in',
+    'validation.gemeenteRequired': 'Vul je gemeente in',
     'validation.paymentRequired': 'Kies een betaalmethode',
     'validation.termsRequired': 'Je moet akkoord gaan met de voorwaarden',
 
@@ -305,6 +308,8 @@ const seatStrings: Record<Language, Record<string, string>> = {
     'checkout.promoInvalid': 'Gecersiz promosyon kodu',
     'checkout.promoExpired': 'Bu promosyon kodunun suresi dolmus',
     'checkout.promoDiscount': 'Indirim',
+    'checkout.gemeente': 'Ilce/Sehir',
+    'checkout.gemeentePlaceholder': 'Orn. Genk, Hasselt, Antwerpen...',
 
     'validation.firstNameRequired': 'Adinizi girin',
     'validation.firstNameInvalid': 'Gecerli bir ad girin',
@@ -314,6 +319,7 @@ const seatStrings: Record<Language, Record<string, string>> = {
     'validation.emailConfirmRequired': 'E-posta adresinizi onaylayin',
     'validation.emailMismatch': 'E-posta adresleri eslesmiyor',
     'validation.phoneInvalid': 'Gecerli bir telefon numarasi girin',
+    'validation.gemeenteRequired': 'Ilce/sehir girin',
     'validation.paymentRequired': 'Bir odeme yontemi secin',
     'validation.termsRequired': 'Kosullari kabul etmelisiniz',
 
@@ -487,6 +493,8 @@ const seatStrings: Record<Language, Record<string, string>> = {
     'checkout.promoInvalid': 'Code promo invalide',
     'checkout.promoExpired': 'Ce code promo a expire',
     'checkout.promoDiscount': 'Reduction',
+    'checkout.gemeente': 'Commune',
+    'checkout.gemeentePlaceholder': 'Ex. Genk, Hasselt, Anvers...',
 
     'validation.firstNameRequired': 'Entrez votre prenom',
     'validation.firstNameInvalid': 'Entrez un prenom valide',
@@ -496,6 +504,7 @@ const seatStrings: Record<Language, Record<string, string>> = {
     'validation.emailConfirmRequired': 'Confirmez votre e-mail',
     'validation.emailMismatch': 'Les e-mails ne correspondent pas',
     'validation.phoneInvalid': 'Entrez un numero valide',
+    'validation.gemeenteRequired': 'Entrez votre commune',
     'validation.paymentRequired': 'Choisissez un mode de paiement',
     'validation.termsRequired': 'Vous devez accepter les conditions',
 
@@ -669,6 +678,8 @@ const seatStrings: Record<Language, Record<string, string>> = {
     'checkout.promoInvalid': 'Ungultiger Promo-Code',
     'checkout.promoExpired': 'Dieser Promo-Code ist abgelaufen',
     'checkout.promoDiscount': 'Rabatt',
+    'checkout.gemeente': 'Gemeinde',
+    'checkout.gemeentePlaceholder': 'Z.B. Genk, Hasselt, Antwerpen...',
 
     'validation.firstNameRequired': 'Vorname eingeben',
     'validation.firstNameInvalid': 'Gultigen Vornamen eingeben',
@@ -678,6 +689,7 @@ const seatStrings: Record<Language, Record<string, string>> = {
     'validation.emailConfirmRequired': 'E-Mail bestatigen',
     'validation.emailMismatch': 'E-Mail-Adressen stimmen nicht uberein',
     'validation.phoneInvalid': 'Gultige Telefonnummer eingeben',
+    'validation.gemeenteRequired': 'Gemeinde eingeben',
     'validation.paymentRequired': 'Zahlungsmethode wahlen',
     'validation.termsRequired': 'Sie mussen die Bedingungen akzeptieren',
 
@@ -851,6 +863,8 @@ const seatStrings: Record<Language, Record<string, string>> = {
     'checkout.promoInvalid': 'Invalid promo code',
     'checkout.promoExpired': 'This promo code has expired',
     'checkout.promoDiscount': 'Discount',
+    'checkout.gemeente': 'City / Municipality',
+    'checkout.gemeentePlaceholder': 'E.g. Genk, Hasselt, Antwerp...',
 
     'validation.firstNameRequired': 'Enter your first name',
     'validation.firstNameInvalid': 'Enter a valid first name',
@@ -860,6 +874,7 @@ const seatStrings: Record<Language, Record<string, string>> = {
     'validation.emailConfirmRequired': 'Confirm your email address',
     'validation.emailMismatch': 'Email addresses do not match',
     'validation.phoneInvalid': 'Enter a valid phone number',
+    'validation.gemeenteRequired': 'Enter your city or municipality',
     'validation.paymentRequired': 'Choose a payment method',
     'validation.termsRequired': 'You must agree to the terms',
 

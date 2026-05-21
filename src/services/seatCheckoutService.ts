@@ -15,6 +15,7 @@ export interface SeatOrderData {
   lastName: string;
   email: string;
   phone: string;
+  gemeente: string;
   subtotal: number;
   serviceFee: number;
   totalAmount: number;
@@ -70,6 +71,7 @@ export async function createSeatOrder(order: SeatOrderData): Promise<SeatOrderRe
       p_customer_last_name: order.lastName,
       p_customer_email: order.email,
       p_customer_phone: order.phone || null,
+      p_billing_city: order.gemeente || null,
       p_subtotal: order.subtotal,
       p_service_fee: order.serviceFee,
       p_total_amount: order.totalAmount,

@@ -99,6 +99,7 @@ Deno.serve(async (req: Request) => {
       p_customer_last_name,
       p_customer_email,
       p_customer_phone,
+      p_billing_city,
       p_subtotal,
       p_service_fee,
       p_total_amount,
@@ -242,18 +243,26 @@ Deno.serve(async (req: Request) => {
 
     const amountInEuros = (totalAmountCents / 100).toFixed(2);
 
+    const orderMetaUpdate: Record<string, unknown> = {};
+
+    if (p_billing_city && typeof p_billing_city === 'string' && p_billing_city.trim()) {
+      orderMetaUpdate.billing_city = p_billing_city.trim().substring(0, 200);
+    }
+
     if (source_data && typeof source_data === 'object') {
       const sanitize = (v: unknown, max = 500) => typeof v === 'string' ? v.trim().substring(0, max) || null : null;
-      await supabase.from('orders').update({
-        utm_source: sanitize(source_data.utm_source, 200),
-        utm_medium: sanitize(source_data.utm_medium, 200),
-        utm_campaign: sanitize(source_data.utm_campaign, 500),
-        utm_content: sanitize(source_data.utm_content, 500),
-        utm_term: sanitize(source_data.utm_term, 500),
-        referrer: sanitize(source_data.referrer, 2000),
-        landing_page: sanitize(source_data.landing_page, 2000),
-        first_visit_at: sanitize(source_data.first_visit_at, 50),
-      }).eq('id', orderId);
+      orderMetaUpdate.utm_source = sanitize(source_data.utm_source, 200);
+      orderMetaUpdate.utm_medium = sanitize(source_data.utm_medium, 200);
+      orderMetaUpdate.utm_campaign = sanitize(source_data.utm_campaign, 500);
+      orderMetaUpdate.utm_content = sanitize(source_data.utm_content, 500);
+      orderMetaUpdate.utm_term = sanitize(source_data.utm_term, 500);
+      orderMetaUpdate.referrer = sanitize(source_data.referrer, 2000);
+      orderMetaUpdate.landing_page = sanitize(source_data.landing_page, 2000);
+      orderMetaUpdate.first_visit_at = sanitize(source_data.first_visit_at, 50);
+    }
+
+    if (Object.keys(orderMetaUpdate).length > 0) {
+      await supabase.from('orders').update(orderMetaUpdate).eq('id', orderId);
     }
 
     const requestOrigin = req.headers.get("origin") ||

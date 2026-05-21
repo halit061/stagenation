@@ -94,6 +94,10 @@ function validateField(field: keyof CheckoutFormData, data: CheckoutFormData, la
       if (data.phone.trim() && data.phone.replace(/\D/g, '').length < 9)
         return st(lang as any, 'validation.phoneInvalid');
       return undefined;
+    case 'gemeente':
+      if (!data.gemeente.trim()) return st(lang as any, 'validation.gemeenteRequired');
+      if (data.gemeente.trim().length < 2) return st(lang as any, 'validation.gemeenteRequired');
+      return undefined;
     case 'paymentMethod':
       if (!data.paymentMethod) return st(lang as any, 'validation.paymentRequired');
       return undefined;
@@ -107,7 +111,7 @@ function validateField(field: keyof CheckoutFormData, data: CheckoutFormData, la
 
 function validateAll(data: CheckoutFormData, lang: string | null): CheckoutFormErrors {
   const errors: CheckoutFormErrors = {};
-  const fields: (keyof CheckoutFormData)[] = ['firstName', 'lastName', 'email', 'emailConfirm', 'phone', 'paymentMethod', 'termsAccepted'];
+  const fields: (keyof CheckoutFormData)[] = ['firstName', 'lastName', 'email', 'emailConfirm', 'phone', 'gemeente', 'paymentMethod', 'termsAccepted'];
   for (const f of fields) {
     const err = validateField(f, data, lang);
     if (err) (errors as any)[f] = err;
@@ -150,6 +154,7 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
     email: '',
     emailConfirm: '',
     phone: '',
+    gemeente: '',
     paymentMethod: '',
     notes: '',
     termsAccepted: false,
@@ -546,12 +551,12 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
     const allErrors = validateAll(formData, language);
     if (Object.keys(allErrors).length > 0) {
       setErrors(allErrors);
-      setTouched(new Set(['firstName', 'lastName', 'email', 'emailConfirm', 'phone', 'paymentMethod', 'termsAccepted']));
+      setTouched(new Set(['firstName', 'lastName', 'email', 'emailConfirm', 'phone', 'gemeente', 'paymentMethod', 'termsAccepted']));
 
       const firstError = Object.values(allErrors).find(Boolean);
       if (firstError) setSubmitError(firstError);
 
-      const fieldOrder: (keyof CheckoutFormData)[] = ['firstName', 'lastName', 'email', 'emailConfirm', 'phone', 'paymentMethod', 'termsAccepted'];
+      const fieldOrder: (keyof CheckoutFormData)[] = ['firstName', 'lastName', 'email', 'emailConfirm', 'phone', 'gemeente', 'paymentMethod', 'termsAccepted'];
       for (const f of fieldOrder) {
         if (allErrors[f as keyof CheckoutFormErrors]) {
           const el = document.getElementById(f === 'termsAccepted' ? 'firstName' : f);
@@ -597,6 +602,7 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
         lastName: formData.lastName.trim(),
         email: formData.email.trim().toLowerCase(),
         phone: formData.phone.trim(),
+        gemeente: formData.gemeente.trim(),
         subtotal,
         serviceFee,
         totalAmount: subtotal + serviceFee,

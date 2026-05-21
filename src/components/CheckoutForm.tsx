@@ -9,6 +9,7 @@ export interface CheckoutFormData {
   email: string;
   emailConfirm: string;
   phone: string;
+  gemeente: string;
   paymentMethod: string;
   notes: string;
   termsAccepted: boolean;
@@ -20,6 +21,7 @@ export interface CheckoutFormErrors {
   email?: string;
   emailConfirm?: string;
   phone?: string;
+  gemeente?: string;
   paymentMethod?: string;
   termsAccepted?: string;
 }
@@ -200,6 +202,30 @@ export function CheckoutForm({ formData, errors, onChange, onValidateField }: Pr
             </p>
           ) : (
             <p id="phone-hint" className="text-slate-500 text-xs mt-1">{st(language, 'checkout.phoneHint')}</p>
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="gemeente" className="block text-xs font-semibold text-slate-400 mb-1.5">
+            {st(language, 'checkout.gemeente')} *
+          </label>
+          <input
+            id="gemeente"
+            type="text"
+            placeholder={st(language, 'checkout.gemeentePlaceholder')}
+            value={formData.gemeente}
+            onChange={handleInputChange('gemeente')}
+            onBlur={() => onValidateField('gemeente')}
+            className={errors.gemeente ? inputError : inputNormal}
+            autoComplete="address-level2"
+            aria-invalid={!!errors.gemeente}
+            aria-describedby={errors.gemeente ? 'gemeente-error' : undefined}
+          />
+          {errors.gemeente && (
+            <p id="gemeente-error" className="flex items-center gap-1 text-red-400 text-xs mt-1" role="alert">
+              <AlertCircle className="w-3 h-3 flex-shrink-0" aria-hidden="true" />
+              {errors.gemeente}
+            </p>
           )}
         </div>
       </div>
