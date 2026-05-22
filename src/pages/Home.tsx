@@ -305,9 +305,9 @@ export function Home({ onNavigate }: HomeProps) {
             <p className="text-amber-300 font-semibold text-xs uppercase tracking-wider mb-2">{'📅'} {t('program.title')}</p>
             <div className="space-y-1 text-sm text-white/80">
               <p><span className="mr-1.5">{'🚪'}</span>{t('program.doorsShort')}</p>
-              <p><span className="mr-1.5">{'🎁'}</span>{t('program.drawShort')}</p>
               <p><span className="mr-1.5">{'🎤'}</span>{t('program.showShort')}</p>
               <p><span className="mr-1.5">{'🌟'}</span>{t('program.meetShort')}</p>
+              <p><span className="mr-1.5">{'🎁'}</span>{t('program.drawShort')}</p>
             </div>
             <p className="mt-2 text-white/50 text-xs flex items-center gap-1">{'📍'} {t('program.venue')}</p>
           </div>

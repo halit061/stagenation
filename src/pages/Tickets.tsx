@@ -859,13 +859,6 @@ export function Tickets({ onNavigate }: TicketsProps) {
                     </div>
                   </div>
                   <div className="flex gap-3">
-                    <span className="text-xl flex-shrink-0 mt-0.5">{'🎁'}</span>
-                    <div>
-                      <p className="text-white font-semibold">{t('program.drawTime')}</p>
-                      <p className="text-slate-300 text-sm leading-relaxed mt-0.5">{t('program.drawDesc')}</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-3">
                     <span className="text-xl flex-shrink-0 mt-0.5">{'🎤'}</span>
                     <div>
                       <p className="text-white font-semibold">{t('program.showTime')}</p>
@@ -880,15 +873,31 @@ export function Tickets({ onNavigate }: TicketsProps) {
                     </div>
                   </div>
                   <div className="flex gap-3">
+                    <span className="text-xl flex-shrink-0 mt-0.5">{'🎁'}</span>
+                    <div>
+                      <p className="text-white font-semibold">{t('program.drawTitle')}</p>
+                      <p className="text-slate-300 text-sm leading-relaxed mt-0.5">{t('program.drawDesc')}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
                     <span className="text-xl flex-shrink-0 mt-0.5">{'🎉'}</span>
                     <div>
                       <p className="text-white font-semibold">{t('program.afterTitle')}</p>
                       <p className="text-slate-300 text-sm leading-relaxed mt-0.5">{t('program.afterDesc')}</p>
                     </div>
                   </div>
-                  <div className="mt-4 pt-3 border-t border-slate-700 flex items-center gap-2 text-slate-400 text-sm">
-                    <span className="text-base">{'📍'}</span>
-                    <span className="font-medium">{t('program.venue')}</span>
+                  <div className="mt-4 pt-3 border-t border-slate-700">
+                    <div className="flex gap-2 mb-3">
+                      <span className="text-sm flex-shrink-0 mt-0.5">{'⚠️'}</span>
+                      <div>
+                        <p className="text-amber-300 font-semibold text-xs">{t('program.conditionTitle')}</p>
+                        <p className="text-slate-400 text-xs leading-relaxed mt-0.5">{t('program.conditionDesc')}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-slate-400 text-sm">
+                      <span className="text-base">{'📍'}</span>
+                      <span className="font-medium">{t('program.venue')}</span>
+                    </div>
                   </div>
                 </div>
               )}

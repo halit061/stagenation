@@ -68,13 +68,6 @@ export function Info() {
               </div>
             </div>
             <div className="flex gap-3">
-              <span className="text-xl flex-shrink-0 mt-0.5">{'🎁'}</span>
-              <div>
-                <p className="text-white font-semibold text-lg">{t('program.drawTime')}</p>
-                <p className="text-slate-300 text-sm leading-relaxed mt-1">{t('program.drawDesc')}</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
               <span className="text-xl flex-shrink-0 mt-0.5">{'🎤'}</span>
               <div>
                 <p className="text-white font-semibold text-lg">{t('program.showTime')}</p>
@@ -89,6 +82,13 @@ export function Info() {
               </div>
             </div>
             <div className="flex gap-3">
+              <span className="text-xl flex-shrink-0 mt-0.5">{'🎁'}</span>
+              <div>
+                <p className="text-white font-semibold text-lg">{t('program.drawTitle')}</p>
+                <p className="text-slate-300 text-sm leading-relaxed mt-1">{t('program.drawDesc')}</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
               <span className="text-xl flex-shrink-0 mt-0.5">{'🎉'}</span>
               <div>
                 <p className="text-white font-semibold text-lg">{t('program.afterTitle')}</p>
@@ -96,9 +96,18 @@ export function Info() {
               </div>
             </div>
           </div>
-          <div className="mt-5 pt-4 border-t border-slate-700 flex items-center gap-2 text-slate-400">
-            <span className="text-lg">{'📍'}</span>
-            <span className="font-medium">{t('program.venue')}</span>
+          <div className="mt-5 pt-4 border-t border-slate-700">
+            <div className="flex gap-3 mb-4">
+              <span className="text-lg flex-shrink-0 mt-0.5">{'⚠️'}</span>
+              <div>
+                <p className="text-amber-300 font-semibold text-sm">{t('program.conditionTitle')}</p>
+                <p className="text-slate-400 text-sm leading-relaxed mt-0.5">{t('program.conditionDesc')}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-slate-400">
+              <span className="text-lg">{'📍'}</span>
+              <span className="font-medium">{t('program.venue')}</span>
+            </div>
           </div>
         </div>
 
