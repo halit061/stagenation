@@ -8,14 +8,16 @@ import {
   RefreshControl,
 } from 'react-native';
 import { getEventStats, getStatsByType, getStatsBySection } from '../lib/database';
+import { syncPendingScans, isOnline } from '../lib/sync';
 
 type Props = {
   eventId: string;
   eventName: string;
+  entranceName?: string;
   onBack: () => void;
 };
 
-export default function StatsScreen({ eventId, eventName, onBack }: Props) {
+export default function StatsScreen({ eventId, eventName, entranceName, onBack }: Props) {
   const [stats, setStats] = useState({
     totalTickets: 0,
     totalScanned: 0,
@@ -27,6 +29,7 @@ export default function StatsScreen({ eventId, eventName, onBack }: Props) {
   const [byType, setByType] = useState<Array<{ name: string; total: number; scanned: number }>>([]);
   const [bySection, setBySection] = useState<Array<{ name: string; total: number; scanned: number }>>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const loadStats = async () => {
     const s = await getEventStats(eventId);
@@ -49,6 +52,18 @@ export default function StatsScreen({ eventId, eventName, onBack }: Props) {
     setRefreshing(false);
   };
 
+  const handleForceSync = async () => {
+    setSyncing(true);
+    try {
+      if (await isOnline()) {
+        await syncPendingScans();
+        await loadStats();
+      }
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const scanPercentage = stats.totalTickets > 0
     ? Math.round((stats.totalScanned / stats.totalTickets) * 100)
     : 0;
@@ -56,55 +71,100 @@ export default function StatsScreen({ eventId, eventName, onBack }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backText}>Terug</Text>
+        <TouchableOpacity onPress={onBack} style={styles.backButton} activeOpacity={0.7}>
+          <Text style={styles.backIcon}>{'<'}</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Statistieken</Text>
-        <View style={{ width: 60 }} />
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>Statistieken</Text>
+          {entranceName && <Text style={styles.headerEntrance}>{entranceName}</Text>}
+        </View>
+        <View style={{ width: 36 }} />
       </View>
 
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2563eb" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#22d3ee" />}
       >
         <Text style={styles.eventName}>{eventName}</Text>
 
         <View style={styles.mainCard}>
-          <Text style={styles.bigNumber}>{stats.totalScanned}</Text>
-          <Text style={styles.bigLabel}>van {stats.totalTickets} gescand ({scanPercentage}%)</Text>
+          <View style={styles.circularProgress}>
+            <View style={styles.circleOuter}>
+              <View style={styles.circleInner}>
+                <Text style={styles.bigNumber}>{scanPercentage}%</Text>
+              </View>
+            </View>
+          </View>
+          <Text style={styles.bigLabel}>
+            {stats.totalScanned} van {stats.totalTickets} gescand
+          </Text>
           <View style={styles.progressBar}>
             <View style={[styles.progressFill, { width: `${scanPercentage}%` }]} />
           </View>
         </View>
 
         <View style={styles.grid}>
-          <StatBox label="Geldig" value={stats.validScans} color="#16a34a" />
-          <StatBox label="Reeds gebruikt" value={stats.alreadyUsed} color="#f59e0b" />
-          <StatBox label="Ongeldig" value={stats.invalidScans} color="#dc2626" />
-          <StatBox label="Te syncen" value={stats.pendingSync} color="#2563eb" />
+          <StatBox label="Geldig" value={stats.validScans} color="#22c55e" />
+          <StatBox label="Reeds gescand" value={stats.alreadyUsed} color="#f59e0b" />
+          <StatBox label="Ongeldig" value={stats.invalidScans} color="#ef4444" />
+          <StatBox
+            label="Te syncen"
+            value={stats.pendingSync}
+            color="#22d3ee"
+            onPress={stats.pendingSync > 0 ? handleForceSync : undefined}
+            loading={syncing}
+          />
         </View>
 
         {byType.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Per tickettype</Text>
-            {byType.map((t) => (
-              <View key={t.name} style={styles.breakdownRow}>
-                <Text style={styles.breakdownName}>{t.name}</Text>
-                <Text style={styles.breakdownValue}>{t.scanned} / {t.total}</Text>
-              </View>
-            ))}
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Per tickettype</Text>
+              <Text style={styles.sectionCount}>{byType.length}</Text>
+            </View>
+            {byType.map((t) => {
+              const pct = t.total > 0 ? Math.round((t.scanned / t.total) * 100) : 0;
+              return (
+                <View key={t.name} style={styles.breakdownRow}>
+                  <View style={styles.breakdownInfo}>
+                    <Text style={styles.breakdownName}>{t.name}</Text>
+                    <View style={styles.breakdownBar}>
+                      <View style={[styles.breakdownBarFill, { width: `${pct}%` }]} />
+                    </View>
+                  </View>
+                  <View style={styles.breakdownStats}>
+                    <Text style={styles.breakdownValue}>{t.scanned}/{t.total}</Text>
+                    <Text style={styles.breakdownPct}>{pct}%</Text>
+                  </View>
+                </View>
+              );
+            })}
           </View>
         )}
 
         {bySection.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Per sectie/tribune</Text>
-            {bySection.map((s) => (
-              <View key={s.name} style={styles.breakdownRow}>
-                <Text style={styles.breakdownName}>{s.name}</Text>
-                <Text style={styles.breakdownValue}>{s.scanned} / {s.total}</Text>
-              </View>
-            ))}
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Per sectie</Text>
+              <Text style={styles.sectionCount}>{bySection.length}</Text>
+            </View>
+            {bySection.map((s) => {
+              const pct = s.total > 0 ? Math.round((s.scanned / s.total) * 100) : 0;
+              return (
+                <View key={s.name} style={styles.breakdownRow}>
+                  <View style={styles.breakdownInfo}>
+                    <Text style={styles.breakdownName}>{s.name}</Text>
+                    <View style={styles.breakdownBar}>
+                      <View style={[styles.breakdownBarFill, styles.breakdownBarSection, { width: `${pct}%` }]} />
+                    </View>
+                  </View>
+                  <View style={styles.breakdownStats}>
+                    <Text style={styles.breakdownValue}>{s.scanned}/{s.total}</Text>
+                    <Text style={styles.breakdownPct}>{pct}%</Text>
+                  </View>
+                </View>
+              );
+            })}
           </View>
         )}
       </ScrollView>
@@ -112,13 +172,36 @@ export default function StatsScreen({ eventId, eventName, onBack }: Props) {
   );
 }
 
-function StatBox({ label, value, color }: { label: string; value: number; color: string }) {
-  return (
+function StatBox({
+  label,
+  value,
+  color,
+  onPress,
+  loading,
+}: {
+  label: string;
+  value: number;
+  color: string;
+  onPress?: () => void;
+  loading?: boolean;
+}) {
+  const content = (
     <View style={styles.statBox}>
-      <Text style={[styles.statValue, { color }]}>{value}</Text>
+      <View style={[styles.statDot, { backgroundColor: color }]} />
+      <Text style={[styles.statValue, { color }]}>{loading ? '...' : value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
+      {onPress && <Text style={styles.statAction}>Sync</Text>}
     </View>
   );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={{ flex: 1, minWidth: '45%' }}>
+        {content}
+      </TouchableOpacity>
+    );
+  }
+  return <View style={{ flex: 1, minWidth: '45%' }}>{content}</View>;
 }
 
 const styles = StyleSheet.create({
@@ -137,23 +220,38 @@ const styles = StyleSheet.create({
     borderBottomColor: '#1e293b',
   },
   backButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     backgroundColor: '#1e293b',
+    borderWidth: 1,
+    borderColor: '#334155',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  backText: {
+  backIcon: {
     color: '#94a3b8',
-    fontSize: 14,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
   },
   headerTitle: {
     color: '#f8fafc',
     fontSize: 18,
     fontWeight: '600',
   },
+  headerEntrance: {
+    color: '#22d3ee',
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
+  },
   content: {
     padding: 20,
-    gap: 20,
+    gap: 16,
   },
   eventName: {
     color: '#f8fafc',
@@ -163,82 +261,159 @@ const styles = StyleSheet.create({
   },
   mainCard: {
     backgroundColor: '#1e293b',
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  circularProgress: {
+    marginBottom: 16,
+  },
+  circleOuter: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(34, 211, 238, 0.1)',
+    borderWidth: 3,
+    borderColor: '#22d3ee',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  circleInner: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#1e293b',
+    justifyContent: 'center',
     alignItems: 'center',
   },
   bigNumber: {
-    color: '#f8fafc',
-    fontSize: 48,
+    color: '#22d3ee',
+    fontSize: 24,
     fontWeight: '700',
   },
   bigLabel: {
     color: '#94a3b8',
     fontSize: 14,
-    marginTop: 4,
     marginBottom: 16,
   },
   progressBar: {
     width: '100%',
-    height: 8,
+    height: 6,
     backgroundColor: '#334155',
-    borderRadius: 4,
+    borderRadius: 3,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#2563eb',
-    borderRadius: 4,
+    backgroundColor: '#22d3ee',
+    borderRadius: 3,
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 10,
   },
   statBox: {
-    flex: 1,
-    minWidth: '45%',
     backgroundColor: '#1e293b',
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  statDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginBottom: 8,
   },
   statValue: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '700',
   },
   statLabel: {
     color: '#94a3b8',
-    fontSize: 12,
+    fontSize: 11,
     marginTop: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  statAction: {
+    color: '#22d3ee',
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 6,
   },
   section: {
     backgroundColor: '#1e293b',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
-    gap: 10,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
   },
   sectionTitle: {
     color: '#f8fafc',
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 4,
+  },
+  sectionCount: {
+    color: '#64748b',
+    fontSize: 12,
+    backgroundColor: '#334155',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
   breakdownRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 6,
+    alignItems: 'center',
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#334155',
+  },
+  breakdownInfo: {
+    flex: 1,
+    gap: 6,
   },
   breakdownName: {
     color: '#cbd5e1',
     fontSize: 14,
-    flex: 1,
+  },
+  breakdownBar: {
+    height: 4,
+    backgroundColor: '#334155',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  breakdownBarFill: {
+    height: '100%',
+    backgroundColor: '#22d3ee',
+    borderRadius: 2,
+  },
+  breakdownBarSection: {
+    backgroundColor: '#22c55e',
+  },
+  breakdownStats: {
+    alignItems: 'flex-end',
+    marginLeft: 12,
   },
   breakdownValue: {
     color: '#f8fafc',
     fontSize: 14,
     fontWeight: '600',
+  },
+  breakdownPct: {
+    color: '#64748b',
+    fontSize: 11,
+    marginTop: 2,
   },
 });

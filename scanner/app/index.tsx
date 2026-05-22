@@ -8,12 +8,17 @@ import DownloadScreen from '../src/screens/DownloadScreen';
 import ScannerScreen from '../src/screens/ScannerScreen';
 import StatsScreen from '../src/screens/StatsScreen';
 
+type Entrance = {
+  id: string;
+  name: string;
+};
+
 type AppState =
   | { screen: 'login' }
   | { screen: 'events' }
-  | { screen: 'download'; eventId: string; eventName: string }
-  | { screen: 'scanner'; eventId: string; eventName: string }
-  | { screen: 'stats'; eventId: string; eventName: string };
+  | { screen: 'download'; eventId: string; eventName: string; entrance?: Entrance }
+  | { screen: 'scanner'; eventId: string; eventName: string; entrance?: Entrance }
+  | { screen: 'stats'; eventId: string; eventName: string; entrance?: Entrance };
 
 export default function App() {
   const { session, loading, signIn, signOut } = useAuth();
@@ -22,7 +27,9 @@ export default function App() {
   if (loading) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#2563eb" />
+        <View style={styles.loadingInner}>
+          <ActivityIndicator size="large" color="#22d3ee" />
+        </View>
         <StatusBar style="light" />
       </View>
     );
@@ -42,8 +49,13 @@ export default function App() {
       <StatusBar style="light" />
       {state.screen === 'events' && (
         <EventSelectScreen
-          onSelectEvent={(event) =>
-            setState({ screen: 'download', eventId: event.id, eventName: event.name })
+          onSelectEvent={(event, entrance) =>
+            setState({
+              screen: 'download',
+              eventId: event.id,
+              eventName: event.name,
+              entrance,
+            })
           }
           onLogout={async () => {
             await signOut();
@@ -55,7 +67,15 @@ export default function App() {
         <DownloadScreen
           eventId={state.eventId}
           eventName={state.eventName}
-          onReady={() => setState({ screen: 'scanner', eventId: state.eventId, eventName: state.eventName })}
+          entranceName={state.entrance?.name}
+          onReady={() =>
+            setState({
+              screen: 'scanner',
+              eventId: state.eventId,
+              eventName: state.eventName,
+              entrance: state.entrance,
+            })
+          }
           onError={() => setState({ screen: 'events' })}
         />
       )}
@@ -63,7 +83,15 @@ export default function App() {
         <ScannerScreen
           eventId={state.eventId}
           eventName={state.eventName}
-          onOpenStats={() => setState({ screen: 'stats', eventId: state.eventId, eventName: state.eventName })}
+          entranceName={state.entrance?.name}
+          onOpenStats={() =>
+            setState({
+              screen: 'stats',
+              eventId: state.eventId,
+              eventName: state.eventName,
+              entrance: state.entrance,
+            })
+          }
           onBack={() => setState({ screen: 'events' })}
         />
       )}
@@ -71,7 +99,15 @@ export default function App() {
         <StatsScreen
           eventId={state.eventId}
           eventName={state.eventName}
-          onBack={() => setState({ screen: 'scanner', eventId: state.eventId, eventName: state.eventName })}
+          entranceName={state.entrance?.name}
+          onBack={() =>
+            setState({
+              screen: 'scanner',
+              eventId: state.eventId,
+              eventName: state.eventName,
+              entrance: state.entrance,
+            })
+          }
         />
       )}
     </>
@@ -82,6 +118,16 @@ const styles = StyleSheet.create({
   loading: {
     flex: 1,
     backgroundColor: '#0f172a',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingInner: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    backgroundColor: '#1e293b',
+    borderWidth: 1,
+    borderColor: '#334155',
     justifyContent: 'center',
     alignItems: 'center',
   },
