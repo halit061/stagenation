@@ -101,7 +101,14 @@ export function Info() {
               <span className="text-lg flex-shrink-0 mt-0.5">{'⚠️'}</span>
               <div>
                 <p className="text-amber-300 font-semibold text-sm">{t('program.conditionTitle')}</p>
-                <p className="text-slate-400 text-sm leading-relaxed mt-0.5">{t('program.conditionDesc')}</p>
+                <ul className="mt-2 space-y-1.5 text-slate-300 text-sm leading-relaxed">
+                  <li className="flex gap-2"><span className="text-amber-400/70 flex-shrink-0">{'\u2022'}</span><span>{t('program.conditionRule1')}</span></li>
+                  <li className="flex gap-2"><span className="text-amber-400/70 flex-shrink-0">{'\u2022'}</span><span>{t('program.conditionRule2')}</span></li>
+                  <li className="flex gap-2"><span className="text-amber-400/70 flex-shrink-0">{'\u2022'}</span><span>{t('program.conditionRule3')}</span></li>
+                  <li className="flex gap-2"><span className="text-amber-400/70 flex-shrink-0">{'\u2022'}</span><span>{t('program.conditionRule4')}{' '}<a href={t('program.conditionLink')} target="_blank" rel="noopener noreferrer" className="text-cyan-400 underline hover:text-cyan-300 break-all">{t('program.conditionLink')}</a></span></li>
+                  <li className="flex gap-2"><span className="text-amber-400/70 flex-shrink-0">{'\u2022'}</span><span className="font-medium text-white">{t('program.conditionRule5')}</span></li>
+                  <li className="flex gap-2"><span className="text-amber-400/70 flex-shrink-0">{'\u2022'}</span><span>{t('program.conditionRule6')}</span></li>
+                </ul>
               </div>
             </div>
             <div className="flex items-center gap-2 text-slate-400">
