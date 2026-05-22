@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "StageNation Scanner",
+    "slug": "stagenation-scanner",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0f172a"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.stagenation.scanner",
+      "infoPlist": {
+        "NSCameraUsageDescription": "StageNation Scanner needs camera access to scan QR codes on tickets.",
+        "MinimumOSVersion": "16.0"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0f172a"
+      },
+      "package": "com.stagenation.scanner",
+      "permissions": ["android.permission.CAMERA"]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "StageNation Scanner needs camera access to scan QR codes on tickets."
+        }
+      ],
+      "expo-sqlite"
+    ],
+    "scheme": "stagenation-scanner"
+  }
+}
