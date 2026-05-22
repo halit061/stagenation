@@ -916,7 +916,7 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
     try {
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
-        .select('id, order_number, event_id, payer_email, payer_name, payer_phone, total_amount, status, created_at, paid_at, service_fee_total_cents, platform_fee_total_cents, provider_fee_total_cents, net_revenue_cents, events(name)')
+        .select('id, order_number, event_id, payer_email, payer_name, payer_phone, billing_city, total_amount, status, created_at, paid_at, service_fee_total_cents, platform_fee_total_cents, provider_fee_total_cents, net_revenue_cents, events(name)')
         .in('status', ['paid', 'pending'])
         .order('created_at', { ascending: false })
         .limit(10000);
@@ -932,9 +932,9 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
 
       const csvRows = [];
       csvRows.push([
-        'Order Number', 'Event', 'Customer Name', 'Email', 'Phone', 'Ticket Count',
-        'Subtotal (EUR)', 'Service Fee Mode', 'Service Fee Fixed', 'Service Fee Percent',
-        'Service Fee Total (EUR)', 'Total Amount (EUR)',
+        'Order Number', 'Event', 'Customer Name', 'Email', 'Phone', 'Gemeente',
+        'Ticket Count', 'Subtotal (EUR)', 'Service Fee Mode', 'Service Fee Fixed',
+        'Service Fee Percent', 'Service Fee Total (EUR)', 'Total Amount (EUR)',
         'Status', 'Created At', 'Paid At'
       ].join(','));
 
@@ -953,6 +953,7 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
           `"${order.payer_name || ''}"`,
           `"${order.payer_email || ''}"`,
           `"${order.payer_phone || ''}"`,
+          `"${(order as any).billing_city || ''}"`,
           orderTickets.length,
           (subtotalCents / 100).toFixed(2),
           feeMode,
