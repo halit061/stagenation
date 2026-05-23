@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
 import { useAuth } from '../src/hooks/useAuth';
 import LoginScreen from '../src/screens/LoginScreen';
 import EventSelectScreen from '../src/screens/EventSelectScreen';
@@ -23,6 +24,12 @@ type AppState =
 export default function App() {
   const { session, loading, signIn, signOut } = useAuth();
   const [state, setState] = useState<AppState>({ screen: 'events' });
+
+  useEffect(() => {
+    if (!loading) {
+      SplashScreen.hideAsync();
+    }
+  }, [loading]);
 
   if (loading) {
     return (

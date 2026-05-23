@@ -7,16 +7,40 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
+    let mounted = true;
+
+    const timeout = setTimeout(() => {
+      if (mounted && loading) {
+        console.warn('[StageNation] Auth check timed out after 5s, continuing without session');
+        setLoading(false);
+      }
+    }, 5000);
+
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        if (mounted) {
+          setSession(session);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.warn('[StageNation] Auth getSession failed:', err?.message);
+        if (mounted) {
+          setLoading(false);
+        }
+      });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+      if (mounted) {
+        setSession(session);
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
