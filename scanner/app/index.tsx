@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -24,14 +24,16 @@ type AppState =
 export default function App() {
   const { session, loading, signIn, signOut } = useAuth();
   const [state, setState] = useState<AppState>({ screen: 'events' });
+  const [appReady, setAppReady] = useState(false);
 
   useEffect(() => {
     if (!loading) {
+      setAppReady(true);
       SplashScreen.hideAsync();
     }
   }, [loading]);
 
-  if (loading) {
+  if (!appReady) {
     return (
       <View style={styles.loading}>
         <View style={styles.loadingInner}>
