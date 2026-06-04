@@ -11,6 +11,7 @@ interface SalesData {
   totalTicketsSold: number;
   totalRevenueCents: number;
   totalTicketsRemaining: number;
+  compedTickets: number;
 }
 
 interface FinancialBreakdown {
@@ -24,6 +25,7 @@ export function LiveSalesCounter({ eventId, eventName }: LiveSalesCounterProps) 
     totalTicketsSold: 0,
     totalRevenueCents: 0,
     totalTicketsRemaining: 0,
+    compedTickets: 0,
   });
   const [breakdown, setBreakdown] = useState<FinancialBreakdown>({
     ticketPriceCents: 0,
@@ -66,26 +68,41 @@ export function LiveSalesCounter({ eventId, eventName }: LiveSalesCounterProps) 
       // We count both and sum them so both event types render correctly.
       const allSoldOrderIds = allSoldOrders.map(o => o.id);
       let totalTicketsSold = 0;
+      let compedTickets = 0;
       if (allSoldOrderIds.length > 0) {
+        // Fetch comped order IDs separately
+        const { data: compedOrders } = await supabase
+          .from('orders')
+          .select('id')
+          .eq('event_id', eventId)
+          .eq('status', 'comped')
+          .limit(10000);
+        const compedOrderIds = (compedOrders || []).map(o => o.id);
+
         const [ticketsRes, seatsRes] = await Promise.all([
           supabase
             .from('tickets')
-            .select('id')
+            .select('id, order_id')
             .in('order_id', allSoldOrderIds)
             .limit(10000),
           supabase
             .from('ticket_seats')
-            .select('id')
+            .select('id, order_id')
             .in('order_id', allSoldOrderIds)
             .limit(10000),
         ]);
-        totalTicketsSold = (ticketsRes.data?.length || 0) + (seatsRes.data?.length || 0);
+        const allTickets = ticketsRes.data || [];
+        const allSeats = seatsRes.data || [];
+        totalTicketsSold = allTickets.length + allSeats.length;
+        compedTickets = allTickets.filter(t => compedOrderIds.includes(t.order_id)).length
+          + allSeats.filter(s => compedOrderIds.includes(s.order_id)).length;
       }
 
       setSales({
         totalTicketsSold,
         totalRevenueCents,
         totalTicketsRemaining: totalCapacity - totalTicketsSold,
+        compedTickets,
       });
 
       const { data: breakdownOrders } = await supabase
@@ -185,8 +202,13 @@ export function LiveSalesCounter({ eventId, eventName }: LiveSalesCounterProps) 
             <Ticket className="w-6 h-6 text-cyan-400" />
             <span className="text-xs text-slate-400 uppercase tracking-wider">Verkocht</span>
           </div>
-          <div className="text-3xl font-bold text-white">{sales.totalTicketsSold}</div>
+          <div className="text-3xl font-bold text-white">{sales.totalTicketsSold - sales.compedTickets}</div>
           <div className="text-sm text-slate-400 mt-1">tickets verkocht</div>
+          {sales.compedTickets > 0 && (
+            <div className="text-xs text-cyan-400/80 mt-2 pt-2 border-t border-cyan-500/20">
+              + {sales.compedTickets} gratis (comped)
+            </div>
+          )}
         </div>
 
         <div className={`bg-gradient-to-br from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-xl p-5 transition-all ${pulse ? 'ring-2 ring-green-400 scale-[1.02]' : ''}`}>
