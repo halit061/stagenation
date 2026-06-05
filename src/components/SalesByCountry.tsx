@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Globe } from 'lucide-react';
+import { Globe, Download, MapPin } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
 interface SalesByCountryProps {
@@ -10,6 +10,12 @@ interface CountryRow {
   country: string | null;
   ticketCount: number;
   orderCount: number;
+}
+
+interface CityRow {
+  city: string;
+  country: string;
+  ticketCount: number;
 }
 
 const FLAG_MAP: Record<string, string> = {
@@ -45,8 +51,10 @@ function getName(code: string | null): string {
 
 export function SalesByCountry({ eventId }: SalesByCountryProps) {
   const [rows, setRows] = useState<CountryRow[]>([]);
+  const [cityRows, setCityRows] = useState<CityRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalTickets, setTotalTickets] = useState(0);
+  const [showCities, setShowCities] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -54,13 +62,14 @@ export function SalesByCountry({ eventId }: SalesByCountryProps) {
       try {
         const { data: orders } = await supabase
           .from('orders')
-          .select('id, billing_country')
+          .select('id, billing_country, billing_city')
           .eq('event_id', eventId)
           .in('status', ['paid', 'comped'])
           .limit(10000);
 
         if (!orders || orders.length === 0) {
           setRows([]);
+          setCityRows([]);
           setTotalTickets(0);
           setLoading(false);
           return;
@@ -82,22 +91,31 @@ export function SalesByCountry({ eventId }: SalesByCountryProps) {
         ]);
         const tickets = [...(ticketsRes.data || []), ...(seatsRes.data || [])];
 
-        const orderMap = new Map<string, string | null>();
+        const orderMap = new Map<string, { country: string | null; city: string | null }>();
         for (const o of orders) {
-          orderMap.set(o.id, o.billing_country);
+          orderMap.set(o.id, { country: o.billing_country, city: o.billing_city });
         }
 
         const grouped = new Map<string | null, { tickets: number; orderIds: Set<string> }>();
+        const cityGrouped = new Map<string, { tickets: number; country: string }>();
 
         for (const t of tickets) {
-          const country = orderMap.get(t.order_id) ?? null;
-          const key = country?.toUpperCase() ?? null;
-          if (!grouped.has(key)) {
-            grouped.set(key, { tickets: 0, orderIds: new Set() });
+          const info = orderMap.get(t.order_id);
+          const country = info?.country?.toUpperCase() ?? null;
+          const city = info?.city?.trim() || null;
+
+          if (!grouped.has(country)) {
+            grouped.set(country, { tickets: 0, orderIds: new Set() });
           }
-          const entry = grouped.get(key)!;
+          const entry = grouped.get(country)!;
           entry.tickets += 1;
           entry.orderIds.add(t.order_id);
+
+          const cityKey = `${(city || 'Onbekend').toLowerCase()}|${country || 'XX'}`;
+          if (!cityGrouped.has(cityKey)) {
+            cityGrouped.set(cityKey, { tickets: 0, country: getName(country) });
+          }
+          cityGrouped.get(cityKey)!.tickets += 1;
         }
 
         const result: CountryRow[] = [];
@@ -111,8 +129,20 @@ export function SalesByCountry({ eventId }: SalesByCountryProps) {
           });
         });
 
+        const cityResult: CityRow[] = [];
+        cityGrouped.forEach((val, key) => {
+          const cityName = key.split('|')[0];
+          cityResult.push({
+            city: cityName.charAt(0).toUpperCase() + cityName.slice(1),
+            country: val.country,
+            ticketCount: val.tickets,
+          });
+        });
+        cityResult.sort((a, b) => b.ticketCount - a.ticketCount);
+
         result.sort((a, b) => b.ticketCount - a.ticketCount);
         setRows(result);
+        setCityRows(cityResult);
         setTotalTickets(total);
       } catch (err) {
         console.error('Error fetching sales by country:', err);
@@ -144,6 +174,18 @@ export function SalesByCountry({ eventId }: SalesByCountryProps) {
     };
   }, [eventId]);
 
+  function downloadCSV() {
+    const header = 'Gemeente,Land,Aantal Tickets\n';
+    const csvRows = cityRows.map((r) => `"${r.city}","${r.country}",${r.ticketCount}`).join('\n');
+    const blob = new Blob([header + csvRows], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `verkoop-per-gemeente-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -163,9 +205,20 @@ export function SalesByCountry({ eventId }: SalesByCountryProps) {
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-5">
-        <Globe className="w-5 h-5 text-red-400" />
-        <h3 className="text-lg font-bold text-white">Verkoop per land</h3>
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-3">
+          <Globe className="w-5 h-5 text-red-400" />
+          <h3 className="text-lg font-bold text-white">Verkoop per land</h3>
+        </div>
+        {cityRows.length > 0 && (
+          <button
+            onClick={downloadCSV}
+            className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-sm text-slate-300 hover:text-white transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            CSV
+          </button>
+        )}
       </div>
 
       <div className="overflow-x-auto">
@@ -214,6 +267,53 @@ export function SalesByCountry({ eventId }: SalesByCountryProps) {
           </tfoot>
         </table>
       </div>
+
+      {cityRows.length > 0 && (
+        <div className="mt-8 pt-6 border-t border-slate-700/50">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <MapPin className="w-5 h-5 text-cyan-400" />
+              <h3 className="text-lg font-bold text-white">Verkoop per gemeente</h3>
+            </div>
+            <button
+              onClick={() => setShowCities(!showCities)}
+              className="text-sm text-slate-400 hover:text-white transition-colors"
+            >
+              {showCities ? 'Verbergen' : `Toon alle (${cityRows.length})`}
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-slate-600/50">
+                  <th className="pb-3 pr-4 text-xs text-slate-400 uppercase tracking-wider font-medium">Gemeente</th>
+                  <th className="pb-3 pr-4 text-xs text-slate-400 uppercase tracking-wider font-medium">Land</th>
+                  <th className="pb-3 pr-4 text-xs text-slate-400 uppercase tracking-wider font-medium text-right">Tickets</th>
+                  <th className="pb-3 text-xs text-slate-400 uppercase tracking-wider font-medium text-right">%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(showCities ? cityRows : cityRows.slice(0, 10)).map((row, i) => {
+                  const pct = totalTickets > 0 ? ((row.ticketCount / totalTickets) * 100).toFixed(1) : '0.0';
+                  return (
+                    <tr key={`${row.city}-${row.country}-${i}`} className="border-b border-slate-700/40">
+                      <td className="py-2.5 pr-4 text-sm font-medium text-white">{row.city}</td>
+                      <td className="py-2.5 pr-4 text-sm text-slate-400">{row.country}</td>
+                      <td className="py-2.5 pr-4 text-sm text-slate-300 text-right font-mono">{row.ticketCount}</td>
+                      <td className="py-2.5 text-sm text-right">
+                        <span className="inline-block bg-slate-700/60 text-slate-300 px-2 py-0.5 rounded text-xs font-mono">
+                          {pct}%
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
