@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Globe, Download, MapPin } from 'lucide-react';
+import { Globe } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
 interface SalesByCountryProps {
@@ -7,15 +7,9 @@ interface SalesByCountryProps {
 }
 
 interface CountryRow {
-  country: string | null;
-  ticketCount: number;
-  orderCount: number;
-}
-
-interface CityRow {
-  city: string;
   country: string;
   ticketCount: number;
+  orderCount: number;
 }
 
 const FLAG_MAP: Record<string, string> = {
@@ -26,6 +20,12 @@ const FLAG_MAP: Record<string, string> = {
   LU: '\u{1F1F1}\u{1F1FA}',
   GB: '\u{1F1EC}\u{1F1E7}',
   US: '\u{1F1FA}\u{1F1F8}',
+  TR: '\u{1F1F9}\u{1F1F7}',
+  MA: '\u{1F1F2}\u{1F1E6}',
+  IT: '\u{1F1EE}\u{1F1F9}',
+  ES: '\u{1F1EA}\u{1F1F8}',
+  PL: '\u{1F1F5}\u{1F1F1}',
+  PT: '\u{1F1F5}\u{1F1F9}',
 };
 
 const NAME_MAP: Record<string, string> = {
@@ -36,25 +36,50 @@ const NAME_MAP: Record<string, string> = {
   LU: 'Luxemburg',
   GB: 'Verenigd Koninkrijk',
   US: 'Verenigde Staten',
+  TR: 'Turkije',
+  MA: 'Marokko',
+  IT: 'Itali\u00EB',
+  ES: 'Spanje',
+  PL: 'Polen',
+  PT: 'Portugal',
+  UNKNOWN: 'Onbekend',
 };
 
-function getFlag(code: string | null): string {
-  if (!code) return '\u2753';
-  return FLAG_MAP[code.toUpperCase()] || '\u{1F3F3}\u{FE0F}';
+function getFlag(code: string): string {
+  return FLAG_MAP[code] || '\u{1F3F3}\u{FE0F}';
 }
 
-function getName(code: string | null): string {
-  if (!code) return 'Onbekend';
-  const upper = code.toUpperCase();
-  return NAME_MAP[upper] || upper;
+function getName(code: string): string {
+  return NAME_MAP[code] || code;
+}
+
+function detectCountryFromPhone(phone: string | null): string {
+  if (!phone) return 'UNKNOWN';
+  const cleaned = phone.replace(/[\s\-()]/g, '');
+
+  if (cleaned.startsWith('+32') || cleaned.startsWith('0032')) return 'BE';
+  if (cleaned.startsWith('+31') || cleaned.startsWith('0031')) return 'NL';
+  if (cleaned.startsWith('+33') || cleaned.startsWith('0033')) return 'FR';
+  if (cleaned.startsWith('+49') || cleaned.startsWith('0049')) return 'DE';
+  if (cleaned.startsWith('+352') || cleaned.startsWith('00352')) return 'LU';
+  if (cleaned.startsWith('+44') || cleaned.startsWith('0044')) return 'GB';
+  if (cleaned.startsWith('+1') || cleaned.startsWith('001')) return 'US';
+  if (cleaned.startsWith('+90') || cleaned.startsWith('0090')) return 'TR';
+  if (cleaned.startsWith('+212') || cleaned.startsWith('00212')) return 'MA';
+  if (cleaned.startsWith('+39') || cleaned.startsWith('0039')) return 'IT';
+  if (cleaned.startsWith('+34') || cleaned.startsWith('0034')) return 'ES';
+  if (cleaned.startsWith('+48') || cleaned.startsWith('0048')) return 'PL';
+  if (cleaned.startsWith('+351') || cleaned.startsWith('00351')) return 'PT';
+
+  if (/^0[4-9]\d{7,8}$/.test(cleaned)) return 'BE';
+
+  return 'UNKNOWN';
 }
 
 export function SalesByCountry({ eventId }: SalesByCountryProps) {
   const [rows, setRows] = useState<CountryRow[]>([]);
-  const [cityRows, setCityRows] = useState<CityRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalTickets, setTotalTickets] = useState(0);
-  const [showCities, setShowCities] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -62,14 +87,13 @@ export function SalesByCountry({ eventId }: SalesByCountryProps) {
       try {
         const { data: orders } = await supabase
           .from('orders')
-          .select('id, billing_country, billing_city')
+          .select('id, billing_country, payer_phone')
           .eq('event_id', eventId)
           .in('status', ['paid', 'comped'])
           .limit(10000);
 
         if (!orders || orders.length === 0) {
           setRows([]);
-          setCityRows([]);
           setTotalTickets(0);
           setLoading(false);
           return;
@@ -91,31 +115,22 @@ export function SalesByCountry({ eventId }: SalesByCountryProps) {
         ]);
         const tickets = [...(ticketsRes.data || []), ...(seatsRes.data || [])];
 
-        const orderMap = new Map<string, { country: string | null; city: string | null }>();
+        const orderCountryMap = new Map<string, string>();
         for (const o of orders) {
-          orderMap.set(o.id, { country: o.billing_country, city: o.billing_city });
+          const country = o.billing_country?.toUpperCase() || detectCountryFromPhone(o.payer_phone);
+          orderCountryMap.set(o.id, country);
         }
 
-        const grouped = new Map<string | null, { tickets: number; orderIds: Set<string> }>();
-        const cityGrouped = new Map<string, { tickets: number; country: string }>();
+        const grouped = new Map<string, { tickets: number; orderIds: Set<string> }>();
 
         for (const t of tickets) {
-          const info = orderMap.get(t.order_id);
-          const country = info?.country?.toUpperCase() ?? null;
-          const city = info?.city?.trim() || null;
-
+          const country = orderCountryMap.get(t.order_id) || 'UNKNOWN';
           if (!grouped.has(country)) {
             grouped.set(country, { tickets: 0, orderIds: new Set() });
           }
           const entry = grouped.get(country)!;
           entry.tickets += 1;
           entry.orderIds.add(t.order_id);
-
-          const cityKey = `${(city || 'Onbekend').toLowerCase()}|${country || 'XX'}`;
-          if (!cityGrouped.has(cityKey)) {
-            cityGrouped.set(cityKey, { tickets: 0, country: getName(country) });
-          }
-          cityGrouped.get(cityKey)!.tickets += 1;
         }
 
         const result: CountryRow[] = [];
@@ -129,20 +144,8 @@ export function SalesByCountry({ eventId }: SalesByCountryProps) {
           });
         });
 
-        const cityResult: CityRow[] = [];
-        cityGrouped.forEach((val, key) => {
-          const cityName = key.split('|')[0];
-          cityResult.push({
-            city: cityName.charAt(0).toUpperCase() + cityName.slice(1),
-            country: val.country,
-            ticketCount: val.tickets,
-          });
-        });
-        cityResult.sort((a, b) => b.ticketCount - a.ticketCount);
-
         result.sort((a, b) => b.ticketCount - a.ticketCount);
         setRows(result);
-        setCityRows(cityResult);
         setTotalTickets(total);
       } catch (err) {
         console.error('Error fetching sales by country:', err);
@@ -174,18 +177,6 @@ export function SalesByCountry({ eventId }: SalesByCountryProps) {
     };
   }, [eventId]);
 
-  function downloadCSV() {
-    const header = 'Gemeente,Land,Aantal Tickets\n';
-    const csvRows = cityRows.map((r) => `"${r.city}","${r.country}",${r.ticketCount}`).join('\n');
-    const blob = new Blob([header + csvRows], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `verkoop-per-gemeente-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  }
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -205,20 +196,9 @@ export function SalesByCountry({ eventId }: SalesByCountryProps) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-3">
-          <Globe className="w-5 h-5 text-red-400" />
-          <h3 className="text-lg font-bold text-white">Verkoop per land</h3>
-        </div>
-        {cityRows.length > 0 && (
-          <button
-            onClick={downloadCSV}
-            className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-sm text-slate-300 hover:text-white transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            CSV
-          </button>
-        )}
+      <div className="flex items-center gap-3 mb-5">
+        <Globe className="w-5 h-5 text-red-400" />
+        <h3 className="text-lg font-bold text-white">Verkoop per land</h3>
       </div>
 
       <div className="overflow-x-auto">
@@ -236,7 +216,7 @@ export function SalesByCountry({ eventId }: SalesByCountryProps) {
             {rows.map((row, i) => {
               const pct = totalTickets > 0 ? ((row.ticketCount / totalTickets) * 100).toFixed(1) : '0.0';
               return (
-                <tr key={row.country ?? '_null'} className={i < rows.length - 1 ? 'border-b border-slate-700/40' : ''}>
+                <tr key={row.country} className={i < rows.length - 1 ? 'border-b border-slate-700/40' : ''}>
                   <td className="py-3 pr-4 text-lg">{getFlag(row.country)}</td>
                   <td className="py-3 pr-4 text-sm font-medium text-white">{getName(row.country)}</td>
                   <td className="py-3 pr-4 text-sm text-slate-300 text-right font-mono">{row.ticketCount}</td>
@@ -267,53 +247,6 @@ export function SalesByCountry({ eventId }: SalesByCountryProps) {
           </tfoot>
         </table>
       </div>
-
-      {cityRows.length > 0 && (
-        <div className="mt-8 pt-6 border-t border-slate-700/50">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <MapPin className="w-5 h-5 text-cyan-400" />
-              <h3 className="text-lg font-bold text-white">Verkoop per gemeente</h3>
-            </div>
-            <button
-              onClick={() => setShowCities(!showCities)}
-              className="text-sm text-slate-400 hover:text-white transition-colors"
-            >
-              {showCities ? 'Verbergen' : `Toon alle (${cityRows.length})`}
-            </button>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-slate-600/50">
-                  <th className="pb-3 pr-4 text-xs text-slate-400 uppercase tracking-wider font-medium">Gemeente</th>
-                  <th className="pb-3 pr-4 text-xs text-slate-400 uppercase tracking-wider font-medium">Land</th>
-                  <th className="pb-3 pr-4 text-xs text-slate-400 uppercase tracking-wider font-medium text-right">Tickets</th>
-                  <th className="pb-3 text-xs text-slate-400 uppercase tracking-wider font-medium text-right">%</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(showCities ? cityRows : cityRows.slice(0, 10)).map((row, i) => {
-                  const pct = totalTickets > 0 ? ((row.ticketCount / totalTickets) * 100).toFixed(1) : '0.0';
-                  return (
-                    <tr key={`${row.city}-${row.country}-${i}`} className="border-b border-slate-700/40">
-                      <td className="py-2.5 pr-4 text-sm font-medium text-white">{row.city}</td>
-                      <td className="py-2.5 pr-4 text-sm text-slate-400">{row.country}</td>
-                      <td className="py-2.5 pr-4 text-sm text-slate-300 text-right font-mono">{row.ticketCount}</td>
-                      <td className="py-2.5 text-sm text-right">
-                        <span className="inline-block bg-slate-700/60 text-slate-300 px-2 py-0.5 rounded text-xs font-mono">
-                          {pct}%
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
