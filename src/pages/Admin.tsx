@@ -524,21 +524,12 @@ export function Admin({ onNavigate }: AdminProps = {}) {
   async function resendGuestTicketEmails(orderId: string) {
     setResendingGuestTicket(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        showToast('Je bent niet ingelogd', 'error');
-        return;
-      }
-
       const { data, error } = await supabase.functions.invoke('resend-guest-ticket-emails', {
         body: { order_id: orderId },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
       });
 
       if (error) throw error;
-      if (!data.success) throw new Error(data.error || 'Onbekende fout');
+      if (!data?.success) throw new Error(data?.error || 'Onbekende fout');
 
       showToast(`Emails opnieuw verstuurd!`, 'success');
       await loadGuestTickets();
