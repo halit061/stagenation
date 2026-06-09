@@ -1446,11 +1446,12 @@ export function Admin({ onNavigate }: AdminProps = {}) {
                         <input
                           type="number"
                           min={1}
+                          max={50}
                           value={guestTicketForm.persons_count}
-                          onChange={(e) => setGuestTicketForm({ ...guestTicketForm, persons_count: Math.max(1, parseInt(e.target.value) || 1) })}
+                          onChange={(e) => setGuestTicketForm({ ...guestTicketForm, persons_count: Math.min(50, Math.max(1, parseInt(e.target.value) || 1)) })}
                           className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-red-500 focus:border-transparent"
                         />
-                        <p className="mt-1 text-sm text-slate-400">Alle QR codes worden in 1 email verstuurd</p>
+                        <p className="mt-1 text-sm text-slate-400">Max 50 tickets per email - alle QR codes worden in 1 PDF verstuurd</p>
                       </div>
 
                       <GuestTicketSeatSelector
