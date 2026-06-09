@@ -1606,12 +1606,63 @@ export function Tickets({ onNavigate }: TicketsProps) {
                           </div>
                         </div>
 
+                        <div className="border-t border-slate-700 pt-4">
+                          <label className="block text-sm font-medium mb-2 text-slate-300">{t('tickets.promoCode')}</label>
+                          {promoApplied ? (
+                            <div className="flex items-center justify-between bg-green-500/10 border border-green-500/30 rounded-lg px-4 py-2.5">
+                              <div className="flex items-center gap-2">
+                                <Check className="w-4 h-4 text-green-400" />
+                                <span className="font-mono text-green-400 text-sm font-semibold">{promoApplied.code}</span>
+                                <span className="text-green-400/60 text-xs">
+                                  ({promoApplied.discount_type === 'percentage'
+                                    ? `${promoApplied.discount_value}%`
+                                    : `\u20AC${(promoApplied.discount_value / 100).toFixed(2)}`})
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={handleRemovePromo}
+                                className="text-slate-400 hover:text-red-400 transition-colors"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={promoCode}
+                                onChange={(e) => { setPromoCode(e.target.value.toUpperCase()); setPromoError(''); }}
+                                placeholder="PROMO2025"
+                                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleApplyPromo(); } }}
+                                className={`flex-1 px-4 py-2 bg-slate-900 border rounded-lg focus:outline-none focus:border-cyan-500 text-white ${
+                                  promoError ? 'border-red-500/50' : 'border-slate-700'
+                                }`}
+                              />
+                              <button
+                                type="button"
+                                onClick={handleApplyPromo}
+                                disabled={promoLoading || !promoCode.trim()}
+                                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm font-semibold transition-colors whitespace-nowrap"
+                              >
+                                {promoLoading ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  t('tickets.promoApply')
+                                )}
+                              </button>
+                            </div>
+                          )}
+                          {promoError && (
+                            <p className="text-red-400 text-xs mt-1.5">{promoError}</p>
+                          )}
+                        </div>
+
                         <div className="flex gap-3">
                           <button
                             type="button"
                             onClick={() => {
                               setShowCheckoutForm(false);
-                              // Reservation will expire naturally; no need to cancel
                               setReservationOrderId(null);
                               setReservationExpiresAt(null);
                             }}
