@@ -247,7 +247,7 @@ async function generateTicketsPDF(
     const qrY = yPos - qrSize - 20;
     try {
       drawQROnPage(page, qr.qr_token, qrX, qrY, qrSize);
-      if (allEventSeats.length > 0 && qr.seat?.seat_id) {
+      if (allEventSeats.length > 0 && qr.seat?.seat_id && i === 0) {
         const fpX = qrX + qrSize + 20;
         const fpW = width - 50 - fpX;
         drawMiniFloorplanOnPage(
@@ -882,31 +882,36 @@ Deno.serve(async (req: Request) => {
     try {
       let mapSeats: MiniFloorplanSeat[] = [];
       const ttColors = new Map<string, string>();
+      const MAX_FLOORPLAN_SEATS = 800;
       try {
-        const { data: ttRows } = await adminClient
-          .from('ticket_types')
-          .select('id, color')
-          .eq('event_id', event_id);
-        if (ttRows) {
-          for (const t of ttRows) ttColors.set(t.id, t.color || '#9ca3af');
-        }
-        const eventTtIds = ttRows ? ttRows.map((t: any) => t.id) : [];
-        if (eventTtIds.length > 0) {
-          let from = 0;
-          const PAGE = 1000;
-          while (true) {
-            const { data: chunk } = await adminClient
+        if (assign_seats && seat_assignments.length > 0) {
+          const { data: ttRows } = await adminClient
+            .from('ticket_types')
+            .select('id, color')
+            .eq('event_id', event_id);
+          if (ttRows) {
+            for (const t of ttRows) ttColors.set(t.id, t.color || '#9ca3af');
+          }
+          const eventTtIds = ttRows ? ttRows.map((t: any) => t.id) : [];
+          if (eventTtIds.length > 0) {
+            const { count } = await adminClient
               .from('seats')
-              .select('id, x_position, y_position, ticket_type_id')
+              .select('id', { count: 'exact', head: true })
               .in('ticket_type_id', eventTtIds)
-              .eq('is_active', true)
-              .range(from, from + PAGE - 1);
-            if (!chunk || chunk.length === 0) break;
-            for (const s of chunk) {
-              mapSeats.push({ id: s.id, x: Number(s.x_position), y: Number(s.y_position), ttId: s.ticket_type_id });
+              .eq('is_active', true);
+
+            if (count !== null && count <= MAX_FLOORPLAN_SEATS) {
+              const { data: allSeats } = await adminClient
+                .from('seats')
+                .select('id, x_position, y_position, ticket_type_id')
+                .in('ticket_type_id', eventTtIds)
+                .eq('is_active', true);
+              if (allSeats) {
+                for (const s of allSeats) {
+                  mapSeats.push({ id: s.id, x: Number(s.x_position), y: Number(s.y_position), ttId: s.ticket_type_id });
+                }
+              }
             }
-            if (chunk.length < PAGE) break;
-            from += PAGE;
           }
         }
       } catch (mapErr: any) {
