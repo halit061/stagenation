@@ -859,6 +859,20 @@ export function Tickets({ onNavigate }: TicketsProps) {
                     </div>
                   </div>
                   <div className="flex gap-3">
+                    <span className="text-xl flex-shrink-0 mt-0.5">{'🏛️'}</span>
+                    <div>
+                      <p className="text-white font-semibold">{t('program.hallDoorsTime')}</p>
+                      <p className="text-slate-300 text-sm leading-relaxed mt-0.5">{t('program.hallDoorsDesc')}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <span className="text-xl flex-shrink-0 mt-0.5">{'🎀'}</span>
+                    <div>
+                      <p className="text-white font-semibold">{t('program.mayorTime')}</p>
+                      <p className="text-slate-300 text-sm leading-relaxed mt-0.5">{t('program.mayorDesc')}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
                     <span className="text-xl flex-shrink-0 mt-0.5">{'🎤'}</span>
                     <div>
                       <p className="text-white font-semibold">{t('program.showTime')}</p>
