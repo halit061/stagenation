@@ -467,29 +467,33 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
       // SECURITY: Do not log user PII to browser console
 
       // Fetch real ticket counts from paid + comped orders (quantity_sold in DB may be stale)
+      const BATCH_SIZE = 80;
       const { data: allPaidOrders } = await supabase.from('orders').select('id').in('status', ['paid', 'comped']).limit(10000);
       const allPaidOrderIds = (allPaidOrders || []).map((o: any) => o.id);
       if (allPaidOrderIds.length > 0) {
-        const [paidTicketsRes, paidSeatsRes] = await Promise.all([
-          supabase
-            .from('tickets')
-            .select('id, ticket_type_id')
-            .in('order_id', allPaidOrderIds)
-            .limit(10000),
-          supabase
-            .from('ticket_seats')
-            .select('id, seats(ticket_type_id)')
-            .in('order_id', allPaidOrderIds)
-            .limit(10000),
-        ]);
         const counts: Record<string, number> = {};
-        (paidTicketsRes.data || []).forEach((t: any) => {
-          if (t.ticket_type_id) counts[t.ticket_type_id] = (counts[t.ticket_type_id] || 0) + 1;
-        });
-        (paidSeatsRes.data || []).forEach((s: any) => {
-          const typeId = s.seats?.ticket_type_id;
-          if (typeId) counts[typeId] = (counts[typeId] || 0) + 1;
-        });
+        for (let i = 0; i < allPaidOrderIds.length; i += BATCH_SIZE) {
+          const batch = allPaidOrderIds.slice(i, i + BATCH_SIZE);
+          const [paidTicketsRes, paidSeatsRes] = await Promise.all([
+            supabase
+              .from('tickets')
+              .select('id, ticket_type_id')
+              .in('order_id', batch)
+              .limit(10000),
+            supabase
+              .from('ticket_seats')
+              .select('id, seats(ticket_type_id)')
+              .in('order_id', batch)
+              .limit(10000),
+          ]);
+          (paidTicketsRes.data || []).forEach((t: any) => {
+            if (t.ticket_type_id) counts[t.ticket_type_id] = (counts[t.ticket_type_id] || 0) + 1;
+          });
+          (paidSeatsRes.data || []).forEach((s: any) => {
+            const typeId = s.seats?.ticket_type_id;
+            if (typeId) counts[typeId] = (counts[typeId] || 0) + 1;
+          });
+        }
         setPaidCountByType(counts);
       }
 
@@ -529,20 +533,27 @@ export function SuperAdmin({ onNavigate }: SuperAdminProps = {}) {
       if (ticketTypesRes.data) setTicketTypes(ticketTypesRes.data);
       if (ordersRes.data) {
         const orderIds = ordersRes.data.map(o => o.id);
-        const [ticketsRes, seatTicketsRes] = await Promise.all([
-          supabase
-            .from('tickets')
-            .select('id, order_id, ticket_type_id, ticket_number, status, qr_data, holder_name, event_id, ticket_types(id, name, price)')
-            .in('order_id', orderIds)
-            .limit(10000),
-          supabase
-            .from('ticket_seats')
-            .select('id, order_id, price_paid, qr_data, ticket_number, ticket_code, seats(id, ticket_type_id, row_label, seat_number, ticket_types(id, name, price))')
-            .in('order_id', orderIds)
-            .limit(10000),
-        ]);
-        const ticketsData = ticketsRes.data;
-        const seatTicketsData = seatTicketsRes.data;
+        const ticketsDataAll: any[] = [];
+        const seatTicketsDataAll: any[] = [];
+        for (let i = 0; i < orderIds.length; i += BATCH_SIZE) {
+          const batch = orderIds.slice(i, i + BATCH_SIZE);
+          const [ticketsBatch, seatsBatch] = await Promise.all([
+            supabase
+              .from('tickets')
+              .select('id, order_id, ticket_type_id, ticket_number, status, qr_data, holder_name, event_id, ticket_types(id, name, price)')
+              .in('order_id', batch)
+              .limit(10000),
+            supabase
+              .from('ticket_seats')
+              .select('id, order_id, price_paid, qr_data, ticket_number, ticket_code, seats(id, ticket_type_id, row_label, seat_number, ticket_types(id, name, price))')
+              .in('order_id', batch)
+              .limit(10000),
+          ]);
+          if (ticketsBatch.data) ticketsDataAll.push(...ticketsBatch.data);
+          if (seatsBatch.data) seatTicketsDataAll.push(...seatsBatch.data);
+        }
+        const ticketsData = ticketsDataAll;
+        const seatTicketsData = seatTicketsDataAll;
 
         const enrichedOrders = ordersRes.data.map(order => {
           const orderTickets = (ticketsData || []).filter(t => t.order_id === order.id);
