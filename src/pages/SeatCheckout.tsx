@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Tag, X } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import {
   fetchLayoutByEvent,
@@ -789,6 +789,61 @@ export function SeatCheckout({ eventId, onNavigate }: Props) {
                 {submitError}
               </div>
             )}
+
+            <div className="mt-4 lg:hidden bg-slate-900 border border-slate-800 rounded-xl p-4">
+              <label className="block text-xs font-medium text-slate-400 mb-2">
+                <Tag className="w-3 h-3 inline-block mr-1 -mt-0.5" aria-hidden="true" />
+                {st(language, 'checkout.promoLabel')}
+              </label>
+              {promoApplied ? (
+                <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-emerald-400 text-xs font-semibold">{promoApplied.code}</span>
+                    <span className="text-slate-400 text-[10px]">
+                      ({promoApplied.discount_type === 'percentage'
+                        ? `${promoApplied.discount_value}%`
+                        : `EUR ${(promoApplied.discount_value / 100).toFixed(2)}`})
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemovePromo}
+                    className="p-0.5 text-slate-400 hover:text-red-400 transition-colors rounded"
+                    aria-label="Verwijder code"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    value={promoCode}
+                    onChange={(e) => { setPromoCode(e.target.value.toUpperCase()); setPromoError(''); }}
+                    placeholder="PROMO2025"
+                    onKeyDown={(e) => e.key === 'Enter' && handleApplyPromo()}
+                    className={`flex-1 px-2.5 py-2 bg-slate-800 border rounded-lg text-white text-xs placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-colors ${
+                      promoError ? 'border-red-500/50' : 'border-slate-700'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleApplyPromo}
+                    disabled={promoLoading || !promoCode.trim()}
+                    className="px-3 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg transition-colors"
+                  >
+                    {promoLoading ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      st(language, 'checkout.promoApply')
+                    )}
+                  </button>
+                </div>
+              )}
+              {promoError && (
+                <p className="text-red-400 text-[10px] mt-1">{promoError}</p>
+              )}
+            </div>
           </div>
 
           <div className="hidden lg:block w-[40%] flex-shrink-0">
