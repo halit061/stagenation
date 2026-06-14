@@ -312,7 +312,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
         e.touches[0].clientY - e.touches[1].clientY,
       );
       const rawScale = d / lastPinchDist.current;
-      const scale = Math.max(0.92, Math.min(1.08, rawScale));
+      const scale = Math.max(0.85, Math.min(1.15, rawScale));
       lastPinchDist.current = d;
       const container = containerRef.current;
       if (!container) return;
@@ -325,6 +325,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
       setZoom(newZoom);
       lastTouchPos.current = null;
     } else if (e.touches.length === 1 && lastTouchPos.current) {
+      e.preventDefault();
       const dx = e.touches[0].clientX - lastTouchPos.current.x;
       const dy = e.touches[0].clientY - lastTouchPos.current.y;
       if (Math.abs(dx) > 2 || Math.abs(dy) > 2) didPan.current = true;
@@ -333,9 +334,13 @@ export const SeatPickerMap = memo(function SeatPickerMap({
     }
   }, [zoom]);
 
-  const handleTouchEnd = useCallback(() => {
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
     lastPinchDist.current = null;
-    lastTouchPos.current = null;
+    if (e.touches.length === 1) {
+      lastTouchPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    } else {
+      lastTouchPos.current = null;
+    }
   }, []);
 
   const sizePreset = SEAT_SIZE_PRESETS[seatSizeIdx];
