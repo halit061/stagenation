@@ -82,6 +82,10 @@ export const SeatPickerMap = memo(function SeatPickerMap({
   const dragStart = useRef({ x: 0, y: 0 });
   const panStart = useRef({ x: 0, y: 0 });
   const lastTouchPos = useRef<{ x: number; y: number } | null>(null);
+  const wasPinching = useRef(false);
+  const pinchEndTime = useRef(0);
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
 
   const bounds = useMemo(() => {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -298,7 +302,10 @@ export const SeatPickerMap = memo(function SeatPickerMap({
       );
       lastPinchDist.current = d;
       lastTouchPos.current = null;
+      wasPinching.current = true;
+      didPan.current = true;
     } else if (e.touches.length === 1) {
+      if (wasPinching.current) return;
       lastTouchPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
       didPan.current = false;
     }
@@ -312,34 +319,45 @@ export const SeatPickerMap = memo(function SeatPickerMap({
         e.touches[0].clientY - e.touches[1].clientY,
       );
       const rawScale = d / lastPinchDist.current;
-      const scale = Math.max(0.85, Math.min(1.15, rawScale));
+      const scale = Math.max(0.9, Math.min(1.1, rawScale));
       lastPinchDist.current = d;
       const container = containerRef.current;
       if (!container) return;
       const rect = container.getBoundingClientRect();
       const cx = ((e.touches[0].clientX + e.touches[1].clientX) / 2) - rect.left;
       const cy = ((e.touches[0].clientY + e.touches[1].clientY) / 2) - rect.top;
-      const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom * scale));
-      const s = newZoom / zoom;
+      const curZoom = zoomRef.current;
+      const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, curZoom * scale));
+      const s = newZoom / curZoom;
       setPan(prev => ({ x: cx - s * (cx - prev.x), y: cy - s * (cy - prev.y) }));
       setZoom(newZoom);
       lastTouchPos.current = null;
-    } else if (e.touches.length === 1 && lastTouchPos.current) {
+      didPan.current = true;
+    } else if (e.touches.length === 1 && lastTouchPos.current && !wasPinching.current) {
       e.preventDefault();
       const dx = e.touches[0].clientX - lastTouchPos.current.x;
       const dy = e.touches[0].clientY - lastTouchPos.current.y;
-      if (Math.abs(dx) > 2 || Math.abs(dy) > 2) didPan.current = true;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) didPan.current = true;
       lastTouchPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
       setPan(prev => ({ x: prev.x + dx, y: prev.y + dy }));
     }
-  }, [zoom]);
+  }, []);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    lastPinchDist.current = null;
-    if (e.touches.length === 1) {
-      lastTouchPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    } else {
+    if (e.touches.length === 0) {
+      if (wasPinching.current) {
+        pinchEndTime.current = Date.now();
+      }
+      lastPinchDist.current = null;
       lastTouchPos.current = null;
+      wasPinching.current = false;
+    } else if (e.touches.length === 1) {
+      lastPinchDist.current = null;
+      // After pinch ends with one finger still down, ignore that finger for panning
+      // until a fresh touchstart
+      if (wasPinching.current) {
+        lastTouchPos.current = null;
+      }
     }
   }, []);
 
@@ -378,7 +396,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
       longPressTimer.current = null;
     }
     if (hoveredSeat) { setHoveredSeat(null); setTooltipPos(null); return; }
-    if (e.pointerType === 'touch' && !didPan.current) {
+    if (e.pointerType === 'touch' && !didPan.current && Date.now() - pinchEndTime.current > 300) {
       onSeatClick(seat.id);
     }
   }, [onSeatClick, hoveredSeat]);
@@ -642,6 +660,7 @@ export const SeatPickerMap = memo(function SeatPickerMap({
                   onClick={(e) => {
                     e.stopPropagation();
                     if (didPan.current) return;
+                    if (Date.now() - pinchEndTime.current < 300) return;
                     if (!isRestricted) handleSectionClick(section.id);
                   }}
                 />
