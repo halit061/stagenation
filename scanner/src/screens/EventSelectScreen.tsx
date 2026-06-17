@@ -18,7 +18,8 @@ type Entrance = {
 type Event = {
   id: string;
   name: string;
-  date: string;
+  date?: string;
+  event_start?: string;
   venue_name: string | null;
   entrances?: Entrance[];
 };
@@ -80,8 +81,10 @@ export default function EventSelectScreen({ onSelectEvent, onLogout }: Props) {
   };
 
   const formatDate = (dateStr: string) => {
+    if (!dateStr) return 'Datum onbekend';
     try {
       const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return 'Datum onbekend';
       return date.toLocaleDateString('nl-NL', {
         weekday: 'short',
         day: 'numeric',
@@ -89,7 +92,7 @@ export default function EventSelectScreen({ onSelectEvent, onLogout }: Props) {
         year: 'numeric',
       });
     } catch {
-      return dateStr;
+      return 'Datum onbekend';
     }
   };
 
@@ -159,7 +162,7 @@ export default function EventSelectScreen({ onSelectEvent, onLogout }: Props) {
                 <View style={styles.eventMeta}>
                   <View style={styles.metaItem}>
                     <View style={styles.metaDot} />
-                    <Text style={styles.eventDate}>{formatDate(item.date)}</Text>
+                    <Text style={styles.eventDate}>{formatDate(item.event_start || item.date || '')}</Text>
                   </View>
                   {item.venue_name && (
                     <View style={styles.metaItem}>
