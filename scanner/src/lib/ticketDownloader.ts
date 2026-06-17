@@ -47,11 +47,11 @@ export async function downloadEventTickets(
           row_label,
           seat_number,
           seat_type,
+          ticket_type:ticket_type_id (
+            name
+          ),
           section:section_id (
-            name,
-            ticket_type:ticket_type_id (
-              name
-            )
+            name
           )
         ),
         order:order_id (
@@ -77,7 +77,7 @@ export async function downloadEventTickets(
         qr_data: t.qr_data,
         qr_token: t.qr_token,
         ticket_code: t.ticket_code,
-        ticket_type_name: t.seat?.section?.ticket_type?.name ?? null,
+        ticket_type_name: t.seat?.ticket_type?.name ?? null,
         section_name: t.seat?.section?.name ?? null,
         row_label: t.seat?.row_label ?? null,
         seat_number: t.seat?.seat_number ?? null,
