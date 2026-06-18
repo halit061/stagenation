@@ -31,6 +31,9 @@ export async function downloadEventTickets(
   const total = count ?? 0;
   onProgress({ status: 'loading', downloaded: 0, total, message: `${total} tickets gevonden, downloaden...` });
 
+  // Pre-fetch ticket type names to avoid nested join issues
+  const ticketTypeMap = await loadTicketTypeMap(eventId);
+
   let downloaded = 0;
   let offset = 0;
 
@@ -43,13 +46,12 @@ export async function downloadEventTickets(
         qr_data,
         qr_token,
         ticket_code,
+        seat_id,
         seat:seat_id (
           row_label,
           seat_number,
           seat_type,
-          ticket_type:ticket_type_id (
-            name
-          ),
+          ticket_type_id,
           section:section_id (
             name
           )
@@ -77,7 +79,7 @@ export async function downloadEventTickets(
         qr_data: t.qr_data,
         qr_token: t.qr_token,
         ticket_code: t.ticket_code,
-        ticket_type_name: t.seat?.ticket_type?.name ?? null,
+        ticket_type_name: ticketTypeMap.get(t.seat?.ticket_type_id) ?? null,
         section_name: t.seat?.section?.name ?? null,
         row_label: t.seat?.row_label ?? null,
         seat_number: t.seat?.seat_number ?? null,
@@ -101,4 +103,19 @@ export async function downloadEventTickets(
   }
 
   onProgress({ status: 'done', downloaded, total, message: 'Klaar voor offline scanning' });
+}
+
+async function loadTicketTypeMap(eventId: string): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const { data } = await supabase
+    .from('ticket_types')
+    .select('id, name')
+    .eq('event_id', eventId);
+
+  if (data) {
+    for (const tt of data) {
+      map.set(tt.id, tt.name);
+    }
+  }
+  return map;
 }
