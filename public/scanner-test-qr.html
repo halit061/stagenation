@@ -4,14 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Scanner Test QR Codes</title>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; padding: 2rem; }
     h1 { text-align: center; margin-bottom: 0.5rem; font-size: 1.5rem; }
     .subtitle { text-align: center; color: #94a3b8; margin-bottom: 2rem; font-size: 0.9rem; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; max-width: 1000px; margin: 0 auto; }
-    .card { background: #1e293b; border-radius: 12px; padding: 1.5rem; text-align: center; border: 1px solid #334155; }
+    .card { background: #1e293b; border-radius: 12px; padding: 1.5rem; text-align: center; border: 2px solid #334155; }
     .card.valid { border-color: #22c55e; }
     .card.used { border-color: #f59e0b; }
     .card.invalid { border-color: #ef4444; }
@@ -19,8 +18,8 @@
     .valid .badge { background: #052e16; color: #4ade80; }
     .used .badge { background: #451a03; color: #fbbf24; }
     .invalid .badge { background: #450a0a; color: #f87171; }
-    .qr-container { background: white; border-radius: 8px; padding: 16px; display: inline-block; margin: 1rem 0; }
-    .qr-container canvas { display: block; }
+    .qr-container { background: white; border-radius: 8px; padding: 12px; display: inline-block; margin: 1rem 0; }
+    .qr-container img { display: block; width: 180px; height: 180px; }
     .info { font-size: 0.85rem; color: #94a3b8; line-height: 1.6; }
     .info strong { color: #e2e8f0; }
     .token { font-family: monospace; font-size: 0.7rem; color: #64748b; margin-top: 0.5rem; word-break: break-all; }
@@ -43,43 +42,86 @@
   <h1>StageNation Scanner - Test QR Codes</h1>
   <p class="subtitle">Event: Studio 100 Zingt | Print deze pagina of screenshot de QR codes</p>
 
-  <div class="grid" id="grid"></div>
+  <div class="grid">
+    <div class="card valid">
+      <span class="badge">GELDIG</span>
+      <div class="qr-container">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=SCAN_VALID_TOKEN_001" alt="QR VALID 1">
+      </div>
+      <div class="info">
+        <strong>Jan Tester</strong><br>
+        VALID-001 | Rij J, Stoel 11<br>
+        Tribune Kabouter Plop
+      </div>
+      <div class="token">SCAN_VALID_TOKEN_001</div>
+    </div>
+
+    <div class="card valid">
+      <span class="badge">GELDIG</span>
+      <div class="qr-container">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=SCAN_VALID_TOKEN_002" alt="QR VALID 2">
+      </div>
+      <div class="info">
+        <strong>Jan Tester</strong><br>
+        VALID-002 | Rij J, Stoel 12<br>
+        Tribune Kabouter Plop
+      </div>
+      <div class="token">SCAN_VALID_TOKEN_002</div>
+    </div>
+
+    <div class="card used">
+      <span class="badge">AL GESCAND</span>
+      <div class="qr-container">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=SCAN_USED_TOKEN_001" alt="QR USED 1">
+      </div>
+      <div class="info">
+        <strong>Piet Gescand</strong><br>
+        USED-001 | Rij AA, Stoel 14<br>
+        Tribune Maya De Bij
+      </div>
+      <div class="token">SCAN_USED_TOKEN_001</div>
+    </div>
+
+    <div class="card used">
+      <span class="badge">AL GESCAND</span>
+      <div class="qr-container">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=SCAN_USED_TOKEN_002" alt="QR USED 2">
+      </div>
+      <div class="info">
+        <strong>Piet Gescand</strong><br>
+        USED-002 | Rij AA, Stoel 22<br>
+        Tribune Maya De Bij
+      </div>
+      <div class="token">SCAN_USED_TOKEN_002</div>
+    </div>
+
+    <div class="card invalid">
+      <span class="badge">ONGELDIG</span>
+      <div class="qr-container">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=SCAN_INVALID_TOKEN_001" alt="QR INVALID 1">
+      </div>
+      <div class="info">
+        <strong>Kees Ongeldig</strong><br>
+        INVALID-001 | Rij AA, Stoel 26<br>
+        Zitplaatsen Plein
+      </div>
+      <div class="token">SCAN_INVALID_TOKEN_001</div>
+    </div>
+
+    <div class="card invalid">
+      <span class="badge">ONGELDIG</span>
+      <div class="qr-container">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=SCAN_INVALID_TOKEN_002" alt="QR INVALID 2">
+      </div>
+      <div class="info">
+        <strong>Kees Ongeldig</strong><br>
+        INVALID-002 | Rij AA, Stoel 12<br>
+        Zitplaatsen Plein
+      </div>
+      <div class="token">SCAN_INVALID_TOKEN_002</div>
+    </div>
+  </div>
 
   <button class="print-btn" onclick="window.print()">Print / Download als PDF</button>
-
-  <script>
-    const tickets = [
-      { token: 'SCAN_VALID_TOKEN_001', status: 'valid', label: 'GELDIG', name: 'Jan Tester', ticket: 'VALID-001', seat: 'Rij J, Stoel 11', type: 'Tribune Kabouter Plop' },
-      { token: 'SCAN_VALID_TOKEN_002', status: 'valid', label: 'GELDIG', name: 'Jan Tester', ticket: 'VALID-002', seat: 'Rij J, Stoel 12', type: 'Tribune Kabouter Plop' },
-      { token: 'SCAN_USED_TOKEN_001', status: 'used', label: 'AL GESCAND', name: 'Piet Gescand', ticket: 'USED-001', seat: 'Rij AA, Stoel 14', type: 'Tribune Maya De Bij' },
-      { token: 'SCAN_USED_TOKEN_002', status: 'used', label: 'AL GESCAND', name: 'Piet Gescand', ticket: 'USED-002', seat: 'Rij AA, Stoel 22', type: 'Tribune Maya De Bij' },
-      { token: 'SCAN_INVALID_TOKEN_001', status: 'invalid', label: 'ONGELDIG', name: 'Kees Ongeldig', ticket: 'INVALID-001', seat: 'Rij AA, Stoel 26', type: 'Zitplaatsen Plein' },
-      { token: 'SCAN_INVALID_TOKEN_002', status: 'invalid', label: 'ONGELDIG', name: 'Kees Ongeldig', ticket: 'INVALID-002', seat: 'Rij AA, Stoel 12', type: 'Zitplaatsen Plein' },
-    ];
-
-    const grid = document.getElementById('grid');
-
-    tickets.forEach(t => {
-      const card = document.createElement('div');
-      card.className = `card ${t.status}`;
-      card.innerHTML = `
-        <span class="badge">${t.label}</span>
-        <div class="qr-container"><canvas id="qr-${t.ticket}"></canvas></div>
-        <div class="info">
-          <strong>${t.name}</strong><br>
-          ${t.ticket} | ${t.seat}<br>
-          ${t.type}
-        </div>
-        <div class="token">${t.token}</div>
-      `;
-      grid.appendChild(card);
-
-      QRCode.toCanvas(document.getElementById(`qr-${t.ticket}`), t.token, {
-        width: 180,
-        margin: 0,
-        color: { dark: '#000000', light: '#ffffff' }
-      });
-    });
-  </script>
 </body>
 </html>
