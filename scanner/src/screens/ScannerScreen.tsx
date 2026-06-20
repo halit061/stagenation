@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   Animated,
   Dimensions,
+  ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
@@ -15,12 +17,17 @@ import {
   recordScan,
   getEventStats,
 } from '../lib/database';
-import { syncPendingScans, isOnline } from '../lib/sync';
+import { supabase } from '../lib/supabase';
+import { isOnline } from '../lib/sync';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+const RESULT_DISPLAY_DURATION = 3000;
+
+type ScanStatus = 'valid' | 'already_used' | 'invalid' | 'wrong_event' | 'error';
+
 type ScanResult = {
-  status: 'valid' | 'already_used' | 'invalid' | 'wrong_event';
+  status: ScanStatus;
   ticketNumber: string | null;
   ticketType: string | null;
   sectionName: string | null;
@@ -28,6 +35,8 @@ type ScanResult = {
   seatNumber: number | null;
   seatType: string | null;
   holderName: string | null;
+  message: string | null;
+  timestamp: string;
 };
 
 type Props = {
@@ -41,11 +50,14 @@ type Props = {
 export default function ScannerScreen({ eventId, eventName, entranceName, onOpenStats, onBack }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const [lastResult, setLastResult] = useState<ScanResult | null>(null);
+  const [showingResult, setShowingResult] = useState(false);
   const [scanning, setScanning] = useState(true);
   const [stats, setStats] = useState({ totalScanned: 0, totalTickets: 0, pendingSync: 0 });
   const [online, setOnline] = useState(true);
+  const [scanHistory, setScanHistory] = useState<ScanResult[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
   const scanLockRef = useRef(false);
-  const flashAnim = useRef(new Animated.Value(0)).current;
+  const resultTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resultAnim = useRef(new Animated.Value(0)).current;
 
   const refreshStats = useCallback(async () => {
@@ -60,26 +72,15 @@ export default function ScannerScreen({ eventId, eventName, entranceName, onOpen
     return () => clearInterval(interval);
   }, [refreshStats]);
 
-  React.useEffect(() => {
-    const syncInterval = setInterval(async () => {
-      if (await isOnline()) {
-        await syncPendingScans();
-        await refreshStats();
-      }
-    }, 15_000);
-    return () => clearInterval(syncInterval);
-  }, [refreshStats]);
-
-  const flashScreen = (color: string) => {
-    flashAnim.setValue(1);
-    Animated.timing(flashAnim, {
-      toValue: 0,
-      duration: 500,
-      useNativeDriver: true,
-    }).start();
+  const addToHistory = (result: ScanResult) => {
+    setScanHistory(prev => [result, ...prev].slice(0, 10));
   };
 
-  const showResult = () => {
+  const showResultScreen = (result: ScanResult) => {
+    setLastResult(result);
+    setShowingResult(true);
+    setScanning(false);
+
     resultAnim.setValue(0);
     Animated.spring(resultAnim, {
       toValue: 1,
@@ -87,6 +88,157 @@ export default function ScannerScreen({ eventId, eventName, entranceName, onOpen
       tension: 100,
       useNativeDriver: true,
     }).start();
+
+    if (resultTimeoutRef.current) clearTimeout(resultTimeoutRef.current);
+    resultTimeoutRef.current = setTimeout(() => {
+      setShowingResult(false);
+      setScanning(true);
+    }, RESULT_DISPLAY_DURATION);
+  };
+
+  const dismissResult = () => {
+    if (resultTimeoutRef.current) clearTimeout(resultTimeoutRef.current);
+    setShowingResult(false);
+    setScanning(true);
+  };
+
+  const scanOnline = async (qrData: string): Promise<ScanResult | null> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('unified-scan', {
+        body: {
+          code: qrData,
+          active_event_id: eventId,
+        },
+      });
+
+      if (error) return null;
+      if (!data || !data.status) return null;
+
+      const now = new Date().toISOString();
+      const details = data.details || {};
+
+      switch (data.status) {
+        case 'OK':
+          return {
+            status: 'valid',
+            ticketNumber: details.ticket_number || null,
+            ticketType: details.ticket_type_name || null,
+            sectionName: details.section_name || null,
+            rowLabel: details.row_label || null,
+            seatNumber: details.seat_number || null,
+            seatType: null,
+            holderName: details.holder_name || details.guest_name || null,
+            message: data.message || null,
+            timestamp: now,
+          };
+        case 'ALREADY_USED':
+          return {
+            status: 'already_used',
+            ticketNumber: details.ticket_number || null,
+            ticketType: details.ticket_type_name || null,
+            sectionName: details.section_name || null,
+            rowLabel: details.row_label || null,
+            seatNumber: details.seat_number || null,
+            seatType: null,
+            holderName: details.holder_name || details.guest_name || null,
+            message: data.message || null,
+            timestamp: now,
+          };
+        case 'WRONG_EVENT':
+          return {
+            status: 'wrong_event',
+            ticketNumber: null,
+            ticketType: null,
+            sectionName: null,
+            rowLabel: null,
+            seatNumber: null,
+            seatType: null,
+            holderName: null,
+            message: data.message || 'Ticket voor ander event',
+            timestamp: now,
+          };
+        case 'INVALID':
+        case 'EVENT_CLOSED':
+        case 'NOT_YET_OPEN':
+          return {
+            status: 'invalid',
+            ticketNumber: null,
+            ticketType: null,
+            sectionName: null,
+            rowLabel: null,
+            seatNumber: null,
+            seatType: null,
+            holderName: null,
+            message: data.message || 'Ongeldig ticket',
+            timestamp: now,
+          };
+        default:
+          return {
+            status: 'invalid',
+            ticketNumber: null,
+            ticketType: null,
+            sectionName: null,
+            rowLabel: null,
+            seatNumber: null,
+            seatType: null,
+            holderName: null,
+            message: data.message || 'Onbekende status',
+            timestamp: now,
+          };
+      }
+    } catch {
+      return null;
+    }
+  };
+
+  const scanOffline = async (qrData: string): Promise<ScanResult> => {
+    const now = new Date().toISOString();
+    const ticket = await findTicketByQR(eventId, qrData);
+
+    if (!ticket) {
+      return {
+        status: 'invalid',
+        ticketNumber: null,
+        ticketType: null,
+        sectionName: null,
+        rowLabel: null,
+        seatNumber: null,
+        seatType: null,
+        holderName: null,
+        message: 'Code niet gevonden (offline)',
+        timestamp: now,
+      };
+    }
+
+    if (ticket.is_scanned) {
+      return {
+        status: 'already_used',
+        ticketNumber: ticket.ticket_number,
+        ticketType: ticket.ticket_type_name,
+        sectionName: ticket.section_name,
+        rowLabel: ticket.row_label,
+        seatNumber: ticket.seat_number,
+        seatType: ticket.seat_type,
+        holderName: ticket.holder_name,
+        message: 'Reeds gescand (offline)',
+        timestamp: now,
+      };
+    }
+
+    await markScanned(ticket.id, eventId);
+
+    return {
+      status: 'valid',
+      ticketNumber: ticket.ticket_number,
+      ticketType: ticket.ticket_type_name,
+      sectionName: ticket.section_name,
+      rowLabel: ticket.row_label,
+      seatNumber: ticket.seat_number,
+      seatType: ticket.seat_type,
+      holderName: ticket.holder_name,
+      message: null,
+      timestamp: now,
+    };
   };
 
   const handleBarCodeScanned = async ({ data }: { data: string }) => {
@@ -94,98 +246,46 @@ export default function ScannerScreen({ eventId, eventName, entranceName, onOpen
     scanLockRef.current = true;
 
     try {
-      const ticket = await findTicketByQR(eventId, data);
+      let result: ScanResult;
 
-      if (!ticket) {
-        const result: ScanResult = {
-          status: 'invalid',
-          ticketNumber: null,
-          ticketType: null,
-          sectionName: null,
-          rowLabel: null,
-          seatNumber: null,
-          seatType: null,
-          holderName: null,
-        };
-        setLastResult(result);
-        showResult();
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        flashScreen('#dc2626');
+      const deviceOnline = await isOnline();
+      setOnline(deviceOnline);
 
-        await recordScan({
-          id: crypto.randomUUID(),
-          event_id: eventId,
-          ticket_id: null,
-          qr_raw: data,
-          result: 'invalid',
-          ticket_number: null,
-          ticket_type_name: null,
-          section_name: null,
-          row_label: null,
-          seat_number: null,
-          seat_type: null,
-        });
-      } else if (ticket.is_scanned) {
-        const result: ScanResult = {
-          status: 'already_used',
-          ticketNumber: ticket.ticket_number,
-          ticketType: ticket.ticket_type_name,
-          sectionName: ticket.section_name,
-          rowLabel: ticket.row_label,
-          seatNumber: ticket.seat_number,
-          seatType: ticket.seat_type,
-          holderName: ticket.holder_name,
-        };
-        setLastResult(result);
-        showResult();
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        flashScreen('#f59e0b');
-
-        await recordScan({
-          id: crypto.randomUUID(),
-          event_id: eventId,
-          ticket_id: ticket.id,
-          qr_raw: data,
-          result: 'already_used',
-          ticket_number: ticket.ticket_number,
-          ticket_type_name: ticket.ticket_type_name,
-          section_name: ticket.section_name,
-          row_label: ticket.row_label,
-          seat_number: ticket.seat_number,
-          seat_type: ticket.seat_type,
-        });
+      if (deviceOnline) {
+        const onlineResult = await scanOnline(data);
+        if (onlineResult) {
+          result = onlineResult;
+        } else {
+          result = await scanOffline(data);
+        }
       } else {
-        await markScanned(ticket.id, eventId);
-
-        const result: ScanResult = {
-          status: 'valid',
-          ticketNumber: ticket.ticket_number,
-          ticketType: ticket.ticket_type_name,
-          sectionName: ticket.section_name,
-          rowLabel: ticket.row_label,
-          seatNumber: ticket.seat_number,
-          seatType: ticket.seat_type,
-          holderName: ticket.holder_name,
-        };
-        setLastResult(result);
-        showResult();
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        flashScreen('#16a34a');
-
-        await recordScan({
-          id: crypto.randomUUID(),
-          event_id: eventId,
-          ticket_id: ticket.id,
-          qr_raw: data,
-          result: 'valid',
-          ticket_number: ticket.ticket_number,
-          ticket_type_name: ticket.ticket_type_name,
-          section_name: ticket.section_name,
-          row_label: ticket.row_label,
-          seat_number: ticket.seat_number,
-          seat_type: ticket.seat_type,
-        });
+        result = await scanOffline(data);
       }
+
+      if (result.status === 'valid') {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else if (result.status === 'already_used') {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      } else {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+
+      showResultScreen(result);
+      addToHistory(result);
+
+      await recordScan({
+        id: crypto.randomUUID(),
+        event_id: eventId,
+        ticket_id: null,
+        qr_raw: data,
+        result: result.status === 'valid' ? 'valid' : result.status === 'already_used' ? 'already_used' : 'invalid',
+        ticket_number: result.ticketNumber,
+        ticket_type_name: result.ticketType,
+        section_name: result.sectionName,
+        row_label: result.rowLabel,
+        seat_number: result.seatNumber,
+        seat_type: result.seatType,
+      });
 
       await refreshStats();
     } finally {
@@ -216,13 +316,62 @@ export default function ScannerScreen({ eventId, eventName, entranceName, onOpen
     );
   }
 
-  const statusColor = lastResult
-    ? lastResult.status === 'valid'
-      ? '#22c55e'
-      : lastResult.status === 'already_used'
-        ? '#f59e0b'
-        : '#ef4444'
-    : 'transparent';
+  // History view
+  if (showHistory) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => setShowHistory(false)} style={styles.headerButton} activeOpacity={0.7}>
+            <Text style={styles.headerButtonIcon}>{'<'}</Text>
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <Text style={styles.eventTitle}>Laatste 10 scans</Text>
+          </View>
+          <View style={{ width: 36 }} />
+        </View>
+        <ScrollView style={styles.historyList} contentContainerStyle={styles.historyContent}>
+          {scanHistory.length === 0 ? (
+            <View style={styles.emptyHistory}>
+              <Text style={styles.emptyHistoryText}>Nog geen scans</Text>
+            </View>
+          ) : (
+            scanHistory.map((item, index) => (
+              <View key={index} style={[styles.historyItem, { borderLeftColor: getStatusColor(item.status) }]}>
+                <View style={styles.historyItemHeader}>
+                  <View style={[styles.historyStatusDot, { backgroundColor: getStatusColor(item.status) }]} />
+                  <Text style={styles.historyStatusText}>{getStatusLabel(item.status)}</Text>
+                  <Text style={styles.historyTime}>
+                    {new Date(item.timestamp).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </Text>
+                </View>
+                {item.ticketNumber && (
+                  <Text style={styles.historyTicketNumber}>#{item.ticketNumber}</Text>
+                )}
+                {item.holderName && (
+                  <Text style={styles.historyDetail}>{item.holderName}</Text>
+                )}
+                {item.ticketType && (
+                  <Text style={styles.historyDetail}>{item.ticketType}</Text>
+                )}
+                {item.sectionName && (
+                  <Text style={styles.historyDetail}>
+                    {item.sectionName}
+                    {item.rowLabel ? ` - Rij ${item.rowLabel}` : ''}
+                    {item.seatNumber ? ` - Stoel ${item.seatNumber}` : ''}
+                  </Text>
+                )}
+                {item.message && !item.ticketNumber && (
+                  <Text style={styles.historyDetail}>{item.message}</Text>
+                )}
+              </View>
+            ))
+          )}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  const statusColor = lastResult ? getStatusColor(lastResult.status) : 'transparent';
 
   const scanPercentage = stats.totalTickets > 0
     ? Math.round((stats.totalScanned / stats.totalTickets) * 100)
@@ -230,6 +379,54 @@ export default function ScannerScreen({ eventId, eventName, entranceName, onOpen
 
   return (
     <View style={styles.container}>
+      {/* Full-screen result overlay - stays 3 seconds, tap to dismiss */}
+      {showingResult && lastResult && (
+        <TouchableOpacity
+          style={[styles.fullScreenResult, { backgroundColor: statusColor }]}
+          activeOpacity={0.95}
+          onPress={dismissResult}
+        >
+          <Animated.View style={[styles.resultCenter, { transform: [{ scale: resultAnim }], opacity: resultAnim }]}>
+            <View style={styles.resultIconCircle}>
+              <Text style={styles.resultIcon}>
+                {lastResult.status === 'valid' ? '\u2713' : lastResult.status === 'already_used' ? '!' : '\u2717'}
+              </Text>
+            </View>
+
+            <Text style={styles.resultStatusText}>{getStatusLabel(lastResult.status)}</Text>
+
+            {lastResult.ticketNumber && (
+              <Text style={styles.resultTicketNumber}>#{lastResult.ticketNumber}</Text>
+            )}
+
+            {lastResult.holderName && (
+              <Text style={styles.resultHolderName}>{lastResult.holderName}</Text>
+            )}
+
+            {lastResult.ticketType && (
+              <View style={styles.resultTypeBadge}>
+                <Text style={styles.resultTypeText}>{lastResult.ticketType}</Text>
+              </View>
+            )}
+
+            {lastResult.sectionName && (
+              <Text style={styles.resultSeatInfo}>
+                {lastResult.sectionName}
+                {lastResult.rowLabel ? ` \u2022 Rij ${lastResult.rowLabel}` : ''}
+                {lastResult.seatNumber ? ` \u2022 Stoel ${lastResult.seatNumber}` : ''}
+              </Text>
+            )}
+
+            {lastResult.message && !lastResult.ticketNumber && (
+              <Text style={styles.resultMessage}>{lastResult.message}</Text>
+            )}
+
+            <Text style={styles.tapToDismiss}>Tik om door te gaan</Text>
+          </Animated.View>
+        </TouchableOpacity>
+      )}
+
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack} style={styles.headerButton} activeOpacity={0.7}>
           <Text style={styles.headerButtonIcon}>{'<'}</Text>
@@ -240,33 +437,35 @@ export default function ScannerScreen({ eventId, eventName, entranceName, onOpen
             <Text style={styles.entranceLabel}>{entranceName}</Text>
           )}
         </View>
-        <TouchableOpacity onPress={onOpenStats} style={styles.headerButton} activeOpacity={0.7}>
-          <Text style={styles.headerButtonIcon}>{'#'}</Text>
+        <TouchableOpacity onPress={() => setShowHistory(true)} style={styles.headerButton} activeOpacity={0.7}>
+          <Text style={styles.headerButtonIcon}>{'\u2630'}</Text>
         </TouchableOpacity>
       </View>
 
+      {/* Status bar */}
       <View style={styles.statusBar}>
         <View style={styles.statusLeft}>
           <View style={[styles.onlineDot, !online && styles.offlineDot]} />
-          <Text style={styles.statusLabel}>{online ? 'Online' : 'Offline'}</Text>
+          <Text style={styles.statusLabel}>{online ? 'Live' : 'Offline'}</Text>
         </View>
-        <View style={styles.statusCenter}>
+        <TouchableOpacity onPress={onOpenStats} style={styles.statusCenter} activeOpacity={0.7}>
           <Text style={styles.counterText}>
             {stats.totalScanned}/{stats.totalTickets}
           </Text>
           <View style={styles.miniProgress}>
             <View style={[styles.miniProgressFill, { width: `${scanPercentage}%` }]} />
           </View>
-        </View>
+        </TouchableOpacity>
         <View style={styles.statusRight}>
           {stats.pendingSync > 0 && (
             <View style={styles.syncBadge}>
-              <Text style={styles.syncBadgeText}>{stats.pendingSync}</Text>
+              <Text style={styles.syncBadgeText}>{stats.pendingSync} sync</Text>
             </View>
           )}
         </View>
       </View>
 
+      {/* Camera */}
       <View style={styles.cameraContainer}>
         <CameraView
           style={styles.camera}
@@ -280,80 +479,40 @@ export default function ScannerScreen({ eventId, eventName, entranceName, onOpen
             <View style={[styles.corner, styles.cornerBL]} />
             <View style={[styles.corner, styles.cornerBR]} />
           </View>
-          <Text style={styles.scanHint}>Richt de camera op een QR code</Text>
+          {!scanning && !showingResult && (
+            <ActivityIndicator size="large" color="#22d3ee" style={{ marginTop: 20 }} />
+          )}
+          {scanning && (
+            <Text style={styles.scanHint}>
+              {online ? 'Live scanning actief' : 'Offline modus'}
+            </Text>
+          )}
         </View>
-
-        <Animated.View
-          style={[
-            styles.flash,
-            {
-              backgroundColor: statusColor,
-              opacity: flashAnim,
-            },
-          ]}
-          pointerEvents="none"
-        />
       </View>
-
-      {lastResult && (
-        <Animated.View
-          style={[
-            styles.resultPanel,
-            {
-              transform: [{ scale: resultAnim }],
-              opacity: resultAnim,
-            },
-          ]}
-        >
-          <View style={[styles.resultStrip, { backgroundColor: statusColor }]} />
-          <View style={styles.resultContent}>
-            <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
-              <Text style={styles.statusText}>
-                {lastResult.status === 'valid' && 'GELDIG'}
-                {lastResult.status === 'already_used' && 'REEDS GESCAND'}
-                {lastResult.status === 'invalid' && 'ONGELDIG'}
-                {lastResult.status === 'wrong_event' && 'VERKEERD EVENT'}
-              </Text>
-            </View>
-
-            <View style={styles.resultDetails}>
-              {lastResult.ticketNumber && (
-                <Text style={styles.ticketNumber}>#{lastResult.ticketNumber}</Text>
-              )}
-
-              {lastResult.ticketType && (
-                <View style={styles.typeBadge}>
-                  <Text style={styles.typeText}>{lastResult.ticketType}</Text>
-                </View>
-              )}
-
-              {lastResult.sectionName && (
-                <Text style={styles.detailText}>
-                  {lastResult.sectionName}
-                  {lastResult.rowLabel ? ` \u2022 Rij ${lastResult.rowLabel}` : ''}
-                  {lastResult.seatNumber ? ` \u2022 Stoel ${lastResult.seatNumber}` : ''}
-                </Text>
-              )}
-
-              {lastResult.seatType && lastResult.seatType !== 'standard' && (
-                <View style={styles.seatTypeBadge}>
-                  <Text style={styles.seatTypeText}>
-                    {lastResult.seatType === 'wheelchair' ? 'ROLSTOEL' :
-                     lastResult.seatType === 'vip' ? 'VIP' :
-                     lastResult.seatType.toUpperCase()}
-                  </Text>
-                </View>
-              )}
-
-              {lastResult.holderName && (
-                <Text style={styles.holderText}>{lastResult.holderName}</Text>
-              )}
-            </View>
-          </View>
-        </Animated.View>
-      )}
     </View>
   );
+}
+
+function getStatusColor(status: ScanStatus): string {
+  switch (status) {
+    case 'valid': return '#16a34a';
+    case 'already_used': return '#d97706';
+    case 'wrong_event': return '#9333ea';
+    case 'invalid': return '#dc2626';
+    case 'error': return '#dc2626';
+    default: return '#6b7280';
+  }
+}
+
+function getStatusLabel(status: ScanStatus): string {
+  switch (status) {
+    case 'valid': return 'GELDIG';
+    case 'already_used': return 'REEDS GESCAND';
+    case 'wrong_event': return 'VERKEERD EVENT';
+    case 'invalid': return 'ONGELDIG';
+    case 'error': return 'FOUT';
+    default: return 'ONBEKEND';
+  }
 }
 
 const SCAN_SIZE = SCREEN_WIDTH * 0.65;
@@ -534,9 +693,6 @@ const styles = StyleSheet.create({
     marginTop: 20,
     textAlign: 'center',
   },
-  flash: {
-    ...StyleSheet.absoluteFillObject,
-  },
   permissionContainer: {
     flex: 1,
     backgroundColor: '#0f172a',
@@ -597,74 +753,130 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-  resultPanel: {
-    backgroundColor: '#1e293b',
-    borderTopWidth: 1,
-    borderColor: '#334155',
-    flexDirection: 'row',
-    overflow: 'hidden',
-  },
-  resultStrip: {
-    width: 4,
-  },
-  resultContent: {
-    flex: 1,
-    padding: 16,
+  // Full screen result overlay
+  fullScreenResult: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 100,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    padding: 32,
   },
-  statusBadge: {
+  resultCenter: {
+    alignItems: 'center',
+    gap: 16,
+  },
+  resultIconCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  resultIcon: {
+    fontSize: 52,
+    color: '#fff',
+    fontWeight: '700',
+  },
+  resultStatusText: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: 1,
+    textAlign: 'center',
+  },
+  resultTicketNumber: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.95)',
+  },
+  resultHolderName: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.85)',
+  },
+  resultTypeBadge: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 6,
     borderRadius: 8,
   },
-  statusText: {
+  resultTypeText: {
     color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  resultSeatInfo: {
     fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    color: 'rgba(255,255,255,0.8)',
+    textAlign: 'center',
   },
-  resultDetails: {
+  resultMessage: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.8)',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  tapToDismiss: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.5)',
+    marginTop: 32,
+  },
+  // History
+  historyList: {
+    flex: 1,
+  },
+  historyContent: {
+    padding: 16,
+  },
+  emptyHistory: {
     alignItems: 'center',
-    gap: 6,
+    paddingTop: 80,
   },
-  ticketNumber: {
-    color: '#f8fafc',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  typeBadge: {
-    backgroundColor: 'rgba(34, 211, 238, 0.1)',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(34, 211, 238, 0.3)',
-  },
-  typeText: {
-    color: '#22d3ee',
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  detailText: {
-    color: '#94a3b8',
-    fontSize: 14,
-  },
-  seatTypeBadge: {
-    backgroundColor: 'rgba(251, 191, 36, 0.15)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(251, 191, 36, 0.4)',
-  },
-  seatTypeText: {
-    color: '#fbbf24',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  holderText: {
+  emptyHistoryText: {
     color: '#64748b',
+    fontSize: 16,
+  },
+  historyItem: {
+    backgroundColor: '#1e293b',
+    borderRadius: 12,
+    padding: 14,
+    borderLeftWidth: 4,
+    borderWidth: 1,
+    borderColor: '#334155',
+    marginBottom: 10,
+  },
+  historyItemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  historyStatusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  historyStatusText: {
+    color: '#f8fafc',
     fontSize: 13,
+    fontWeight: '700',
+    flex: 1,
+  },
+  historyTime: {
+    color: '#64748b',
+    fontSize: 12,
+  },
+  historyTicketNumber: {
+    color: '#e2e8f0',
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  historyDetail: {
+    color: '#94a3b8',
+    fontSize: 13,
+    marginTop: 2,
   },
 });
