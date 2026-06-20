@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="scanLine" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22d3ee" stop-opacity="0"/>
+      <stop offset="30%" stop-color="#22d3ee" stop-opacity="1"/>
+      <stop offset="70%" stop-color="#22d3ee" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="368.64" y="368.64" width="56.32" height="56.32" rx="11.264000000000001" fill="#22d3ee" opacity="0.8"/>
+  <rect x="440.32" y="368.64" width="56.32" height="56.32" rx="11.264000000000001" fill="#22d3ee" opacity="0.8"/>
+  <rect x="512" y="368.64" width="56.32" height="56.32" rx="11.264000000000001" fill="#22d3ee" opacity="0.8"/>
+  <rect x="655.36" y="368.64" width="56.32" height="56.32" rx="11.264000000000001" fill="#22d3ee" opacity="0.8"/>
+  <rect x="368.64" y="440.32" width="56.32" height="56.32" rx="11.264000000000001" fill="#22d3ee" opacity="0.8"/>
+  <rect x="583.6800000000001" y="440.32" width="56.32" height="56.32" rx="11.264000000000001" fill="#22d3ee" opacity="0.8"/>
+  <rect x="368.64" y="512" width="56.32" height="56.32" rx="11.264000000000001" fill="#22d3ee" opacity="0.8"/>
+  <rect x="512" y="512" width="56.32" height="56.32" rx="11.264000000000001" fill="#22d3ee" opacity="0.8"/>
+  <rect x="655.36" y="512" width="56.32" height="56.32" rx="11.264000000000001" fill="#22d3ee" opacity="0.8"/>
+  <rect x="440.32" y="583.6800000000001" width="56.32" height="56.32" rx="11.264000000000001" fill="#22d3ee" opacity="0.8"/>
+  <rect x="655.36" y="583.6800000000001" width="56.32" height="56.32" rx="11.264000000000001" fill="#22d3ee" opacity="0.8"/>
+  <rect x="368.64" y="655.36" width="56.32" height="56.32" rx="11.264000000000001" fill="#22d3ee" opacity="0.8"/>
+  <rect x="512" y="655.36" width="56.32" height="56.32" rx="11.264000000000001" fill="#22d3ee" opacity="0.8"/>
+  <rect x="583.6800000000001" y="655.36" width="56.32" height="56.32" rx="11.264000000000001" fill="#22d3ee" opacity="0.8"/>
+  <rect x="655.36" y="655.36" width="56.32" height="56.32" rx="11.264000000000001" fill="#22d3ee" opacity="0.8"/>
+
+  <!-- Corners -->
+  <path d="M296.96,256 L409.6,256" stroke="#22d3ee" stroke-width="51.2" fill="none" stroke-linecap="round"/>
+  <path d="M256,296.96 L256,409.6" stroke="#22d3ee" stroke-width="51.2" fill="none" stroke-linecap="round"/>
+  <path d="M256,296.96 Q256,256 296.96,256" stroke="#22d3ee" stroke-width="51.2" fill="none"/>
+
+  <path d="M614.4,256 L727.04,256" stroke="#22d3ee" stroke-width="51.2" fill="none" stroke-linecap="round"/>
+  <path d="M768,296.96 L768,409.6" stroke="#22d3ee" stroke-width="51.2" fill="none" stroke-linecap="round"/>
+  <path d="M727.04,256 Q768,256 768,296.96" stroke="#22d3ee" stroke-width="51.2" fill="none"/>
+
+  <path d="M296.96,768 L409.6,768" stroke="#22d3ee" stroke-width="51.2" fill="none" stroke-linecap="round"/>
+  <path d="M256,614.4 L256,727.04" stroke="#22d3ee" stroke-width="51.2" fill="none" stroke-linecap="round"/>
+  <path d="M256,727.04 Q256,768 296.96,768" stroke="#22d3ee" stroke-width="51.2" fill="none"/>
+
+  <path d="M614.4,768 L727.04,768" stroke="#22d3ee" stroke-width="51.2" fill="none" stroke-linecap="round"/>
+  <path d="M768,614.4 L768,727.04" stroke="#22d3ee" stroke-width="51.2" fill="none" stroke-linecap="round"/>
+  <path d="M727.04,768 Q768,768 768,727.04" stroke="#22d3ee" stroke-width="51.2" fill="none"/>
+
+  <!-- Scan line -->
+  <rect x="256" y="509" width="512" height="6" fill="url(#scanLine)"/>
+</svg>

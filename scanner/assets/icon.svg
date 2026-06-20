@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="scanLine" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22d3ee" stop-opacity="0"/>
+      <stop offset="20%" stop-color="#22d3ee" stop-opacity="0.8"/>
+      <stop offset="50%" stop-color="#22d3ee" stop-opacity="1"/>
+      <stop offset="80%" stop-color="#22d3ee" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="8.192" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="1024" fill="url(#bgGrad)" rx="225.28"/>
+
+  <!-- Subtle circle glow -->
+  <circle cx="512" cy="512" r="307.2" fill="#22d3ee" opacity="0.05"/>
+
+  <!-- QR dots -->
+  <rect x="358.4" y="358.4" width="61.44" height="61.44" rx="12.288" fill="#22d3ee" opacity="0.7"/>
+  <rect x="435.2" y="358.4" width="61.44" height="61.44" rx="12.288" fill="#22d3ee" opacity="0.7"/>
+  <rect x="512" y="358.4" width="61.44" height="61.44" rx="12.288" fill="#22d3ee" opacity="0.7"/>
+  <rect x="665.5999999999999" y="358.4" width="61.44" height="61.44" rx="12.288" fill="#22d3ee" opacity="0.7"/>
+  <rect x="358.4" y="435.2" width="61.44" height="61.44" rx="12.288" fill="#22d3ee" opacity="0.7"/>
+  <rect x="588.8" y="435.2" width="61.44" height="61.44" rx="12.288" fill="#22d3ee" opacity="0.7"/>
+  <rect x="358.4" y="512" width="61.44" height="61.44" rx="12.288" fill="#22d3ee" opacity="0.7"/>
+  <rect x="512" y="512" width="61.44" height="61.44" rx="12.288" fill="#22d3ee" opacity="0.7"/>
+  <rect x="665.5999999999999" y="512" width="61.44" height="61.44" rx="12.288" fill="#22d3ee" opacity="0.7"/>
+  <rect x="435.2" y="588.8" width="61.44" height="61.44" rx="12.288" fill="#22d3ee" opacity="0.7"/>
+  <rect x="665.5999999999999" y="588.8" width="61.44" height="61.44" rx="12.288" fill="#22d3ee" opacity="0.7"/>
+  <rect x="358.4" y="665.5999999999999" width="61.44" height="61.44" rx="12.288" fill="#22d3ee" opacity="0.7"/>
+  <rect x="512" y="665.5999999999999" width="61.44" height="61.44" rx="12.288" fill="#22d3ee" opacity="0.7"/>
+  <rect x="588.8" y="665.5999999999999" width="61.44" height="61.44" rx="12.288" fill="#22d3ee" opacity="0.7"/>
+  <rect x="665.5999999999999" y="665.5999999999999" width="61.44" height="61.44" rx="12.288" fill="#22d3ee" opacity="0.7"/>
+
+  <!-- Scanner corners -->
+  <!-- Top-left -->
+  <path d="M235.52,204.8 L389.12,204.8" stroke="#22d3ee" stroke-width="40.96" fill="none" stroke-linecap="round"/>
+  <path d="M204.8,235.52 L204.8,389.12" stroke="#22d3ee" stroke-width="40.96" fill="none" stroke-linecap="round"/>
+  <path d="M204.8,235.52 Q204.8,204.8 235.52,204.8" stroke="#22d3ee" stroke-width="40.96" fill="none"/>
+
+  <!-- Top-right -->
+  <path d="M634.8800000000001,204.8 L788.48,204.8" stroke="#22d3ee" stroke-width="40.96" fill="none" stroke-linecap="round"/>
+  <path d="M819.2,235.52 L819.2,389.12" stroke="#22d3ee" stroke-width="40.96" fill="none" stroke-linecap="round"/>
+  <path d="M788.48,204.8 Q819.2,204.8 819.2,235.52" stroke="#22d3ee" stroke-width="40.96" fill="none"/>
+
+  <!-- Bottom-left -->
+  <path d="M235.52,819.2 L389.12,819.2" stroke="#22d3ee" stroke-width="40.96" fill="none" stroke-linecap="round"/>
+  <path d="M204.8,634.8800000000001 L204.8,788.48" stroke="#22d3ee" stroke-width="40.96" fill="none" stroke-linecap="round"/>
+  <path d="M204.8,788.48 Q204.8,819.2 235.52,819.2" stroke="#22d3ee" stroke-width="40.96" fill="none"/>
+
+  <!-- Bottom-right -->
+  <path d="M634.8800000000001,819.2 L788.48,819.2" stroke="#22d3ee" stroke-width="40.96" fill="none" stroke-linecap="round"/>
+  <path d="M819.2,634.8800000000001 L819.2,788.48" stroke="#22d3ee" stroke-width="40.96" fill="none" stroke-linecap="round"/>
+  <path d="M788.48,819.2 Q819.2,819.2 819.2,788.48" stroke="#22d3ee" stroke-width="40.96" fill="none"/>
+
+  <!-- Scan line -->
+  <rect x="245.76000000000002" y="508.928" width="532.48" height="6.144" fill="url(#scanLine)" filter="url(#glow)"/>
+
+  <!-- S letter hint -->
+  <text x="512" y="870.4" font-family="system-ui, -apple-system, sans-serif" font-size="81.92" font-weight="700" fill="#22d3ee" opacity="0.6" text-anchor="middle">SCAN</text>
+</svg>
