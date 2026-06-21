@@ -2,13 +2,13 @@ import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   useEffect(() => {
     const fallback = setTimeout(() => {
-      SplashScreen.hideAsync();
-    }, 8000);
+      SplashScreen.hideAsync().catch(() => {});
+    }, 1500);
     return () => clearTimeout(fallback);
   }, []);
 

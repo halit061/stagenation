@@ -27,9 +27,20 @@ export default function App() {
   useEffect(() => {
     if (!loading) {
       setAppReady(true);
-      SplashScreen.hideAsync();
+      SplashScreen.hideAsync().catch(() => {});
     }
   }, [loading]);
+
+  // Absolute fallback: if still not ready after 2s, force it
+  useEffect(() => {
+    const emergency = setTimeout(() => {
+      if (!appReady) {
+        setAppReady(true);
+        SplashScreen.hideAsync().catch(() => {});
+      }
+    }, 2000);
+    return () => clearTimeout(emergency);
+  }, []);
 
   if (!appReady) {
     return (
