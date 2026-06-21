@@ -304,20 +304,6 @@ export function FloorPlan({ eventId, onTableSelect, readOnly = false }: FloorPla
                   opacity={obj.type === 'DANCEFLOOR' ? 0.3 : 1}
                   className="transition-all duration-200"
                 />
-
-                <text
-                  x={obj.x + obj.width / 2}
-                  y={obj.y + obj.height / 2}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fill="white"
-                  fontSize={isDecor ? "24" : (obj.type === 'DANCEFLOOR' ? '16' : '20')}
-                  fontWeight="bold"
-                  className="pointer-events-none"
-                  opacity={obj.type === 'DANCEFLOOR' ? 0.6 : 1}
-                >
-                  {isDecor ? 'D' : displayName.toUpperCase()}
-                </text>
               </g>
             );
           })}
@@ -436,19 +422,6 @@ export function FloorPlan({ eventId, onTableSelect, readOnly = false }: FloorPla
                 fill="#94a3b8"
                 className="pointer-events-none"
               />
-              {vTable.label && (
-                <text
-                  x={vTable.position_x}
-                  y={vTable.position_y + vTable.radius + 12}
-                  textAnchor="middle"
-                  fill="#94a3b8"
-                  fontSize="10"
-                  opacity="0.6"
-                  className="pointer-events-none"
-                >
-                  {vTable.label}
-                </text>
-              )}
             </g>
           ))}
         </svg>
