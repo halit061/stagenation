@@ -169,12 +169,37 @@ Deno.serve(async (req: Request) => {
           );
         }
       }
+      // Handle v1 JSON QR codes: {"tid":"...","tok":"...","v":1}
+      if (parsed && typeof parsed === "object" && parsed.tid && parsed.tok) {
+        const resolvedCode = parsed.tok;
+        const ticketResult = await scanRegularTicket(supabase, resolvedCode, active_event_id, scanner_user_id, device_info);
+        if (ticketResult) {
+          return new Response(JSON.stringify(ticketResult), {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        const guestQrResult = await scanGuestTicketQr(supabase, resolvedCode, active_event_id, scanner_user_id);
+        if (guestQrResult) {
+          return new Response(JSON.stringify(guestQrResult), {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
     } catch {
       // Not JSON — regular ticket code, proceed normally
     }
 
+    // Extract token from verification URLs (https://stagenation.be/verify/{token})
+    let lookupCode = code;
+    const verifyUrlMatch = code.match(/\/verify\/([a-f0-9]+)$/i);
+    if (verifyUrlMatch) {
+      lookupCode = verifyUrlMatch[1];
+    }
+
     // Try 1: Regular ticket (by ticket_number, token, or secure_token)
-    const ticketResult = await scanRegularTicket(supabase, code, active_event_id, scanner_user_id, device_info);
+    const ticketResult = await scanRegularTicket(supabase, lookupCode, active_event_id, scanner_user_id, device_info);
     if (ticketResult) {
       return new Response(JSON.stringify(ticketResult), {
         status: 200,
@@ -182,8 +207,17 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // Try 1b: Seat ticket (by qr_token in ticket_seats)
+    const seatTicketResult = await scanSeatTicket(supabase, lookupCode, active_event_id, scanner_user_id, device_info);
+    if (seatTicketResult) {
+      return new Response(JSON.stringify(seatTicketResult), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Try 2: Guest ticket QR (multi-person guest tickets)
-    const guestTicketQrResult = await scanGuestTicketQr(supabase, code, active_event_id, scanner_user_id);
+    const guestTicketQrResult = await scanGuestTicketQr(supabase, lookupCode, active_event_id, scanner_user_id);
     if (guestTicketQrResult) {
       return new Response(JSON.stringify(guestTicketQrResult), {
         status: 200,
@@ -192,7 +226,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // Try 3: Legacy guest ticket (by qr_code)
-    const guestTicketResult = await scanGuestTicket(supabase, code, active_event_id, scanner_user_id);
+    const guestTicketResult = await scanGuestTicket(supabase, lookupCode, active_event_id, scanner_user_id);
     if (guestTicketResult) {
       return new Response(JSON.stringify(guestTicketResult), {
         status: 200,
@@ -201,12 +235,30 @@ Deno.serve(async (req: Request) => {
     }
 
     // Try 4: Table guest (by qr_code)
-    const tableGuestResult = await scanTableGuest(supabase, code, active_event_id, scanner_user_id);
+    const tableGuestResult = await scanTableGuest(supabase, lookupCode, active_event_id, scanner_user_id);
     if (tableGuestResult) {
       return new Response(JSON.stringify(tableGuestResult), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Try with original code if lookupCode was extracted from URL
+    if (lookupCode !== code) {
+      const ticketResultOrig = await scanRegularTicket(supabase, code, active_event_id, scanner_user_id, device_info);
+      if (ticketResultOrig) {
+        return new Response(JSON.stringify(ticketResultOrig), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const guestTicketQrOrig = await scanGuestTicketQr(supabase, code, active_event_id, scanner_user_id);
+      if (guestTicketQrOrig) {
+        return new Response(JSON.stringify(guestTicketQrOrig), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // Nothing found
@@ -256,66 +308,29 @@ async function scanRegularTicket(
     assigned_table_id,
     product_type,
     events (id, name, scan_open_at, scan_close_at, is_active),
-    ticket_types (name),
-    floorplan_tables:assigned_table_id (table_number, table_type, capacity)
+    ticket_types (name)
   `;
 
-  const { data: ticketByQrCode } = await supabase
-    .from("tickets")
-    .select(ticketSelect)
-    .eq("qr_code", code)
-    .maybeSingle();
+  const lookups = [
+    { field: "qr_code", value: code },
+    { field: "ticket_number", value: code },
+    { field: "token", value: code },
+    { field: "qr_data", value: code },
+    { field: "secure_token", value: code },
+  ];
 
-  if (ticketByQrCode) {
-    ticket = ticketByQrCode;
-  }
-
-  if (!ticket) {
-    const { data: ticketByNumber } = await supabase
+  for (const lookup of lookups) {
+    if (ticket) break;
+    const { data, error } = await supabase
       .from("tickets")
       .select(ticketSelect)
-      .eq("ticket_number", code)
+      .eq(lookup.field, lookup.value)
       .maybeSingle();
-
-    if (ticketByNumber) {
-      ticket = ticketByNumber;
+    if (error) {
+      console.error(`Ticket lookup by ${lookup.field} failed:`, error.message);
+      continue;
     }
-  }
-
-  if (!ticket) {
-    const { data: ticketByToken } = await supabase
-      .from("tickets")
-      .select(ticketSelect)
-      .eq("token", code)
-      .maybeSingle();
-
-    if (ticketByToken) {
-      ticket = ticketByToken;
-    }
-  }
-
-  if (!ticket) {
-    const { data: ticketByQrData } = await supabase
-      .from("tickets")
-      .select(ticketSelect)
-      .eq("qr_data", code)
-      .maybeSingle();
-
-    if (ticketByQrData) {
-      ticket = ticketByQrData;
-    }
-  }
-
-  if (!ticket) {
-    const { data: ticketBySecureToken } = await supabase
-      .from("tickets")
-      .select(ticketSelect)
-      .eq("secure_token", code)
-      .maybeSingle();
-
-    if (ticketBySecureToken) {
-      ticket = ticketBySecureToken;
-    }
+    if (data) ticket = data;
   }
 
   if (!ticket) {
@@ -407,8 +422,6 @@ async function scanRegularTicket(
         holder_name: ticket.holder_name,
         ticket_number: ticket.ticket_number,
         event_name: ticket.events.name,
-        table_number: ticket.floorplan_tables?.table_number,
-        table_type: ticket.floorplan_tables?.table_type,
         ...seatInfo,
       },
     };
@@ -456,8 +469,6 @@ async function scanRegularTicket(
         holder_name: ticket.holder_name,
         ticket_number: ticket.ticket_number,
         event_name: ticket.events.name,
-        table_number: ticket.floorplan_tables?.table_number,
-        table_type: ticket.floorplan_tables?.table_type,
         ...seatInfo,
       },
     };
@@ -468,6 +479,143 @@ async function scanRegularTicket(
     status: "INVALID",
     type: "ticket",
     message: `Invalid ticket status: ${ticket.status}`,
+  };
+}
+
+async function scanSeatTicket(
+  supabase: any,
+  code: string,
+  active_event_id?: string,
+  scanner_user_id?: string,
+  device_info?: any
+): Promise<ScanResult | null> {
+  const seatSelect = `
+    id,
+    ticket_id,
+    ticket_code,
+    qr_token,
+    is_scanned,
+    scanned_at,
+    scanned_by,
+    seats (
+      row_label,
+      seat_number,
+      seat_sections (name)
+    ),
+    tickets (
+      id,
+      event_id,
+      holder_name,
+      ticket_number,
+      events (id, name, scan_open_at, scan_close_at, is_active)
+    )
+  `;
+
+  const { data: seatTicket } = await supabase
+    .from("ticket_seats")
+    .select(seatSelect)
+    .eq("qr_token", code)
+    .maybeSingle();
+
+  if (!seatTicket) {
+    const { data: byTicketCode } = await supabase
+      .from("ticket_seats")
+      .select(seatSelect)
+      .eq("ticket_code", code)
+      .maybeSingle();
+
+    if (!byTicketCode) return null;
+    return processSeatTicket(supabase, byTicketCode, active_event_id, scanner_user_id, device_info);
+  }
+
+  return processSeatTicket(supabase, seatTicket, active_event_id, scanner_user_id, device_info);
+}
+
+async function processSeatTicket(
+  supabase: any,
+  seatTicket: any,
+  active_event_id?: string,
+  scanner_user_id?: string,
+  device_info?: any
+): Promise<ScanResult | null> {
+  const ticket = seatTicket.tickets;
+  if (!ticket || !ticket.events) {
+    return { status: "INVALID", type: "ticket", message: "Event not found" };
+  }
+
+  if (active_event_id && ticket.event_id !== active_event_id) {
+    return {
+      status: "WRONG_EVENT",
+      type: "ticket",
+      item_id: seatTicket.id,
+      event_id: ticket.event_id,
+      message: "Ticket is for a different event",
+    };
+  }
+
+  if (!ticket.events.is_active) {
+    return { status: "EVENT_CLOSED", type: "ticket", message: "Event is not active" };
+  }
+
+  const sectionName = seatTicket.seats?.seat_sections?.name || '';
+  const rowLabel = seatTicket.seats?.row_label || '';
+  const seatNumber = seatTicket.seats?.seat_number || 0;
+
+  if (seatTicket.is_scanned) {
+    return {
+      status: "ALREADY_USED",
+      type: "ticket",
+      item_id: seatTicket.id,
+      event_id: ticket.event_id,
+      used_at: seatTicket.scanned_at,
+      message: "Seat ticket already scanned",
+      details: {
+        holder_name: ticket.holder_name,
+        ticket_number: seatTicket.ticket_code || ticket.ticket_number,
+        section_name: sectionName,
+        row_label: rowLabel,
+        seat_number: seatNumber,
+        event_name: ticket.events.name,
+      },
+    };
+  }
+
+  const scannedAt = new Date().toISOString();
+
+  const { error: updateError } = await supabase
+    .from("ticket_seats")
+    .update({ is_scanned: true, scanned_at: scannedAt, scanned_by: scanner_user_id || null })
+    .eq("id", seatTicket.id)
+    .eq("is_scanned", false);
+
+  if (updateError) {
+    console.error("Failed to update seat ticket status:", updateError);
+    return { status: "ERROR", type: "ticket", message: "Failed to mark seat ticket as used" };
+  }
+
+  await supabase.from("scans").insert({
+    ticket_id: ticket.id,
+    scanner_id: scanner_user_id || null,
+    event_id: ticket.event_id,
+    result: "valid",
+    device_info: device_info || {},
+  });
+
+  return {
+    status: "OK",
+    type: "ticket",
+    item_id: seatTicket.id,
+    event_id: ticket.event_id,
+    used_at: scannedAt,
+    message: "Seat ticket scanned successfully",
+    details: {
+      holder_name: ticket.holder_name,
+      ticket_number: seatTicket.ticket_code || ticket.ticket_number,
+      section_name: sectionName,
+      row_label: rowLabel,
+      seat_number: seatNumber,
+      event_name: ticket.events.name,
+    },
   };
 }
 
@@ -488,7 +636,7 @@ async function scanGuestTicketQr(
       qr_token,
       used_at,
       used_by_scanner_id,
-      orders!inner (
+      orders (
         id,
         payer_name,
         payer_email,

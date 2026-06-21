@@ -129,23 +129,27 @@ Deno.serve(async (req: Request) => {
     }
 
     const clientIp = getClientIp(req);
-    const { data: rateResult } = await supabase.rpc('check_rate_limit', {
-      p_key: `validate:${clientIp}`,
-      p_max_attempts: VALIDATE_RATE_LIMIT_MAX,
-      p_window_seconds: VALIDATE_RATE_LIMIT_WINDOW,
-    });
+    try {
+      const { data: rateResult } = await supabase.rpc('check_rate_limit', {
+        p_key: `validate:${clientIp}`,
+        p_max_attempts: VALIDATE_RATE_LIMIT_MAX,
+        p_window_seconds: VALIDATE_RATE_LIMIT_WINDOW,
+      });
 
-    if (rateResult && !rateResult.allowed) {
-      return new Response(
-        JSON.stringify({
-          error: 'Too many validation attempts. Please wait.',
-          retry_after_seconds: rateResult.retry_after_seconds,
-        }),
-        {
-          status: 429,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': String(rateResult.retry_after_seconds) },
-        }
-      );
+      if (rateResult && !rateResult.allowed) {
+        return new Response(
+          JSON.stringify({
+            error: 'Too many validation attempts. Please wait.',
+            retry_after_seconds: rateResult.retry_after_seconds,
+          }),
+          {
+            status: 429,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': String(rateResult.retry_after_seconds) },
+          }
+        );
+      }
+    } catch (rateLimitErr) {
+      console.warn("Rate limit check skipped:", rateLimitErr?.message);
     }
 
     const { token, ticketId, scannerId, locationId, deviceInfo }: ValidateRequest = await req.json();
