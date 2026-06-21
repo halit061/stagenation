@@ -25,9 +25,7 @@ export default function App() {
   if (loading) {
     return (
       <View style={styles.loading}>
-        <View style={styles.loadingInner}>
-          <ActivityIndicator size="large" color="#22d3ee" />
-        </View>
+        <ActivityIndicator size="large" color="#22d3ee" />
         <StatusBar style="light" />
       </View>
     );
@@ -100,16 +98,6 @@ const styles = StyleSheet.create({
   loading: {
     flex: 1,
     backgroundColor: '#0f172a',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingInner: {
-    width: 64,
-    height: 64,
-    borderRadius: 16,
-    backgroundColor: '#1e293b',
-    borderWidth: 1,
-    borderColor: '#334155',
     justifyContent: 'center',
     alignItems: 'center',
   },
