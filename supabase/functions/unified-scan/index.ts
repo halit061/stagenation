@@ -102,24 +102,30 @@ Deno.serve(async (req: Request) => {
     }
 
     const clientIp = getClientIp(req);
-    const { data: rateResult } = await supabase.rpc("check_rate_limit", {
-      p_key: `scan:${clientIp}`,
-      p_max_attempts: SCAN_RATE_LIMIT_MAX,
-      p_window_seconds: SCAN_RATE_LIMIT_WINDOW,
-    });
+    // Rate limiting - graceful if function doesn't exist
+    try {
+      const { data: rateResult } = await supabase.rpc("check_rate_limit", {
+        p_key: `scan:${clientIp}`,
+        p_max_attempts: SCAN_RATE_LIMIT_MAX,
+        p_window_seconds: SCAN_RATE_LIMIT_WINDOW,
+      });
 
-    if (rateResult && !rateResult.allowed) {
-      return new Response(
-        JSON.stringify({
-          status: "RATE_LIMITED",
-          message: "Too many scan attempts. Please wait.",
-          retry_after_seconds: rateResult.retry_after_seconds,
-        }),
-        {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(rateResult.retry_after_seconds) },
-        }
-      );
+      if (rateResult && !rateResult.allowed) {
+        return new Response(
+          JSON.stringify({
+            status: "RATE_LIMITED",
+            message: "Too many scan attempts. Please wait.",
+            retry_after_seconds: rateResult.retry_after_seconds,
+          }),
+          {
+            status: 429,
+            headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(rateResult.retry_after_seconds) },
+          }
+        );
+      }
+    } catch (rateLimitErr) {
+      // Rate limit RPC may not exist - continue without rate limiting
+      console.warn("Rate limit check skipped:", rateLimitErr?.message);
     }
 
     let requestBody: ScanRequest;

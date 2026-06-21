@@ -61,9 +61,9 @@ export default function ScannerScreen({ eventId, eventName, entranceName, onOpen
   const resultAnim = useRef(new Animated.Value(0)).current;
 
   const refreshStats = useCallback(async () => {
+    setOnline(await isOnline());
     const s = await getEventStats(eventId);
     setStats({ totalScanned: s.totalScanned, totalTickets: s.totalTickets, pendingSync: s.pendingSync });
-    setOnline(await isOnline());
   }, [eventId]);
 
   React.useEffect(() => {

@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuth } from '../src/hooks/useAuth';
 import LoginScreen from '../src/screens/LoginScreen';
 import EventSelectScreen from '../src/screens/EventSelectScreen';
-import DownloadScreen from '../src/screens/DownloadScreen';
 import ScannerScreen from '../src/screens/ScannerScreen';
 import StatsScreen from '../src/screens/StatsScreen';
 
@@ -17,7 +16,6 @@ type Entrance = {
 type AppState =
   | { screen: 'login' }
   | { screen: 'events' }
-  | { screen: 'download'; eventId: string; eventName: string; entrance?: Entrance }
   | { screen: 'scanner'; eventId: string; eventName: string; entrance?: Entrance }
   | { screen: 'stats'; eventId: string; eventName: string; entrance?: Entrance };
 
@@ -60,7 +58,7 @@ export default function App() {
         <EventSelectScreen
           onSelectEvent={(event, entrance) =>
             setState({
-              screen: 'download',
+              screen: 'scanner',
               eventId: event.id,
               eventName: event.name,
               entrance,
@@ -70,22 +68,6 @@ export default function App() {
             await signOut();
             setState({ screen: 'events' });
           }}
-        />
-      )}
-      {state.screen === 'download' && (
-        <DownloadScreen
-          eventId={state.eventId}
-          eventName={state.eventName}
-          entranceName={state.entrance?.name}
-          onReady={() =>
-            setState({
-              screen: 'scanner',
-              eventId: state.eventId,
-              eventName: state.eventName,
-              entrance: state.entrance,
-            })
-          }
-          onError={() => setState({ screen: 'events' })}
         />
       )}
       {state.screen === 'scanner' && (
