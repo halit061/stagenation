@@ -375,29 +375,6 @@ export function FloorPlan({ eventId, onTableSelect, readOnly = false }: FloorPla
                     />
                   </>
                 )}
-
-                <text
-                  x={table.x + table.width / 2}
-                  y={table.y + table.height / 2}
-                  textAnchor="middle"
-                  fill="white"
-                  fontSize="18"
-                  fontWeight="bold"
-                  className="pointer-events-none"
-                >
-                  {table.table_number}
-                </text>
-
-                <text
-                  x={table.x + table.width / 2}
-                  y={table.y + table.height / 2 + 18}
-                  textAnchor="middle"
-                  fill="white"
-                  fontSize="12"
-                  className="pointer-events-none"
-                >
-                  {isSold ? txt(language, { nl: 'VERKOCHT', tr: 'SATILDI', fr: 'VENDU', de: 'VERKAUFT' }) : `${table.capacity}p`}
-                </text>
               </g>
             );
           })}
