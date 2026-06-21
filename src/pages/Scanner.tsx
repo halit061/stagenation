@@ -1,5 +1,5 @@
-import { QrCode, CheckCircle, XCircle, AlertTriangle, Camera, AlertCircle as AlertIcon, LogOut, RefreshCw } from 'lucide-react';
-import { useState, useEffect, useCallback } from 'react';
+import { QrCode, CheckCircle, XCircle, AlertTriangle, AlertCircle as AlertIcon, LogOut, RefreshCw, Zap, Volume2, VolumeX } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { decodeQRData } from '../lib/crypto';
 import { useAuth } from '../contexts/AuthContext';
@@ -25,16 +25,26 @@ interface DbStats {
 
 export function Scanner() {
   const { user, role, loading: authLoading, isScanner, logout, getRedirectPath } = useAuth();
-  const [scanning, setScanning] = useState(false);
   const [lastResult, setLastResult] = useState<ScanResult | null>(null);
-  const [manualCode, setManualCode] = useState('');
   const [stats, setStats] = useState({ scanned: 0, valid: 0, invalid: 0 });
   const [dbStats, setDbStats] = useState<DbStats | null>(null);
-  const [dbStatsLoading, setDbStatsLoading] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [flashColor, setFlashColor] = useState<'green' | 'orange' | 'red' | null>(null);
+  const [processing, setProcessing] = useState(false);
+  const [manualCode, setManualCode] = useState('');
+  const [showManual, setShowManual] = useState(false);
 
-  // SECURITY: Filter ticket stats by status only (not select('*')) and use 'id' for count
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const detectorRef = useRef<BarcodeDetector | null>(null);
+  const scanningRef = useRef(false);
+  const lastScannedRef = useRef<string>('');
+  const lastScannedTimeRef = useRef<number>(0);
+  const animFrameRef = useRef<number>(0);
+
   const fetchDbStats = useCallback(async () => {
-    setDbStatsLoading(true);
     try {
       const { count: totalCount } = await supabase
         .from('tickets')
@@ -57,31 +67,34 @@ export function Scanner() {
         valid: validCount ?? 0,
       });
     } catch {
-      // silent fail
-    } finally {
-      setDbStatsLoading(false);
+      // silent
     }
   }, []);
 
-  const validateTicket = async (qrData: string) => {
+  const vibrate = useCallback((pattern: number[]) => {
+    if (navigator.vibrate) navigator.vibrate(pattern);
+  }, []);
+
+  const showFlash = useCallback((color: 'green' | 'orange' | 'red') => {
+    setFlashColor(color);
+    setTimeout(() => setFlashColor(null), 600);
+  }, []);
+
+  const validateTicket = useCallback(async (qrData: string) => {
+    if (processing) return;
+    setProcessing(true);
+
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-
       const { data: session } = await supabase.auth.getSession();
-      if (!session.session) {
-        throw new Error('Niet ingelogd');
-      }
+      if (!session.session) throw new Error('Niet ingelogd');
 
       const decoded = decodeQRData(qrData);
-
+      const deviceId = `pwa-${user?.id?.substring(0, 8) || 'unknown'}`;
       let response: Response;
 
-      // SECURITY: Don't send full userAgent - only send minimal device identifier
-      const deviceId = `scanner-${user?.id?.substring(0, 8) || 'unknown'}`;
-
       if (decoded) {
-        const apiUrl = `${supabaseUrl}/functions/v1/validate-ticket`;
-        response = await fetch(apiUrl, {
+        response = await fetch(`${supabaseUrl}/functions/v1/validate-ticket`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${session.session.access_token}`,
@@ -95,8 +108,7 @@ export function Scanner() {
           }),
         });
       } else {
-        const apiUrl = `${supabaseUrl}/functions/v1/unified-scan`;
-        response = await fetch(apiUrl, {
+        response = await fetch(`${supabaseUrl}/functions/v1/unified-scan`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${session.session.access_token}`,
@@ -110,10 +122,7 @@ export function Scanner() {
         });
       }
 
-      if (!response.ok) {
-        throw new Error('Validatie mislukt');
-      }
-
+      if (!response.ok) throw new Error('Validatie mislukt');
       const rawResult = await response.json();
 
       let result: ScanResult;
@@ -136,7 +145,6 @@ export function Scanner() {
       }
 
       setLastResult(result);
-
       setStats(prev => ({
         scanned: prev.scanned + 1,
         valid: prev.valid + (result.valid ? 1 : 0),
@@ -144,10 +152,16 @@ export function Scanner() {
       }));
 
       if (result.valid) {
+        showFlash('green');
+        vibrate([100, 50, 100]);
         fetchDbStats();
+      } else if (result.result === 'already_used') {
+        showFlash('orange');
+        vibrate([300, 100, 300]);
+      } else {
+        showFlash('red');
+        vibrate([500]);
       }
-
-      return result;
     } catch (error) {
       const errorResult: ScanResult = {
         valid: false,
@@ -156,247 +170,314 @@ export function Scanner() {
       };
       setLastResult(errorResult);
       setStats(prev => ({ ...prev, scanned: prev.scanned + 1, invalid: prev.invalid + 1 }));
-      return errorResult;
+      showFlash('red');
+      vibrate([500]);
+    } finally {
+      setProcessing(false);
     }
-  };
+  }, [processing, user, showFlash, vibrate, fetchDbStats]);
+
+  const scanLoop = useCallback(() => {
+    if (!scanningRef.current || !videoRef.current || !detectorRef.current) return;
+
+    const video = videoRef.current;
+    if (video.readyState < video.HAVE_ENOUGH_DATA) {
+      animFrameRef.current = requestAnimationFrame(scanLoop);
+      return;
+    }
+
+    detectorRef.current.detect(video).then((barcodes: DetectedBarcode[]) => {
+      if (barcodes.length > 0 && scanningRef.current) {
+        const code = barcodes[0].rawValue;
+        const now = Date.now();
+
+        if (code !== lastScannedRef.current || now - lastScannedTimeRef.current > 3000) {
+          lastScannedRef.current = code;
+          lastScannedTimeRef.current = now;
+          validateTicket(code);
+        }
+      }
+      if (scanningRef.current) {
+        animFrameRef.current = requestAnimationFrame(scanLoop);
+      }
+    }).catch(() => {
+      if (scanningRef.current) {
+        animFrameRef.current = requestAnimationFrame(scanLoop);
+      }
+    });
+  }, [validateTicket]);
+
+  const startCamera = useCallback(async () => {
+    try {
+      setCameraError(null);
+
+      if (!('BarcodeDetector' in window)) {
+        setCameraError('BarcodeDetector niet ondersteund. Gebruik Safari (iOS 16.4+) of Chrome (Android).');
+        setShowManual(true);
+        return;
+      }
+
+      detectorRef.current = new BarcodeDetector({ formats: ['qr_code'] });
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      setCameraActive(true);
+      scanningRef.current = true;
+      animFrameRef.current = requestAnimationFrame(scanLoop);
+    } catch (err: any) {
+      if (err.name === 'NotAllowedError') {
+        setCameraError('Camera toegang geweigerd. Geef toestemming in browser instellingen.');
+      } else if (err.name === 'NotFoundError') {
+        setCameraError('Geen camera gevonden.');
+      } else {
+        setCameraError(`Camera fout: ${err.message}`);
+      }
+      setShowManual(true);
+    }
+  }, [scanLoop]);
+
+  const stopCamera = useCallback(() => {
+    scanningRef.current = false;
+    cancelAnimationFrame(animFrameRef.current);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setCameraActive(false);
+  }, []);
 
   useEffect(() => {
     if (user && isScanner()) {
       fetchDbStats();
+      startCamera();
     }
-  }, [user, fetchDbStats, isScanner]);
+    return () => { stopCamera(); };
+  }, [user]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden) {
+        stopCamera();
+      } else if (user && isScanner()) {
+        startCamera();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [user, startCamera, stopCamera, isScanner]);
 
   const handleManualScan = async () => {
-    if (!manualCode) return;
-    setScanning(true);
-    await validateTicket(manualCode);
+    if (!manualCode.trim()) return;
+    await validateTicket(manualCode.trim());
     setManualCode('');
-    setScanning(false);
-    fetchDbStats();
-  };
-
-  const ResultDisplay = ({ result }: { result: ScanResult }) => {
-    const isValid = result.valid;
-    const Icon = isValid ? CheckCircle : result.result === 'already_used' ? AlertTriangle : XCircle;
-    const bgColor = isValid
-      ? 'from-green-500/20 to-emerald-500/20 border-green-500/50'
-      : result.result === 'already_used'
-      ? 'from-orange-500/20 to-yellow-500/20 border-orange-500/50'
-      : 'from-red-500/20 to-rose-500/20 border-red-500/50';
-    const iconColor = isValid ? 'text-green-400' : result.result === 'already_used' ? 'text-orange-400' : 'text-red-400';
-
-    return (
-      <div className={`bg-gradient-to-br ${bgColor} border rounded-2xl p-8 text-center`}>
-        <Icon className={`w-20 h-20 mx-auto mb-4 ${iconColor}`} />
-        <h2 className="text-2xl font-bold mb-2">{result.message}</h2>
-        {result.ticket && (
-          <div className="mt-6 space-y-2 text-left bg-slate-900/50 rounded-xl p-4">
-            <div className="flex justify-between">
-              <span className="text-slate-400">Ticket:</span>
-              <span className="font-mono">{result.ticket.number}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Type:</span>
-              <span>{result.ticket.type}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Event:</span>
-              <span>{result.ticket.event}</span>
-            </div>
-            {result.ticket.holder && (
-              <div className="flex justify-between">
-                <span className="text-slate-400">Houder:</span>
-                <span>{result.ticket.holder}</span>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
   };
 
   if (authLoading) {
     return (
-      <div className="py-20 px-4 flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-white">Laden...</p>
-        </div>
+      <div className="fixed inset-0 bg-slate-900 flex items-center justify-center">
+        <div className="w-16 h-16 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" />
       </div>
     );
   }
 
-  if (!user || !role) {
-    return <SharedLogin />;
-  }
+  if (!user || !role) return <SharedLogin />;
 
   if (!isScanner()) {
     const redirectPath = getRedirectPath();
     return (
-      <div className="py-20 px-4 flex items-center justify-center min-h-screen">
+      <div className="fixed inset-0 bg-slate-900 flex items-center justify-center px-4">
         <div className="text-center max-w-md">
           <AlertIcon className="w-16 h-16 text-red-400 mx-auto mb-4" />
           <h1 className="text-3xl font-bold mb-2 text-white">Geen toegang</h1>
-          <p className="text-slate-400 mb-6">Je hebt geen toegang tot de Scanner functie.</p>
-          <div className="flex flex-col gap-3">
-            {redirectPath !== 'login' && (
-              <a
-                href={`/#${redirectPath}`}
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-red-500 hover:bg-red-400 rounded-lg font-semibold transition-colors text-white"
-              >
-                Ga naar je dashboard
-              </a>
-            )}
-            <button
-              onClick={logout}
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-slate-700 hover:bg-slate-600 rounded-lg font-semibold transition-colors text-white"
-            >
-              <LogOut className="w-5 h-5" />
-              Uitloggen
-            </button>
-          </div>
+          <p className="text-slate-400 mb-6">Je hebt geen scanner rol.</p>
+          {redirectPath !== 'login' && (
+            <a href={`/#${redirectPath}`} className="block px-6 py-3 bg-cyan-600 hover:bg-cyan-500 rounded-lg font-semibold text-white text-center transition-colors mb-3">
+              Ga naar dashboard
+            </a>
+          )}
+          <button onClick={logout} className="flex items-center justify-center gap-2 w-full px-6 py-3 bg-slate-700 hover:bg-slate-600 rounded-lg font-semibold text-white transition-colors">
+            <LogOut className="w-5 h-5" /> Uitloggen
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="py-20 px-4 min-h-screen">
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-12">
-          <div className="flex items-center justify-center space-x-3 mb-4">
-            <QrCode className="w-10 h-10 text-cyan-400" />
-            <h1 className="text-4xl font-bold">Ticket Scanner</h1>
-          </div>
-          <p className="text-slate-400">Scan tickets om toegang te verlenen</p>
-        </div>
+    <div className="fixed inset-0 bg-black flex flex-col overflow-hidden">
+      {/* Full-screen flash */}
+      {flashColor && (
+        <div className={`absolute inset-0 z-50 pointer-events-none transition-opacity duration-300 ${
+          flashColor === 'green' ? 'bg-green-500/25' :
+          flashColor === 'orange' ? 'bg-orange-500/25' : 'bg-red-500/25'
+        }`} />
+      )}
 
-        <div className="grid grid-cols-3 gap-4 mb-4">
-          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center">
-            <div className="text-3xl font-bold text-cyan-400 mb-1">{stats.scanned}</div>
-            <div className="text-sm text-slate-400">Deze sessie</div>
+      {/* Top bar */}
+      <div className="relative z-10 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-4 pt-[env(safe-area-inset-top)] pb-3">
+        <div className="flex items-center justify-between pt-3 mb-3">
+          <div className="flex items-center gap-2">
+            <QrCode className="w-5 h-5 text-cyan-400" />
+            <span className="font-bold text-white text-sm">StageNation Scanner</span>
+            {processing && <Zap className="w-4 h-4 text-yellow-400 animate-pulse" />}
           </div>
-          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center">
-            <div className="text-3xl font-bold text-green-400 mb-1">{stats.valid}</div>
-            <div className="text-sm text-slate-400">Geldig</div>
-          </div>
-          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center">
-            <div className="text-3xl font-bold text-red-400 mb-1">{stats.invalid}</div>
-            <div className="text-sm text-slate-400">Ongeldig</div>
-          </div>
-        </div>
-
-        <div className="bg-slate-800/80 border border-cyan-500/30 rounded-2xl p-5 mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-cyan-400 uppercase tracking-wider">Totaal overzicht</h3>
-            <button
-              onClick={fetchDbStats}
-              disabled={dbStatsLoading}
-              className="p-1.5 rounded-lg hover:bg-slate-700 transition-colors text-slate-400 hover:text-white disabled:opacity-50"
-            >
-              <RefreshCw className={`w-4 h-4 ${dbStatsLoading ? 'animate-spin' : ''}`} />
+          <div className="flex items-center gap-1">
+            <button onClick={() => setSoundEnabled(!soundEnabled)} className="p-2 rounded-lg text-slate-400 hover:text-white">
+              {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            </button>
+            <button onClick={() => setShowManual(!showManual)} className="p-2 rounded-lg text-slate-400 hover:text-white text-xs font-mono">
+              ABC
+            </button>
+            <button onClick={logout} className="p-2 rounded-lg text-slate-400 hover:text-white">
+              <LogOut className="w-4 h-4" />
             </button>
           </div>
-          {dbStats ? (
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-slate-900/60 rounded-xl p-4 text-center">
-                <div className="text-4xl font-bold text-white mb-1">{dbStats.used}</div>
-                <div className="text-xs text-slate-400">Gescand</div>
-              </div>
-              <div className="bg-slate-900/60 rounded-xl p-4 text-center">
-                <div className="text-4xl font-bold text-slate-300 mb-1">{dbStats.valid}</div>
-                <div className="text-xs text-slate-400">Nog te scannen</div>
-              </div>
-              <div className="bg-slate-900/60 rounded-xl p-4 text-center">
-                <div className="text-4xl font-bold text-cyan-400 mb-1">{dbStats.total}</div>
-                <div className="text-xs text-slate-400">Totaal tickets</div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-16">
-              <div className="w-6 h-6 border-2 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" />
-            </div>
-          )}
-          {dbStats && dbStats.total > 0 && (
-            <div className="mt-3">
-              <div className="flex justify-between text-xs text-slate-500 mb-1">
-                <span>Voortgang</span>
-                <span>{Math.round((dbStats.used / dbStats.total) * 100)}%</span>
-              </div>
-              <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-cyan-500 to-green-500 rounded-full transition-all duration-500"
-                  style={{ width: `${(dbStats.used / dbStats.total) * 100}%` }}
-                />
-              </div>
-            </div>
-          )}
         </div>
 
-        <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-2xl p-8 mb-8">
-          <div className="aspect-square max-w-md mx-auto bg-slate-900 rounded-2xl flex items-center justify-center border-2 border-dashed border-slate-700 mb-6">
-            <div className="text-center">
-              <Camera className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-              <p className="text-slate-500">Camera scan komt hier</p>
-              <p className="text-xs text-slate-600 mt-2">Gebruik onderstaande manual input voor testing</p>
-            </div>
+        {/* Stats row */}
+        <div className="grid grid-cols-3 gap-2">
+          <div className="bg-slate-800/80 rounded-lg px-2 py-1.5 text-center">
+            <div className="text-base font-bold text-cyan-400 leading-tight">{stats.scanned}</div>
+            <div className="text-[9px] text-slate-500 uppercase">Sessie</div>
           </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Manual QR Code Input</label>
-              <div className="flex space-x-2">
-                <input
-                  type="text"
-                  value={manualCode}
-                  onChange={(e) => setManualCode(e.target.value)}
-                  placeholder='{"tid":"...","tok":"...","v":1}'
-                  className="flex-1 px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg focus:outline-none focus:border-cyan-500 text-white font-mono text-sm"
-                />
-                <button
-                  onClick={handleManualScan}
-                  disabled={!manualCode || scanning}
-                  className="px-6 py-3 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-semibold transition-colors"
-                >
-                  Scan
-                </button>
-              </div>
-            </div>
+          <div className="bg-slate-800/80 rounded-lg px-2 py-1.5 text-center">
+            <div className="text-base font-bold text-green-400 leading-tight">{stats.valid}</div>
+            <div className="text-[9px] text-slate-500 uppercase">Geldig</div>
+          </div>
+          <div className="bg-slate-800/80 rounded-lg px-2 py-1.5 text-center">
+            <div className="text-base font-bold text-red-400 leading-tight">{stats.invalid}</div>
+            <div className="text-[9px] text-slate-500 uppercase">Ongeldig</div>
           </div>
         </div>
 
-        {lastResult && (
-          <div className="mb-8">
-            <ResultDisplay result={lastResult} />
+        {/* Progress bar */}
+        {dbStats && dbStats.total > 0 && (
+          <div className="mt-2 flex items-center gap-2">
+            <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-cyan-500 to-green-500 rounded-full transition-all duration-500"
+                style={{ width: `${(dbStats.used / dbStats.total) * 100}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-slate-400 whitespace-nowrap font-mono">
+              {dbStats.used}/{dbStats.total}
+            </span>
+            <button onClick={fetchDbStats} className="text-slate-500">
+              <RefreshCw className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Camera viewport */}
+      <div className="flex-1 relative bg-black">
+        <video
+          ref={videoRef}
+          playsInline
+          muted
+          autoPlay
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+
+        {/* Scan frame overlay */}
+        {cameraActive && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="w-64 h-64 relative">
+              <div className="absolute top-0 left-0 w-10 h-10 border-t-[3px] border-l-[3px] border-cyan-400 rounded-tl-xl" />
+              <div className="absolute top-0 right-0 w-10 h-10 border-t-[3px] border-r-[3px] border-cyan-400 rounded-tr-xl" />
+              <div className="absolute bottom-0 left-0 w-10 h-10 border-b-[3px] border-l-[3px] border-cyan-400 rounded-bl-xl" />
+              <div className="absolute bottom-0 right-0 w-10 h-10 border-b-[3px] border-r-[3px] border-cyan-400 rounded-br-xl" />
+              <div className="absolute top-1/2 left-4 right-4 h-[2px] bg-cyan-400/40 animate-pulse" />
+            </div>
           </div>
         )}
 
-        <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-2xl p-6">
-          <h3 className="font-bold mb-4 text-cyan-400">Scanner Instructies</h3>
-          <ul className="space-y-2 text-sm text-slate-300">
-            <li className="flex items-start space-x-2">
-              <span className="text-cyan-400 mt-1">•</span>
-              <span>Houd de QR-code voor de camera totdat deze wordt gescand</span>
-            </li>
-            <li className="flex items-start space-x-2">
-              <span className="text-cyan-400 mt-1">•</span>
-              <span>Groene melding = ticket geldig, persoon mag binnen</span>
-            </li>
-            <li className="flex items-start space-x-2">
-              <span className="text-cyan-400 mt-1">•</span>
-              <span>Oranje melding = ticket al gescand, roep supervisor</span>
-            </li>
-            <li className="flex items-start space-x-2">
-              <span className="text-cyan-400 mt-1">•</span>
-              <span>Rode melding = ticket ongeldig, geen toegang</span>
-            </li>
-            <li className="flex items-start space-x-2">
-              <span className="text-cyan-400 mt-1">•</span>
-              <span>Bij problemen: noteer ticketnummer en roep supervisor</span>
-            </li>
-          </ul>
-        </div>
+        {/* Camera error */}
+        {cameraError && !cameraActive && (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-900/95 px-6">
+            <div className="text-center max-w-sm">
+              <AlertIcon className="w-12 h-12 text-orange-400 mx-auto mb-3" />
+              <p className="text-white font-medium mb-2 text-sm">{cameraError}</p>
+              <button onClick={startCamera} className="mt-4 px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 rounded-lg font-semibold text-white text-sm transition-colors">
+                Opnieuw proberen
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Camera not started */}
+        {!cameraActive && !cameraError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
+            <button onClick={startCamera} className="flex flex-col items-center gap-3 px-8 py-6 bg-cyan-600 hover:bg-cyan-500 rounded-2xl font-semibold text-white transition-colors">
+              <QrCode className="w-10 h-10" />
+              <span>Start Scanner</span>
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Manual input (toggled) */}
+      {showManual && (
+        <div className="relative z-10 bg-slate-900/95 border-t border-slate-700 px-4 py-3">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={manualCode}
+              onChange={(e) => setManualCode(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleManualScan()}
+              placeholder="Plak QR code data..."
+              className="flex-1 px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm font-mono focus:outline-none focus:border-cyan-500"
+            />
+            <button
+              onClick={handleManualScan}
+              disabled={!manualCode.trim() || processing}
+              className="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 rounded-lg font-semibold text-white text-sm transition-colors"
+            >
+              Scan
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom result panel */}
+      {lastResult && (
+        <div className={`relative z-10 border-t px-4 py-4 pb-[env(safe-area-inset-bottom)] ${
+          lastResult.valid
+            ? 'bg-green-950/95 border-green-800/50'
+            : lastResult.result === 'already_used'
+            ? 'bg-orange-950/95 border-orange-800/50'
+            : 'bg-red-950/95 border-red-800/50'
+        }`}>
+          <div className="flex items-center gap-3">
+            {lastResult.valid ? (
+              <CheckCircle className="w-10 h-10 text-green-400 shrink-0" />
+            ) : lastResult.result === 'already_used' ? (
+              <AlertTriangle className="w-10 h-10 text-orange-400 shrink-0" />
+            ) : (
+              <XCircle className="w-10 h-10 text-red-400 shrink-0" />
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-white text-lg leading-tight truncate">{lastResult.message}</p>
+              {lastResult.ticket && (
+                <p className="text-sm text-white/70 truncate mt-0.5">
+                  {lastResult.ticket.holder || lastResult.ticket.number}
+                  {lastResult.ticket.type && ` \u2022 ${lastResult.ticket.type}`}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
