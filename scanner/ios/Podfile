@@ -62,5 +62,17 @@ target 'StageNationScanner\' do
         end
       end
     end
+
+    # Fix fmt library build error with Xcode 16+ (stricter consteval handling)
+    installer.pods_project.targets.each do |target|
+      if target.name == 'fmt' || target.name == 'glog'
+        target.build_configurations.each do |config|
+          flags = config.build_settings['OTHER_CPLUSPLUSFLAGS'] || ['$(inherited)']
+          flags = [flags] if flags.is_a?(String)
+          flags << '-Wno-error=consteval'
+          config.build_settings['OTHER_CPLUSPLUSFLAGS'] = flags
+        end
+      end
+    end
   end
 end
