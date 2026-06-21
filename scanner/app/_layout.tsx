@@ -6,10 +6,8 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   useEffect(() => {
-    const fallback = setTimeout(() => {
-      SplashScreen.hideAsync().catch(() => {});
-    }, 1500);
-    return () => clearTimeout(fallback);
+    // Hide splash immediately on mount - don't wait for anything
+    SplashScreen.hideAsync().catch(() => {});
   }, []);
 
   return (

@@ -1,40 +1,34 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Session } from '@supabase/supabase-js';
 
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const resolved = useRef(false);
 
   useEffect(() => {
     let mounted = true;
-    let resolved = false;
 
-    const resolve = (s: Session | null) => {
-      if (!mounted || resolved) return;
-      resolved = true;
+    const done = (s: Session | null) => {
+      if (!mounted || resolved.current) return;
+      resolved.current = true;
       setSession(s);
       setLoading(false);
     };
 
-    // Hard timeout: never hang longer than 2 seconds
-    const timeout = setTimeout(() => {
-      console.warn('[StageNation] Auth check timed out after 2s, continuing without session');
-      resolve(null);
-    }, 2000);
+    // HARD 1s timeout - on real devices SecureStore can hang forever
+    const timer = setTimeout(() => done(null), 1000);
 
     supabase.auth.getSession()
-      .then(({ data: { session } }) => resolve(session))
-      .catch((err) => {
-        console.warn('[StageNation] Auth getSession failed:', err?.message);
-        resolve(null);
-      });
+      .then(({ data: { session } }) => done(session))
+      .catch(() => done(null));
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, sess) => {
       if (mounted) {
-        setSession(session);
-        if (!resolved) {
-          resolved = true;
+        setSession(sess);
+        if (!resolved.current) {
+          resolved.current = true;
           setLoading(false);
         }
       }
@@ -42,7 +36,7 @@ export function useAuth() {
 
     return () => {
       mounted = false;
-      clearTimeout(timeout);
+      clearTimeout(timer);
       subscription.unsubscribe();
     };
   }, []);

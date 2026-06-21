@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import * as SplashScreen from 'expo-splash-screen';
 import { useAuth } from '../src/hooks/useAuth';
 import LoginScreen from '../src/screens/LoginScreen';
 import EventSelectScreen from '../src/screens/EventSelectScreen';
@@ -22,27 +21,8 @@ type AppState =
 export default function App() {
   const { session, loading, signIn, signOut } = useAuth();
   const [state, setState] = useState<AppState>({ screen: 'events' });
-  const [appReady, setAppReady] = useState(false);
 
-  useEffect(() => {
-    if (!loading) {
-      setAppReady(true);
-      SplashScreen.hideAsync().catch(() => {});
-    }
-  }, [loading]);
-
-  // Absolute fallback: if still not ready after 2s, force it
-  useEffect(() => {
-    const emergency = setTimeout(() => {
-      if (!appReady) {
-        setAppReady(true);
-        SplashScreen.hideAsync().catch(() => {});
-      }
-    }, 2000);
-    return () => clearTimeout(emergency);
-  }, []);
-
-  if (!appReady) {
+  if (loading) {
     return (
       <View style={styles.loading}>
         <View style={styles.loadingInner}>
