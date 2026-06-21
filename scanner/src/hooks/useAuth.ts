@@ -17,11 +17,11 @@ export function useAuth() {
       setLoading(false);
     };
 
-    // HARD 1s timeout - on real devices SecureStore can hang forever
-    const timer = setTimeout(() => done(null), 1000);
+    // Hard timeout: if auth doesn't resolve in 1.5s, show login
+    const timer = setTimeout(() => done(null), 1500);
 
     supabase.auth.getSession()
-      .then(({ data: { session } }) => done(session))
+      .then(({ data }) => done(data.session))
       .catch(() => done(null));
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, sess) => {
