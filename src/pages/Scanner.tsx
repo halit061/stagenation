@@ -1,5 +1,6 @@
 import { QrCode, CheckCircle, XCircle, AlertTriangle, AlertCircle as AlertIcon, LogOut, RefreshCw, Zap, Volume2, VolumeX } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import jsQR from 'jsqr';
 import { supabase } from '../lib/supabaseClient';
 import { decodeQRData } from '../lib/crypto';
 import { useAuth } from '../contexts/AuthContext';
@@ -37,8 +38,8 @@ export function Scanner() {
   const [showManual, setShowManual] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const detectorRef = useRef<BarcodeDetector | null>(null);
   const scanningRef = useRef(false);
   const lastScannedRef = useRef<string>('');
   const lastScannedTimeRef = useRef<number>(0);
@@ -178,7 +179,7 @@ export function Scanner() {
   }, [processing, user, showFlash, vibrate, fetchDbStats]);
 
   const scanLoop = useCallback(() => {
-    if (!scanningRef.current || !videoRef.current || !detectorRef.current) return;
+    if (!scanningRef.current || !videoRef.current || !canvasRef.current) return;
 
     const video = videoRef.current;
     if (video.readyState < video.HAVE_ENOUGH_DATA) {
@@ -186,38 +187,39 @@ export function Scanner() {
       return;
     }
 
-    detectorRef.current.detect(video).then((barcodes: DetectedBarcode[]) => {
-      if (barcodes.length > 0 && scanningRef.current) {
-        const code = barcodes[0].rawValue;
-        const now = Date.now();
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) {
+      animFrameRef.current = requestAnimationFrame(scanLoop);
+      return;
+    }
 
-        if (code !== lastScannedRef.current || now - lastScannedTimeRef.current > 3000) {
-          lastScannedRef.current = code;
-          lastScannedTimeRef.current = now;
-          validateTicket(code);
-        }
-      }
-      if (scanningRef.current) {
-        animFrameRef.current = requestAnimationFrame(scanLoop);
-      }
-    }).catch(() => {
-      if (scanningRef.current) {
-        animFrameRef.current = requestAnimationFrame(scanLoop);
-      }
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height, {
+      inversionAttempts: 'dontInvert',
     });
+
+    if (code && code.data) {
+      const now = Date.now();
+      if (code.data !== lastScannedRef.current || now - lastScannedTimeRef.current > 3000) {
+        lastScannedRef.current = code.data;
+        lastScannedTimeRef.current = now;
+        validateTicket(code.data);
+      }
+    }
+
+    if (scanningRef.current) {
+      animFrameRef.current = requestAnimationFrame(scanLoop);
+    }
   }, [validateTicket]);
 
   const startCamera = useCallback(async () => {
     try {
       setCameraError(null);
-
-      if (!('BarcodeDetector' in window)) {
-        setCameraError('BarcodeDetector niet ondersteund. Gebruik Safari (iOS 16.4+) of Chrome (Android).');
-        setShowManual(true);
-        return;
-      }
-
-      detectorRef.current = new BarcodeDetector({ formats: ['qr_code'] });
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -235,7 +237,7 @@ export function Scanner() {
       animFrameRef.current = requestAnimationFrame(scanLoop);
     } catch (err: any) {
       if (err.name === 'NotAllowedError') {
-        setCameraError('Camera toegang geweigerd. Geef toestemming in browser instellingen.');
+        setCameraError('Camera toegang geweigerd. Geef toestemming in je browser instellingen.');
       } else if (err.name === 'NotFoundError') {
         setCameraError('Geen camera gevonden.');
       } else {
@@ -315,6 +317,9 @@ export function Scanner() {
 
   return (
     <div className="fixed inset-0 bg-black flex flex-col overflow-hidden">
+      {/* Hidden canvas for QR processing */}
+      <canvas ref={canvasRef} className="hidden" />
+
       {/* Full-screen flash */}
       {flashColor && (
         <div className={`absolute inset-0 z-50 pointer-events-none transition-opacity duration-300 ${
@@ -451,7 +456,7 @@ export function Scanner() {
 
       {/* Bottom result panel */}
       {lastResult && (
-        <div className={`relative z-10 border-t px-4 py-4 pb-[env(safe-area-inset-bottom)] ${
+        <div className={`relative z-10 border-t px-4 py-4 pb-[calc(env(safe-area-inset-bottom)+16px)] ${
           lastResult.valid
             ? 'bg-green-950/95 border-green-800/50'
             : lastResult.result === 'already_used'
