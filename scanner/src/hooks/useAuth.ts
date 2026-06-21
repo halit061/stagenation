@@ -8,31 +8,35 @@ export function useAuth() {
 
   useEffect(() => {
     let mounted = true;
+    let resolved = false;
 
+    const resolve = (s: Session | null) => {
+      if (!mounted || resolved) return;
+      resolved = true;
+      setSession(s);
+      setLoading(false);
+    };
+
+    // Hard timeout: never hang longer than 2 seconds
     const timeout = setTimeout(() => {
-      if (mounted && loading) {
-        console.warn('[StageNation] Auth check timed out after 5s, continuing without session');
-        setLoading(false);
-      }
-    }, 5000);
+      console.warn('[StageNation] Auth check timed out after 2s, continuing without session');
+      resolve(null);
+    }, 2000);
 
     supabase.auth.getSession()
-      .then(({ data: { session } }) => {
-        if (mounted) {
-          setSession(session);
-          setLoading(false);
-        }
-      })
+      .then(({ data: { session } }) => resolve(session))
       .catch((err) => {
         console.warn('[StageNation] Auth getSession failed:', err?.message);
-        if (mounted) {
-          setLoading(false);
-        }
+        resolve(null);
       });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (mounted) {
         setSession(session);
+        if (!resolved) {
+          resolved = true;
+          setLoading(false);
+        }
       }
     });
 
