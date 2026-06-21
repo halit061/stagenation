@@ -1,5 +1,5 @@
 import { QrCode, CheckCircle, XCircle, AlertTriangle, AlertCircle as AlertIcon, LogOut, RefreshCw, Zap, Volume2, VolumeX } from 'lucide-react';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import jsQR from 'jsqr';
 import { supabase } from '../lib/supabaseClient';
 import { decodeQRData } from '../lib/crypto';
@@ -36,6 +36,7 @@ export function Scanner() {
   const [processing, setProcessing] = useState(false);
   const [manualCode, setManualCode] = useState('');
   const [showManual, setShowManual] = useState(false);
+  const [scanCount, setScanCount] = useState(0);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -44,44 +45,20 @@ export function Scanner() {
   const lastScannedRef = useRef<string>('');
   const lastScannedTimeRef = useRef<number>(0);
   const processingRef = useRef(false);
+  const userRef = useRef(user);
+  userRef.current = user;
 
-  const fetchDbStats = useCallback(async () => {
-    try {
-      const { count: totalCount } = await supabase
-        .from('tickets')
-        .select('id', { count: 'exact', head: true })
-        .in('status', ['valid', 'used']);
-
-      const { count: usedCount } = await supabase
-        .from('tickets')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'used');
-
-      const { count: validCount } = await supabase
-        .from('tickets')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'valid');
-
-      setDbStats({
-        total: totalCount ?? 0,
-        used: usedCount ?? 0,
-        valid: validCount ?? 0,
+  function fetchDbStats() {
+    supabase.from('tickets').select('id', { count: 'exact', head: true }).in('status', ['valid', 'used']).then(({ count: totalCount }) => {
+      supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('status', 'used').then(({ count: usedCount }) => {
+        supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('status', 'valid').then(({ count: validCount }) => {
+          setDbStats({ total: totalCount ?? 0, used: usedCount ?? 0, valid: validCount ?? 0 });
+        });
       });
-    } catch {
-      // silent
-    }
-  }, []);
+    });
+  }
 
-  const vibrate = useCallback((pattern: number[]) => {
-    if (navigator.vibrate) navigator.vibrate(pattern);
-  }, []);
-
-  const showFlash = useCallback((color: 'green' | 'orange' | 'red') => {
-    setFlashColor(color);
-    setTimeout(() => setFlashColor(null), 600);
-  }, []);
-
-  const validateTicket = useCallback(async (qrData: string) => {
+  async function doValidate(qrData: string) {
     processingRef.current = true;
     setProcessing(true);
 
@@ -91,7 +68,7 @@ export function Scanner() {
       if (!session.session) throw new Error('Niet ingelogd');
 
       const decoded = decodeQRData(qrData);
-      const deviceId = `pwa-${user?.id?.substring(0, 8) || 'unknown'}`;
+      const deviceId = `pwa-${userRef.current?.id?.substring(0, 8) || 'unknown'}`;
       let response: Response;
 
       if (decoded) {
@@ -117,7 +94,7 @@ export function Scanner() {
           },
           body: JSON.stringify({
             code: qrData.trim(),
-            scanner_user_id: user?.id,
+            scanner_user_id: userRef.current?.id,
             device_info: { device: deviceId },
           }),
         });
@@ -153,87 +130,94 @@ export function Scanner() {
       }));
 
       if (result.valid) {
-        showFlash('green');
-        vibrate([100, 50, 100]);
+        setFlashColor('green');
+        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
         fetchDbStats();
       } else if (result.result === 'already_used') {
-        showFlash('orange');
-        vibrate([300, 100, 300]);
+        setFlashColor('orange');
+        if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
       } else {
-        showFlash('red');
-        vibrate([500]);
+        setFlashColor('red');
+        if (navigator.vibrate) navigator.vibrate([500]);
       }
+      setTimeout(() => setFlashColor(null), 600);
     } catch (error) {
-      const errorResult: ScanResult = {
+      setLastResult({
         valid: false,
         result: 'invalid',
         message: error instanceof Error ? error.message : 'Onbekende fout',
-      };
-      setLastResult(errorResult);
+      });
       setStats(prev => ({ ...prev, scanned: prev.scanned + 1, invalid: prev.invalid + 1 }));
-      showFlash('red');
-      vibrate([500]);
+      setFlashColor('red');
+      if (navigator.vibrate) navigator.vibrate([500]);
+      setTimeout(() => setFlashColor(null), 600);
     } finally {
       setProcessing(false);
       processingRef.current = false;
     }
-  }, [user, showFlash, vibrate, fetchDbStats]);
+  }
 
-  const scanFrame = useCallback(() => {
-    if (!videoRef.current || !canvasRef.current || processingRef.current) return;
+  function startScanning() {
+    if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
 
-    const video = videoRef.current;
-    if (video.readyState < video.HAVE_ENOUGH_DATA) return;
+    scanIntervalRef.current = window.setInterval(() => {
+      if (processingRef.current) return;
 
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return;
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (!video || !canvas) return;
+      if (video.readyState < video.HAVE_ENOUGH_DATA) return;
 
-    const scanWidth = 480;
-    const scale = scanWidth / video.videoWidth;
-    const scanHeight = Math.round(video.videoHeight * scale);
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      if (!vw || !vh) return;
 
-    canvas.width = scanWidth;
-    canvas.height = scanHeight;
-    ctx.drawImage(video, 0, 0, scanWidth, scanHeight);
+      const w = Math.min(vw, 640);
+      const h = Math.round((vh / vw) * w);
 
-    const imageData = ctx.getImageData(0, 0, scanWidth, scanHeight);
-    const code = jsQR(imageData.data, imageData.width, imageData.height, {
-      inversionAttempts: 'attemptBoth',
-    });
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.drawImage(video, 0, 0, w, h);
 
-    if (code && code.data) {
-      const now = Date.now();
-      if (code.data !== lastScannedRef.current || now - lastScannedTimeRef.current > 3000) {
-        lastScannedRef.current = code.data;
-        lastScannedTimeRef.current = now;
-        processingRef.current = true;
-        setProcessing(true);
-        validateTicket(code.data);
+      const imageData = ctx.getImageData(0, 0, w, h);
+      const code = jsQR(imageData.data, w, h, { inversionAttempts: 'attemptBoth' });
+
+      setScanCount(c => c + 1);
+
+      if (code && code.data) {
+        const now = Date.now();
+        if (code.data !== lastScannedRef.current || now - lastScannedTimeRef.current > 3000) {
+          lastScannedRef.current = code.data;
+          lastScannedTimeRef.current = now;
+          doValidate(code.data);
+        }
       }
-    }
-  }, [validateTicket]);
+    }, 200);
+  }
 
-  const startCamera = useCallback(async () => {
+  async function startCamera() {
     try {
       setCameraError(null);
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
       });
 
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute('playsinline', 'true');
         await videoRef.current.play();
       }
 
       setCameraActive(true);
-      scanIntervalRef.current = window.setInterval(scanFrame, 150);
+      startScanning();
     } catch (err: any) {
       if (err.name === 'NotAllowedError') {
-        setCameraError('Camera toegang geweigerd. Geef toestemming in je browser instellingen.');
+        setCameraError('Camera toegang geweigerd. Geef toestemming in Safari instellingen.');
       } else if (err.name === 'NotFoundError') {
         setCameraError('Geen camera gevonden.');
       } else {
@@ -241,17 +225,20 @@ export function Scanner() {
       }
       setShowManual(true);
     }
-  }, [scanFrame]);
+  }
 
-  const stopCamera = useCallback(() => {
-    clearInterval(scanIntervalRef.current);
+  function stopCamera() {
+    if (scanIntervalRef.current) {
+      clearInterval(scanIntervalRef.current);
+      scanIntervalRef.current = 0;
+    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
     if (videoRef.current) videoRef.current.srcObject = null;
     setCameraActive(false);
-  }, []);
+  }
 
   useEffect(() => {
     if (user && isScanner()) {
@@ -265,19 +252,13 @@ export function Scanner() {
     const handleVisibility = () => {
       if (document.hidden) {
         stopCamera();
-      } else if (user && isScanner()) {
+      } else if (userRef.current && isScanner()) {
         startCamera();
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [user, startCamera, stopCamera, isScanner]);
-
-  const handleManualScan = async () => {
-    if (!manualCode.trim()) return;
-    await validateTicket(manualCode.trim());
-    setManualCode('');
-  };
+  }, []);
 
   if (authLoading) {
     return (
@@ -312,14 +293,12 @@ export function Scanner() {
 
   return (
     <div className="fixed inset-0 bg-black flex flex-col overflow-hidden">
-      {/* Hidden canvas for QR processing */}
-      <canvas ref={canvasRef} className="hidden" />
+      <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-      {/* Full-screen flash */}
       {flashColor && (
-        <div className={`absolute inset-0 z-50 pointer-events-none transition-opacity duration-300 ${
-          flashColor === 'green' ? 'bg-green-500/25' :
-          flashColor === 'orange' ? 'bg-orange-500/25' : 'bg-red-500/25'
+        <div className={`absolute inset-0 z-50 pointer-events-none ${
+          flashColor === 'green' ? 'bg-green-500/30' :
+          flashColor === 'orange' ? 'bg-orange-500/30' : 'bg-red-500/30'
         }`} />
       )}
 
@@ -328,8 +307,9 @@ export function Scanner() {
         <div className="flex items-center justify-between pt-3 mb-3">
           <div className="flex items-center gap-2">
             <QrCode className="w-5 h-5 text-cyan-400" />
-            <span className="font-bold text-white text-sm">StageNation Scanner</span>
+            <span className="font-bold text-white text-sm">Scanner</span>
             {processing && <Zap className="w-4 h-4 text-yellow-400 animate-pulse" />}
+            <span className="text-[10px] text-slate-600 font-mono">{scanCount}</span>
           </div>
           <div className="flex items-center gap-1">
             <button onClick={() => setSoundEnabled(!soundEnabled)} className="p-2 rounded-lg text-slate-400 hover:text-white">
@@ -344,7 +324,6 @@ export function Scanner() {
           </div>
         </div>
 
-        {/* Stats row */}
         <div className="grid grid-cols-3 gap-2">
           <div className="bg-slate-800/80 rounded-lg px-2 py-1.5 text-center">
             <div className="text-base font-bold text-cyan-400 leading-tight">{stats.scanned}</div>
@@ -360,7 +339,6 @@ export function Scanner() {
           </div>
         </div>
 
-        {/* Progress bar */}
         {dbStats && dbStats.total > 0 && (
           <div className="mt-2 flex items-center gap-2">
             <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
@@ -379,7 +357,7 @@ export function Scanner() {
         )}
       </div>
 
-      {/* Camera viewport */}
+      {/* Camera */}
       <div className="flex-1 relative bg-black">
         <video
           ref={videoRef}
@@ -387,9 +365,9 @@ export function Scanner() {
           muted
           autoPlay
           className="absolute inset-0 w-full h-full object-cover"
+          style={{ transform: 'translateZ(0)' }}
         />
 
-        {/* Scan frame overlay */}
         {cameraActive && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="w-64 h-64 relative">
@@ -397,12 +375,11 @@ export function Scanner() {
               <div className="absolute top-0 right-0 w-10 h-10 border-t-[3px] border-r-[3px] border-cyan-400 rounded-tr-xl" />
               <div className="absolute bottom-0 left-0 w-10 h-10 border-b-[3px] border-l-[3px] border-cyan-400 rounded-bl-xl" />
               <div className="absolute bottom-0 right-0 w-10 h-10 border-b-[3px] border-r-[3px] border-cyan-400 rounded-br-xl" />
-              <div className="absolute top-1/2 left-4 right-4 h-[2px] bg-cyan-400/40 animate-pulse" />
+              <div className="absolute top-1/2 left-4 right-4 h-[2px] bg-cyan-400/50 animate-pulse" />
             </div>
           </div>
         )}
 
-        {/* Camera error */}
         {cameraError && !cameraActive && (
           <div className="absolute inset-0 flex items-center justify-center bg-slate-900/95 px-6">
             <div className="text-center max-w-sm">
@@ -415,7 +392,6 @@ export function Scanner() {
           </div>
         )}
 
-        {/* Camera not started */}
         {!cameraActive && !cameraError && (
           <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
             <button onClick={startCamera} className="flex flex-col items-center gap-3 px-8 py-6 bg-cyan-600 hover:bg-cyan-500 rounded-2xl font-semibold text-white transition-colors">
@@ -426,7 +402,6 @@ export function Scanner() {
         )}
       </div>
 
-      {/* Manual input (toggled) */}
       {showManual && (
         <div className="relative z-10 bg-slate-900/95 border-t border-slate-700 px-4 py-3">
           <div className="flex gap-2">
@@ -434,12 +409,12 @@ export function Scanner() {
               type="text"
               value={manualCode}
               onChange={(e) => setManualCode(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleManualScan()}
+              onKeyDown={(e) => { if (e.key === 'Enter' && manualCode.trim()) { doValidate(manualCode.trim()); setManualCode(''); } }}
               placeholder="Plak QR code data..."
               className="flex-1 px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm font-mono focus:outline-none focus:border-cyan-500"
             />
             <button
-              onClick={handleManualScan}
+              onClick={() => { if (manualCode.trim()) { doValidate(manualCode.trim()); setManualCode(''); } }}
               disabled={!manualCode.trim() || processing}
               className="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 rounded-lg font-semibold text-white text-sm transition-colors"
             >
@@ -449,7 +424,6 @@ export function Scanner() {
         </div>
       )}
 
-      {/* Bottom result panel */}
       {lastResult && (
         <div className={`relative z-10 border-t px-4 py-4 pb-[calc(env(safe-area-inset-bottom)+16px)] ${
           lastResult.valid
