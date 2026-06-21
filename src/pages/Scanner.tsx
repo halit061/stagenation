@@ -40,10 +40,10 @@ export function Scanner() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const scanningRef = useRef(false);
+  const scanIntervalRef = useRef<number>(0);
   const lastScannedRef = useRef<string>('');
   const lastScannedTimeRef = useRef<number>(0);
-  const animFrameRef = useRef<number>(0);
+  const processingRef = useRef(false);
 
   const fetchDbStats = useCallback(async () => {
     try {
@@ -82,7 +82,7 @@ export function Scanner() {
   }, []);
 
   const validateTicket = useCallback(async (qrData: string) => {
-    if (processing) return;
+    processingRef.current = true;
     setProcessing(true);
 
     try {
@@ -175,32 +175,31 @@ export function Scanner() {
       vibrate([500]);
     } finally {
       setProcessing(false);
+      processingRef.current = false;
     }
-  }, [processing, user, showFlash, vibrate, fetchDbStats]);
+  }, [user, showFlash, vibrate, fetchDbStats]);
 
-  const scanLoop = useCallback(() => {
-    if (!scanningRef.current || !videoRef.current || !canvasRef.current) return;
+  const scanFrame = useCallback(() => {
+    if (!videoRef.current || !canvasRef.current || processingRef.current) return;
 
     const video = videoRef.current;
-    if (video.readyState < video.HAVE_ENOUGH_DATA) {
-      animFrameRef.current = requestAnimationFrame(scanLoop);
-      return;
-    }
+    if (video.readyState < video.HAVE_ENOUGH_DATA) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) {
-      animFrameRef.current = requestAnimationFrame(scanLoop);
-      return;
-    }
+    if (!ctx) return;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const scanWidth = 480;
+    const scale = scanWidth / video.videoWidth;
+    const scanHeight = Math.round(video.videoHeight * scale);
 
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    canvas.width = scanWidth;
+    canvas.height = scanHeight;
+    ctx.drawImage(video, 0, 0, scanWidth, scanHeight);
+
+    const imageData = ctx.getImageData(0, 0, scanWidth, scanHeight);
     const code = jsQR(imageData.data, imageData.width, imageData.height, {
-      inversionAttempts: 'dontInvert',
+      inversionAttempts: 'attemptBoth',
     });
 
     if (code && code.data) {
@@ -208,12 +207,10 @@ export function Scanner() {
       if (code.data !== lastScannedRef.current || now - lastScannedTimeRef.current > 3000) {
         lastScannedRef.current = code.data;
         lastScannedTimeRef.current = now;
+        processingRef.current = true;
+        setProcessing(true);
         validateTicket(code.data);
       }
-    }
-
-    if (scanningRef.current) {
-      animFrameRef.current = requestAnimationFrame(scanLoop);
     }
   }, [validateTicket]);
 
@@ -233,8 +230,7 @@ export function Scanner() {
       }
 
       setCameraActive(true);
-      scanningRef.current = true;
-      animFrameRef.current = requestAnimationFrame(scanLoop);
+      scanIntervalRef.current = window.setInterval(scanFrame, 150);
     } catch (err: any) {
       if (err.name === 'NotAllowedError') {
         setCameraError('Camera toegang geweigerd. Geef toestemming in je browser instellingen.');
@@ -245,11 +241,10 @@ export function Scanner() {
       }
       setShowManual(true);
     }
-  }, [scanLoop]);
+  }, [scanFrame]);
 
   const stopCamera = useCallback(() => {
-    scanningRef.current = false;
-    cancelAnimationFrame(animFrameRef.current);
+    clearInterval(scanIntervalRef.current);
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
