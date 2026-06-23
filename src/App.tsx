@@ -30,6 +30,7 @@ const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy').then(m => ({ de
 const Archive = lazy(() => import('./pages/Archive').then(m => ({ default: m.Archive })));
 const TicketView = lazy(() => import('./pages/TicketView').then(m => ({ default: m.TicketView })));
 const SuperAdminReset = lazy(() => import('./pages/SuperAdminReset').then(m => ({ default: m.SuperAdminReset })));
+const BulkScanMarker = lazy(() => import('./pages/BulkScanMarker').then(m => ({ default: m.BulkScanMarker })));
 const SeatPicker = lazy(() => import('./pages/SeatPicker').then(m => ({ default: m.SeatPicker })));
 const SeatCheckout = lazy(() => import('./pages/SeatCheckout').then(m => ({ default: m.SeatCheckout })));
 const SeatConfirmation = lazy(() => import('./pages/SeatConfirmation').then(m => ({ default: m.SeatConfirmation })));
@@ -220,6 +221,8 @@ case 'contact':
         return <Admin onNavigate={navigate} />;
       case 'superadmin':
         return <SuperAdmin onNavigate={navigate} />;
+      case 'bulk-scan':
+        return <BulkScanMarker />;
       case 'mailing':
         return <MailingList />;
       case 'payment-success': {
